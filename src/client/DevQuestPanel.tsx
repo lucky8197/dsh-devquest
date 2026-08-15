@@ -149,11 +149,11 @@ function clampPanelPos(left: number, top: number, width: number, height: number)
   }
 }
 
-/** 面板卡片（overlay 内容，可拖拽定位）。 */
+/** 面板卡片（overlay 内容，可拖拽定位）。sessionId=当前会话 id，面板数据跟随当前会话的项目。 */
 export function DevQuestPanelCard(
-  props: Pick<DevQuestFooterActionProps, 'useStore' | 'actions' | 't'>,
+  props: Pick<DevQuestFooterActionProps, 'useStore' | 'actions' | 't'> & { sessionId?: string | undefined },
 ): ReactElement {
-  const { useStore, actions, t } = props
+  const { useStore, actions, t, sessionId } = props
   const state: DevQuestUiState = useStore(snapshot => snapshot)
   const [wallOpen, setWallOpen] = useState(false)
   const [category, setCategory] = useState<(typeof CATEGORY_KEYS)[number]>('journey')
@@ -228,7 +228,12 @@ export function DevQuestPanelCard(
     const controller = new AbortController()
     controllerRef.current = controller
     actions.setState('loading', null)
-    void fetch(STATUS_API, { signal: controller.signal }).then(response => {
+    // 显式携带当前会话 id：面板数据跟随用户正在查看的会话所属项目，
+    // 避免 host 侧按「最近活跃」解析时选错项目（不同会话的 seq 不可比）。
+    const query = sessionId !== undefined && sessionId !== ''
+      ? `?session=${encodeURIComponent(sessionId)}`
+      : ''
+    void fetch(`${STATUS_API}${query}`, { signal: controller.signal }).then(response => {
       if (!response.ok) throw new Error(`devquest ${response.status}`)
       return response.json() as Promise<{ ok: boolean; status: DevQuestStatus }>
     }).then(data => {
@@ -238,7 +243,7 @@ export function DevQuestPanelCard(
     }, () => {
       if (!controller.signal.aborted) actions.setState('error', 'transport error')
     })
-  }, [actions])
+  }, [actions, sessionId])
 
   useEffect(() => {
     refresh()
@@ -498,11 +503,15 @@ export function DevQuestFooterAction(props: DevQuestFooterActionProps): ReactEle
 
 /** shell.overlay：浮动面板 + toast 栈。 */
 export function DevQuestOverlay(props: DevQuestOverlayProps): ReactElement {
-  const { useStore, actions, t } = props
+  const { useStore, actions, t, useSessions } = props
   const state: DevQuestUiState = useStore(snapshot => snapshot)
+  // 当前会话 id：面板数据跟随用户正在查看的会话所属项目。
+  const currentSessionId = useSessions(s => s.current)
 
   return <>
-    {state.open && <DevQuestPanelCard useStore={useStore} actions={actions} t={t} />}
+    {state.open && (
+      <DevQuestPanelCard useStore={useStore} actions={actions} t={t} sessionId={currentSessionId} />
+    )}
     {state.toasts.length > 0 && state.status !== null && (
       <div style={toastStackStyle}>
         {state.toasts.map(toast => (
