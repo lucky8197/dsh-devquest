@@ -317,7 +317,7 @@ export function DevQuestPanelCard(
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={titleRowStyle}>
-            <span style={titleTextStyle}>{status.title.zh} {status.title.en}</span>
+            <span style={titleTextStyle}>{status.title.zh}</span>
             <span style={seasonStyle}>{t('dq.season', { season: status.season })}</span>
           </div>
           <div style={xpTrackStyle}>
