@@ -39,10 +39,6 @@ session/event ──► listener ──► engine(纯函数) ──► store(JSO
 - **纯函数计分**：`Action → (XP, 成就判定)` 无副作用，全部可单测
 - **存档本地化**：`~/.dsh/devquest/<cwd-hash>.json`，按项目作用域隔离
 
-## 文档
-
-- [完整开发文档](docs/开发文档.md)（架构 / API 调研 / 数据模型 / 数值 / 成就清单 / 里程碑 / 发布流程）
-
 ## License
 
 BSD-3-Clause
