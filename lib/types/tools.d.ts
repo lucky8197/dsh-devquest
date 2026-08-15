@@ -2,10 +2,10 @@ import type { Context } from '@deepseek-ai/cordis';
 import type { DevQuestStatus } from './types.ts';
 /** 工具依赖（由 index.ts 提供）。 */
 export interface DevQuestToolDeps {
-    /** 查询某 cwd（缺省=当前 agent 会话 cwd）的状态。 */
-    status: (cwd?: string) => Promise<DevQuestStatus>;
-    /** 清空某 cwd 的存档（确认后才执行）。 */
-    reset: (cwd: string) => Promise<{
+    /** 查询全局玩家状态（跨会话/跨项目）。 */
+    status: () => Promise<DevQuestStatus>;
+    /** 重置全局玩家存档（确认后才执行）。 */
+    reset: () => Promise<{
         ok: boolean;
         reset: boolean;
     }>;

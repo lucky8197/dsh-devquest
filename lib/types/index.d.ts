@@ -18,10 +18,8 @@ export declare const inject: readonly ["fs", "sessions", "tools"];
 export interface Config {
     /** 存档根目录（缺省 ~/.dsh/devquest）。 */
     dataDir?: string;
-    /** 赛季名（缺省 2026-S1）。 */
+    /** 赛季固定覆盖（缺省按日期自动推导季度赛季）。 */
     season?: string;
-    /** 浏览器面板不带 cwd 参数时使用的默认目录（缺省进程启动目录）。 */
-    defaultCwd?: string;
     /** 状态接口缓存时长（毫秒）。默认 60000。 */
     cacheTtlMs?: number;
 }

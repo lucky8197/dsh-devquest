@@ -32,10 +32,8 @@ export const inject = ['fs', 'sessions', 'tools'] as const
 export interface Config {
   /** 存档根目录（缺省 ~/.dsh/devquest）。 */
   dataDir?: string
-  /** 赛季名（缺省 2026-S1）。 */
+  /** 赛季固定覆盖（缺省按日期自动推导季度赛季）。 */
   season?: string
-  /** 浏览器面板不带 cwd 参数时使用的默认目录（缺省进程启动目录）。 */
-  defaultCwd?: string
   /** 状态接口缓存时长（毫秒）。默认 60000。 */
   cacheTtlMs?: number
 }
@@ -109,8 +107,7 @@ export function apply(ctx: Context, config: Config = {}): void {
     if (!ending) return
 
     const sessionId = agg.sessionId
-    const cwd = session.header.cwd
-    const key = scopeKey(cwd)
+    const key = scopeKey() // 全局玩家存档（跨会话/跨项目）
     const seq = agg.seenSeq // 当前事件（turn/end）的会话内序号
     const actions = agg.actions // 含本次 turn/end 动作
     agg.actions = [] // 同步清空，避免重复结算
@@ -136,15 +133,15 @@ export function apply(ctx: Context, config: Config = {}): void {
 
   // ---- 2. 工具 ----
   registerDevQuestTools(ctx, {
-    status: async (cwd?: string): Promise<DevQuestStatus> => {
-      const save = await getSave(scopeKey(cwd))
+    status: async (): Promise<DevQuestStatus> => {
+      const save = await getSave(scopeKey())
       return buildStatus(save)
     },
-    reset: async (cwd: string): Promise<{ ok: boolean; reset: boolean }> => {
-      const key = scopeKey(cwd)
+    reset: async (): Promise<{ ok: boolean; reset: boolean }> => {
+      const key = scopeKey()
       saveCache.delete(key)
       try {
-        const reset = await deleteSave(ctx, storeConfig, key)
+        const reset = await deleteSave(ctx, storeConfig)
         return { ok: true, reset }
       } catch (error) {
         console.error('[devquest] reset failed:', error)
@@ -155,12 +152,10 @@ export function apply(ctx: Context, config: Config = {}): void {
 
   // ---- 3. HTTP 路由（可选能力：headless 无 webServer 时自动跳过） ----
   const routes = makeDevQuestRoutes({
-    status: async (cwd: string): Promise<DevQuestStatus> => {
-      const save = await getSave(scopeKey(cwd))
+    status: async (): Promise<DevQuestStatus> => {
+      const save = await getSave(scopeKey())
       return buildStatus(save)
     },
-    sessions: ctx.sessions as never,
-    ...(config.defaultCwd !== undefined ? { defaultCwd: config.defaultCwd } : {}),
     ...(config.cacheTtlMs !== undefined ? { cacheTtlMs: config.cacheTtlMs } : {}),
   })
   ctx.inject(['webServer'], (httpCtx) => {

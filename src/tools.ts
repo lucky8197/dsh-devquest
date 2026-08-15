@@ -8,10 +8,10 @@ import type { DevQuestStatus } from './types.ts'
 
 /** 工具依赖（由 index.ts 提供）。 */
 export interface DevQuestToolDeps {
-  /** 查询某 cwd（缺省=当前 agent 会话 cwd）的状态。 */
-  status: (cwd?: string) => Promise<DevQuestStatus>
-  /** 清空某 cwd 的存档（确认后才执行）。 */
-  reset: (cwd: string) => Promise<{ ok: boolean; reset: boolean }>
+  /** 查询全局玩家状态（跨会话/跨项目）。 */
+  status: () => Promise<DevQuestStatus>
+  /** 重置全局玩家存档（确认后才执行）。 */
+  reset: () => Promise<{ ok: boolean; reset: boolean }>
 }
 
 /** 状态渲染为人类可读文本。 */
@@ -64,10 +64,8 @@ export function registerDevQuestTools(ctx: Context, deps: DevQuestToolDeps): voi
         { type: 'text', text: renderStatus(value as unknown as DevQuestStatus, _args.detail === 'full' ? 'full' : 'summary') },
       ],
     },
-    async execute(args, exec): Promise<Record<string, JsonValue>> {
-      const agentCwd = (exec.agent as { session?: { header?: { cwd?: string } } } | undefined)
-        ?.session?.header?.cwd
-      const status = await deps.status(agentCwd)
+    async execute(args): Promise<Record<string, JsonValue>> {
+      const status = await deps.status()
       return status as unknown as Record<string, JsonValue>
     },
   }))
@@ -87,25 +85,19 @@ export function registerDevQuestTools(ctx: Context, deps: DevQuestToolDeps): voi
         return [{ type: 'text', text: lines.join('\n') }]
       },
     },
-    async execute(_args, exec): Promise<Record<string, JsonValue>> {
-      const agentCwd = (exec.agent as { session?: { header?: { cwd?: string } } } | undefined)
-        ?.session?.header?.cwd
-      const status = await deps.status(agentCwd)
+    async execute(): Promise<Record<string, JsonValue>> {
+      const status = await deps.status()
       return { achievements: status.achievements } as unknown as Record<string, JsonValue>
     },
   }))
 
   ctx.tools.register(defineTool({
     name: 'devquest_reset',
-    description: '清空 DevQuest 存档（重置等级/XP/成就/计数）。危险操作，必须传 confirm=true。',
+    description: '清空 DevQuest 全局存档（重置等级/XP/成就/计数，跨会话统一）。危险操作，必须传 confirm=true。',
     parameters: {
       confirm: {
         type: 'boolean',
         description: '必须为 true 才会执行；false 只返回预览',
-      },
-      cwd: {
-        type: 'string',
-        description: '要重置的项目工作目录；缺省=当前 agent 会话 cwd',
       },
     },
     output: {
@@ -114,19 +106,16 @@ export function registerDevQuestTools(ctx: Context, deps: DevQuestToolDeps): voi
         { type: 'text', text: String(value.message ?? '') },
       ],
     },
-    async execute(args, exec): Promise<Record<string, JsonValue>> {
-      const agentCwd = (exec.agent as { session?: { header?: { cwd?: string } } } | undefined)
-        ?.session?.header?.cwd
-      const target = (args.cwd as string | undefined) ?? agentCwd ?? '<none>'
+    async execute(args): Promise<Record<string, JsonValue>> {
       if (args.confirm !== true) {
-        return { ok: false, message: `未确认：传入 confirm=true 才会清空存档（目标: ${target}）` }
+        return { ok: false, message: '未确认：传入 confirm=true 才会清空 DevQuest 全局存档' }
       }
-      const result = await deps.reset(target)
+      const result = await deps.reset()
       return {
         ok: result.ok,
         message: result.reset
-          ? `✅ DevQuest 存档已重置（目标: ${target}）`
-          : `存档不存在或重置失败（目标: ${target}）`,
+          ? '✅ DevQuest 全局存档已重置'
+          : '存档不存在或重置失败',
       }
     },
   }))

@@ -85,3 +85,10 @@ export declare function applyTurn(save: SaveData, actions: Action[], now?: numbe
 export declare function checkAchievements(defs: AchievementDef[], save: SaveData, now?: number): string[];
 /** 存档迁移/补全：把旧版本或缺失字段的存档升级为当前结构。 */
 export declare function migrateSave(raw: Partial<SaveData>, cwd: string, seasonOverride: string | undefined): SaveData;
+/**
+ * 合并多个存档为全局玩家存档（v0.3：从按项目隔离切换到全局跨会话）。
+ * - 累计类计数器求和，状态类字段取 updatedAt 最新的存档
+ * - 成就取并集（保留最早解锁时间），水位取并集（每个会话的最大 seq）
+ * - 等级从累计 XP 重算
+ */
+export declare function mergeSaves(saves: SaveData[], now?: number): SaveData;

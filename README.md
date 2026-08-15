@@ -1,4 +1,4 @@
-﻿# ⚔️ DevQuest — 把开发变成 RPG
+# ⚔️ DevQuest — 把开发变成 RPG
 
 > 你的每一次 agent 协作，都在升级你的角色。完成回合、调用工具、清空待办、深夜赶工——一切都会化作 **XP**，点亮徽章，推着你从「学徒」一路走向「传说」。
 >
@@ -143,8 +143,8 @@ session/event ──► listener ──► engine(纯函数) ──► store(JSO
 ```
 
 - **事件流驱动**：订阅 `session/event` firehose，不侵入任何 agent 循环
-- **纯函数计分**：`Action → (XP, 成就判定)` 无副作用，35/35 单测全绿
-- **存档本地化**：`~/.dsh/devquest/<项目-hash>.json`，按项目隔离，水位去重防重放
+- **纯函数计分**：`Action → (XP, 成就判定)` 无副作用，48/48 单测全绿
+- **全局存档**：`~/.dsh/devquest/player.json`，**跨会话跨项目统一进度**（旧版按项目隔离的存档会自动合并），水位去重防重放
 
 ## 📄 License
 

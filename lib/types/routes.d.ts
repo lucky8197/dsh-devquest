@@ -4,19 +4,8 @@ import type { DevQuestStatus } from './types.ts';
 export declare const STATUS_API_PREFIX = "/api/devquest";
 /** 路由依赖。 */
 export interface DevQuestRoutesConfig {
-    /** 按 cwd 取状态（读档 + 组装视图）。 */
-    status: (cwd: string) => Promise<DevQuestStatus>;
-    /** 会话存储：`session=<id>` 参数存在时用它解析当前会话工作目录。 */
-    sessions?: {
-        get(id: string): {
-            header: {
-                cwd?: string;
-            };
-        } | undefined;
-        list(): unknown[];
-    };
-    /** 默认目录（cwd/session 参数都缺省时使用）。 */
-    defaultCwd?: string;
+    /** 取全局玩家状态（读档 + 组装视图）。 */
+    status: () => Promise<DevQuestStatus>;
     /** 结果缓存时长（毫秒）。默认 60s。 */
     cacheTtlMs?: number;
 }

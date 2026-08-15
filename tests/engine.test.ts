@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { ACHIEVEMENTS, achievementById } from '../src/achievements.ts'
 import {
   addXp, applyDaily, applyTurn, autoSeasonId, checkAchievements, DAILY_QUEST_POOL, dayKey, ensureDaily, freshSave,
-  migrateSave, rollDailyQuests, titleFor, xpToNext,
+  mergeSaves, migrateSave, rollDailyQuests, titleFor, xpToNext,
 } from '../src/engine.ts'
 import type { Action, SaveData } from '../src/types.ts'
 
@@ -584,4 +584,55 @@ test('seasonOverride：固定赛季不换季', () => {
   save = applyTurn(save, [{ kind: 'turn-completed', turn: 1 }], q3, 'CUSTOM-S1')
   assert.equal(save.player.season, 'CUSTOM-S1') // 固定赛季不随日期换季
   assert.equal(save.player.seasonXp, 10)
+})
+
+// ---------------------------------------------------------------------------
+// 全局存档合并（v0.3：跨会话/跨项目）
+// ---------------------------------------------------------------------------
+
+test('mergeSaves：累计求和、等级重算、成就/水位并集', () => {
+  const t1 = new Date(2026, 6, 20, 10, 0, 0).getTime()
+  const t2 = new Date(2026, 6, 21, 10, 0, 0).getTime()
+  // 存档 A：3 回合 30 XP，解锁 first_turn
+  let a = freshSave('C:/projA', undefined, t1)
+  a = applyTurn(a, [{ kind: 'turn-completed', turn: 1 }], t1)
+  a = applyTurn(a, [{ kind: 'turn-completed', turn: 2 }], t1 + 1000)
+  a = applyTurn(a, [{ kind: 'turn-completed', turn: 3 }], t1 + 2000)
+  a.achievements = { first_turn: { acquiredAt: t1, xp: 50 } }
+  a.lastSeqBySession = { 'sess-a': 100 }
+  // 存档 B：2 回合 20 XP，解锁 first_edit，活跃日更晚
+  let b = freshSave('C:/projB', undefined, t2)
+  b = applyTurn(b, [{ kind: 'turn-completed', turn: 1 }], t2)
+  b = applyTurn(b, [{ kind: 'turn-completed', turn: 2 }], t2 + 1000)
+  b.achievements = { first_edit: { acquiredAt: t2, xp: 50 } }
+  b.lastSeqBySession = { 'sess-b': 50 }
+
+  const merged = mergeSaves([a, b], t2)
+  assert.equal(merged.cwd, 'global')
+  // 累计：5 回合，xpTotal = 30 + 20 = 50
+  assert.equal(merged.counters.turnsCompleted, 5)
+  assert.equal(merged.player.xpTotal, 50)
+  // 等级从累计重算：L1 需 100 → 仍 1 级，xp 50
+  assert.equal(merged.player.level, 1)
+  assert.equal(merged.player.xp, 50)
+  // 成就并集
+  assert.ok(merged.achievements.first_turn !== undefined)
+  assert.ok(merged.achievements.first_edit !== undefined)
+  // 水位并集（各会话最大 seq）
+  assert.equal(merged.lastSeqBySession['sess-a'], 100)
+  assert.equal(merged.lastSeqBySession['sess-b'], 50)
+  // 状态字段取最新存档（活跃日）
+  assert.equal(merged.counters.lastActiveDay, b.counters.lastActiveDay)
+})
+
+test('mergeSaves：等级升级重算', () => {
+  let a = freshSave('C:/projA', undefined, NOW)
+  a.player.xpTotal = 400 // 400 XP：L1(100)+L2(283) = 383 → 升到 3 级剩 17
+  let b = freshSave('C:/projB', undefined, NOW)
+  b.player.xpTotal = 100
+  const merged = mergeSaves([a, b], NOW)
+  assert.equal(merged.player.xpTotal, 500)
+  assert.equal(merged.player.level, 3) // 100+283+520>500，L3 需 520 不够
+  assert.equal(merged.player.xp, 500 - 100 - 283)
+  assert.equal(merged.player.title, '学徒') // level 3 < 5
 })
