@@ -162,7 +162,7 @@ export function DevQuestPanelCard(
   const [pos, setPos] = useState<{ left: number; top: number } | null>(loadPanelPos)
   const [dragging, setDragging] = useState(false)
   const cardRef = useRef<HTMLElement | null>(null)
-  const dragRef = useRef<{ pointerId: number; startX: number; startY: number; baseLeft: number; baseTop: number } | null>(null)
+  const dragRef = useRef<{ pointerId: number; startX: number; startY: number; baseLeft: number; baseTop: number; active: boolean } | null>(null)
 
   // 挂载时校准：窗口尺寸变化后把越界的位置拉回可视区。
   useEffect(() => {
@@ -173,33 +173,47 @@ export function DevQuestPanelCard(
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 只在挂载时校准一次
   }, [])
 
-  const onHeaderPointerDown = (e: ReactPointerEvent<HTMLElement>): void => {
+  /** 拖拽启动阈值（px）：按住移动超过该距离才开始拖——「点住才能拖动」，防误触。 */
+  const DRAG_THRESHOLD = 4
+
+  // 整个面板都是拖拽面：按住非按钮区域并移动超过阈值即开始拖动。
+  const onCardPointerDown = (e: ReactPointerEvent<HTMLElement>): void => {
     if ((e.target as HTMLElement).closest('button') !== null) return // 按钮不触发拖拽
     const card = cardRef.current
     if (card === null) return
     const base = pos ?? { left: window.innerWidth - card.offsetWidth - 16, top: 16 }
-    dragRef.current = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, baseLeft: base.left, baseTop: base.top }
-    card.setPointerCapture(e.pointerId)
-    setDragging(true)
+    dragRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      baseLeft: base.left,
+      baseTop: base.top,
+      active: false, // 尚未越过阈值
+    }
   }
 
-  const onHeaderPointerMove = (e: ReactPointerEvent<HTMLElement>): void => {
+  const onCardPointerMove = (e: ReactPointerEvent<HTMLElement>): void => {
     const d = dragRef.current
     if (d === null || e.pointerId !== d.pointerId || cardRef.current === null) return
+    const dx = e.clientX - d.startX
+    const dy = e.clientY - d.startY
+    if (!d.active) {
+      // 按住但还没移够：不启动拖拽（点击/误触不会移动面板）
+      if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return
+      d.active = true
+      cardRef.current.setPointerCapture(e.pointerId)
+      setDragging(true)
+    }
     const card = cardRef.current
-    const next = clampPanelPos(
-      d.baseLeft + (e.clientX - d.startX),
-      d.baseTop + (e.clientY - d.startY),
-      card.offsetWidth,
-      card.offsetHeight,
-    )
+    const next = clampPanelPos(d.baseLeft + dx, d.baseTop + dy, card.offsetWidth, card.offsetHeight)
     setPos(next)
   }
 
-  const onHeaderPointerUp = (e: ReactPointerEvent<HTMLElement>): void => {
+  const onCardPointerUp = (e: ReactPointerEvent<HTMLElement>): void => {
     const d = dragRef.current
     if (d === null || e.pointerId !== d.pointerId) return
     dragRef.current = null
+    if (!d.active) return // 简单点击（未拖动），不改变位置
     setDragging(false)
     const card = cardRef.current
     if (card === null) return
@@ -217,7 +231,7 @@ export function DevQuestPanelCard(
     }
   }
 
-  const onHeaderPointerCancel = (e: ReactPointerEvent<HTMLElement>): void => {
+  const onCardPointerCancel = (e: ReactPointerEvent<HTMLElement>): void => {
     if (dragRef.current === null || e.pointerId !== dragRef.current.pointerId) return
     dragRef.current = null
     setDragging(false)
@@ -268,14 +282,16 @@ export function DevQuestPanelCard(
     : { right: 16, top: 16 }
 
   if (status === null) {
-    return <section ref={cardRef} style={{ ...cardStyle, ...positionStyle }} data-devquest>
-      <header
-        style={{ ...cardHeaderStyle, ...(dragging ? cardHeaderDraggingStyle : {}) }}
-        onPointerDown={onHeaderPointerDown}
-        onPointerMove={onHeaderPointerMove}
-        onPointerUp={onHeaderPointerUp}
-        onPointerCancel={onHeaderPointerCancel}
-      >
+    return <section
+      ref={cardRef}
+      style={{ ...cardStyle, ...positionStyle, ...(dragging ? cardDraggingStyle : {}) }}
+      data-devquest
+      onPointerDown={onCardPointerDown}
+      onPointerMove={onCardPointerMove}
+      onPointerUp={onCardPointerUp}
+      onPointerCancel={onCardPointerCancel}
+    >
+      <header style={cardHeaderStyle}>
         <span style={{ color: TONE.accent, display: 'inline-flex' }}><SwordIcon size={20} /></span>
         <strong style={cardTitleStyle}>DevQuest</strong>
         <button type="button" onClick={() => actions.setOpen(false)} aria-label={t('dq.close')} style={iconButtonStyle}><CloseIcon /></button>
@@ -292,14 +308,16 @@ export function DevQuestPanelCard(
   const c = status.counters
   const percent = Math.round(levelPercent(status) * 100)
 
-  return <section ref={cardRef} style={{ ...cardStyle, ...positionStyle }} data-devquest>
-    <header
-      style={{ ...cardHeaderStyle, ...(dragging ? cardHeaderDraggingStyle : {}) }}
-      onPointerDown={onHeaderPointerDown}
-      onPointerMove={onHeaderPointerMove}
-      onPointerUp={onHeaderPointerUp}
-      onPointerCancel={onHeaderPointerCancel}
-    >
+  return <section
+    ref={cardRef}
+    style={{ ...cardStyle, ...positionStyle, ...(dragging ? cardDraggingStyle : {}) }}
+    data-devquest
+    onPointerDown={onCardPointerDown}
+    onPointerMove={onCardPointerMove}
+    onPointerUp={onCardPointerUp}
+    onPointerCancel={onCardPointerCancel}
+  >
+    <header style={cardHeaderStyle}>
       <span style={{ color: TONE.accent, display: 'inline-flex' }}><SwordIcon size={20} /></span>
       <strong style={cardTitleStyle}>DevQuest</strong>
       <button type="button" onClick={() => actions.setOpen(false)} aria-label={t('dq.close')} style={iconButtonStyle}><CloseIcon /></button>
@@ -540,6 +558,9 @@ const cardStyle: CSSProperties = {
   pointerEvents: 'auto',
   zIndex: 999,
   fontFamily: 'inherit',
+  // 整个面板都是拖拽面：光标提示可拖，触摸时拦截原生滚动以便拖动。
+  cursor: 'grab',
+  touchAction: 'none',
 }
 
 const cardHeaderStyle: CSSProperties = {
@@ -548,13 +569,10 @@ const cardHeaderStyle: CSSProperties = {
   gap: 8,
   padding: '10px 12px',
   borderBottom: `1px solid ${TONE.border}`,
-  cursor: 'grab',
-  userSelect: 'none',
-  touchAction: 'none',
 }
 
 /** 拖拽中：光标变抓取中，防止误选中文字。 */
-const cardHeaderDraggingStyle: CSSProperties = { cursor: 'grabbing' }
+const cardDraggingStyle: CSSProperties = { cursor: 'grabbing', userSelect: 'none' }
 
 const cardTitleStyle: CSSProperties = { fontSize: 14, color: TONE.text, letterSpacing: 0.2 }
 
