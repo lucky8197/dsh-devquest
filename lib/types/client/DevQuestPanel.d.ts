@@ -12,7 +12,7 @@ import type { createDevQuestStore } from './store.ts';
 import { NS } from './locales.ts';
 export type DevQuestFooterActionProps = PropsRuntime<'sidebar.footer.action'> & PropsStore<ReturnType<typeof createDevQuestStore>> & PropsLocale<typeof NS>;
 export type DevQuestOverlayProps = PropsRuntime<'shell.overlay'> & PropsStore<ReturnType<typeof createDevQuestStore>> & PropsLocale<typeof NS>;
-/** 面板卡片（overlay 内容）。 */
+/** 面板卡片（overlay 内容，可拖拽定位）。 */
 export declare function DevQuestPanelCard(props: Pick<DevQuestFooterActionProps, 'useStore' | 'actions' | 't'>): ReactElement;
 /** 侧边栏底部操作位：DevQuest 入口按钮。wide=false（56px rail）时只显示图标+角标，避免被裁切。 */
 export declare function DevQuestFooterAction(props: DevQuestFooterActionProps): ReactElement;

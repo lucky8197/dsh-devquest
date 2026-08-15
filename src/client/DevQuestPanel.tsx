@@ -6,7 +6,7 @@
  * 数据源：GET /api/devquest/status（host 解析「最近活跃会话」的项目目录）。
  * 主题：跟随 DSH CSS 变量（--dsw-alias-*）。
  */
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactElement } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react'
 import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
@@ -115,7 +115,41 @@ function formatTime(at: number): string {
   return `${h}:${m}`
 }
 
-/** 面板卡片（overlay 内容）。 */
+// ---------------------------------------------------------------------------
+// 面板拖拽：拖动头部可把面板放到任意位置，位置持久化到 localStorage。
+// ---------------------------------------------------------------------------
+
+const PANEL_POS_KEY = 'dsh.devquest.panelPos'
+/** 面板至少保留多少 px 可见（允许大部分拖出屏幕外）。 */
+const MIN_VISIBLE = 60
+
+function loadPanelPos(): { left: number; top: number } | null {
+  try {
+    const raw = localStorage.getItem(PANEL_POS_KEY)
+    if (raw === null) return null
+    const parsed = JSON.parse(raw) as { left?: unknown; top?: unknown }
+    if (typeof parsed.left === 'number' && typeof parsed.top === 'number') {
+      return { left: parsed.left, top: parsed.top }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+/** 限制面板位置：四周至少保留 MIN_VISIBLE 可见，拖不丢。 */
+function clampPanelPos(left: number, top: number, width: number, height: number): { left: number; top: number } {
+  const minLeft = Math.min(MIN_VISIBLE - width, 0)
+  const minTop = Math.min(MIN_VISIBLE - height, 0)
+  const maxLeft = Math.max(MIN_VISIBLE, window.innerWidth - MIN_VISIBLE)
+  const maxTop = Math.max(MIN_VISIBLE, window.innerHeight - MIN_VISIBLE)
+  return {
+    left: Math.min(maxLeft, Math.max(minLeft, left)),
+    top: Math.min(maxTop, Math.max(minTop, top)),
+  }
+}
+
+/** 面板卡片（overlay 内容，可拖拽定位）。 */
 export function DevQuestPanelCard(
   props: Pick<DevQuestFooterActionProps, 'useStore' | 'actions' | 't'>,
 ): ReactElement {
@@ -124,6 +158,70 @@ export function DevQuestPanelCard(
   const [wallOpen, setWallOpen] = useState(false)
   const [category, setCategory] = useState<(typeof CATEGORY_KEYS)[number]>('journey')
   const controllerRef = useRef<AbortController | null>(null)
+  // 面板位置：null = 默认右上角；拖拽后保存到 localStorage。
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(loadPanelPos)
+  const [dragging, setDragging] = useState(false)
+  const cardRef = useRef<HTMLElement | null>(null)
+  const dragRef = useRef<{ pointerId: number; startX: number; startY: number; baseLeft: number; baseTop: number } | null>(null)
+
+  // 挂载时校准：窗口尺寸变化后把越界的位置拉回可视区。
+  useEffect(() => {
+    if (pos === null || cardRef.current === null) return
+    const card = cardRef.current
+    const clamped = clampPanelPos(pos.left, pos.top, card.offsetWidth, card.offsetHeight)
+    if (clamped.left !== pos.left || clamped.top !== pos.top) setPos(clamped)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 只在挂载时校准一次
+  }, [])
+
+  const onHeaderPointerDown = (e: ReactPointerEvent<HTMLElement>): void => {
+    if ((e.target as HTMLElement).closest('button') !== null) return // 按钮不触发拖拽
+    const card = cardRef.current
+    if (card === null) return
+    const base = pos ?? { left: window.innerWidth - card.offsetWidth - 16, top: 16 }
+    dragRef.current = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, baseLeft: base.left, baseTop: base.top }
+    card.setPointerCapture(e.pointerId)
+    setDragging(true)
+  }
+
+  const onHeaderPointerMove = (e: ReactPointerEvent<HTMLElement>): void => {
+    const d = dragRef.current
+    if (d === null || e.pointerId !== d.pointerId || cardRef.current === null) return
+    const card = cardRef.current
+    const next = clampPanelPos(
+      d.baseLeft + (e.clientX - d.startX),
+      d.baseTop + (e.clientY - d.startY),
+      card.offsetWidth,
+      card.offsetHeight,
+    )
+    setPos(next)
+  }
+
+  const onHeaderPointerUp = (e: ReactPointerEvent<HTMLElement>): void => {
+    const d = dragRef.current
+    if (d === null || e.pointerId !== d.pointerId) return
+    dragRef.current = null
+    setDragging(false)
+    const card = cardRef.current
+    if (card === null) return
+    const next = clampPanelPos(
+      d.baseLeft + (e.clientX - d.startX),
+      d.baseTop + (e.clientY - d.startY),
+      card.offsetWidth,
+      card.offsetHeight,
+    )
+    setPos(next)
+    try {
+      localStorage.setItem(PANEL_POS_KEY, JSON.stringify(next))
+    } catch {
+      // 隐私模式等场景忽略持久化失败
+    }
+  }
+
+  const onHeaderPointerCancel = (e: ReactPointerEvent<HTMLElement>): void => {
+    if (dragRef.current === null || e.pointerId !== dragRef.current.pointerId) return
+    dragRef.current = null
+    setDragging(false)
+  }
 
   const refresh = useCallback(() => {
     controllerRef.current?.abort()
@@ -159,13 +257,24 @@ export function DevQuestPanelCard(
   }, [state.open, actions])
 
   const status = state.status
+  // 位置：拖拽后 left/top；未拖过则默认右上角。
+  const positionStyle: CSSProperties = pos !== null
+    ? { left: pos.left, top: pos.top }
+    : { right: 16, top: 16 }
+
   if (status === null) {
-    return <section style={cardStyle} data-devquest>
-      <div style={cardHeaderStyle}>
+    return <section ref={cardRef} style={{ ...cardStyle, ...positionStyle }} data-devquest>
+      <header
+        style={{ ...cardHeaderStyle, ...(dragging ? cardHeaderDraggingStyle : {}) }}
+        onPointerDown={onHeaderPointerDown}
+        onPointerMove={onHeaderPointerMove}
+        onPointerUp={onHeaderPointerUp}
+        onPointerCancel={onHeaderPointerCancel}
+      >
         <span style={{ color: TONE.accent, display: 'inline-flex' }}><SwordIcon size={20} /></span>
         <strong style={cardTitleStyle}>DevQuest</strong>
         <button type="button" onClick={() => actions.setOpen(false)} aria-label={t('dq.close')} style={iconButtonStyle}><CloseIcon /></button>
-      </div>
+      </header>
       <div style={cardBodyStyle}>
         <span style={emptyStyle}>{state.state === 'error' ? `${t('dq.error')} · ${state.error ?? ''}` : t('dq.empty')}</span>
       </div>
@@ -178,8 +287,14 @@ export function DevQuestPanelCard(
   const c = status.counters
   const percent = Math.round(levelPercent(status) * 100)
 
-  return <section style={cardStyle} data-devquest>
-    <header style={cardHeaderStyle}>
+  return <section ref={cardRef} style={{ ...cardStyle, ...positionStyle }} data-devquest>
+    <header
+      style={{ ...cardHeaderStyle, ...(dragging ? cardHeaderDraggingStyle : {}) }}
+      onPointerDown={onHeaderPointerDown}
+      onPointerMove={onHeaderPointerMove}
+      onPointerUp={onHeaderPointerUp}
+      onPointerCancel={onHeaderPointerCancel}
+    >
       <span style={{ color: TONE.accent, display: 'inline-flex' }}><SwordIcon size={20} /></span>
       <strong style={cardTitleStyle}>DevQuest</strong>
       <button type="button" onClick={() => actions.setOpen(false)} aria-label={t('dq.close')} style={iconButtonStyle}><CloseIcon /></button>
@@ -404,8 +519,6 @@ export function DevQuestOverlay(props: DevQuestOverlayProps): ReactElement {
 
 const cardStyle: CSSProperties = {
   position: 'fixed',
-  top: 16,
-  right: 16,
   width: 330,
   maxHeight: 'calc(100vh - 32px)',
   overflow: 'hidden',
@@ -426,7 +539,13 @@ const cardHeaderStyle: CSSProperties = {
   gap: 8,
   padding: '10px 12px',
   borderBottom: `1px solid ${TONE.border}`,
+  cursor: 'grab',
+  userSelect: 'none',
+  touchAction: 'none',
 }
+
+/** 拖拽中：光标变抓取中，防止误选中文字。 */
+const cardHeaderDraggingStyle: CSSProperties = { cursor: 'grabbing' }
 
 const cardTitleStyle: CSSProperties = { fontSize: 14, color: TONE.text, letterSpacing: 0.2 }
 
