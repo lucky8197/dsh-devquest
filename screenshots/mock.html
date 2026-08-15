@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -124,12 +124,21 @@
   .tab.on { background: var(--row); color: var(--text); }
   .wall-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
   .cell {
+    position: relative;
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
     padding: 4px 2px; border-radius: 8px; background: var(--row); font-size: 17px;
+    border: 1px solid transparent;
   }
-  .cell.locked { opacity: 0.55; }
-  .cell.hidden-locked { opacity: 0.5; filter: grayscale(1); }
+  .cell.unlocked {
+    background: color-mix(in srgb, var(--green) 12%, transparent);
+    border-color: color-mix(in srgb, var(--green) 38%, transparent);
+    box-shadow: 0 0 8px rgba(120, 221, 160, 0.12);
+  }
+  .cell.locked { opacity: 0.45; filter: grayscale(0.85); }
+  .cell.hidden-locked { opacity: 0.3; filter: grayscale(1); }
+  .cell .check { position: absolute; top: 1px; right: 3px; font-size: 9px; font-weight: 700; line-height: 1; color: var(--green); }
   .cell-xp { font-size: 8px; color: var(--quiet); }
+  .cell.unlocked .cell-xp { color: var(--gold); font-weight: 600; }
 
   /* ===== toast ===== */
   .toast {
@@ -251,12 +260,13 @@
           <button class="tab">时光</button><button class="tab">传奇</button><button class="tab">彩蛋</button>
         </div>
         <div class="wall-grid">
-          <div class="cell">🚶<span class="cell-xp">+50</span></div>
-          <div class="cell">🎖️<span class="cell-xp">+100</span></div>
-          <div class="cell">🏅<span class="cell-xp">+250</span></div>
-          <div class="cell">🏆<span class="cell-xp">+500</span></div>
-          <div class="cell">💪<span class="cell-xp">+100</span></div>
-          <div class="cell">🛡️<span class="cell-xp">+400</span></div>
+          <div class="cell unlocked">🚶<span class="check">✓</span><span class="cell-xp">+50</span></div>
+          <div class="cell unlocked">🎖️<span class="check">✓</span><span class="cell-xp">+100</span></div>
+          <div class="cell unlocked">🏅<span class="check">✓</span><span class="cell-xp">+250</span></div>
+          <div class="cell unlocked">🏆<span class="check">✓</span><span class="cell-xp">+500</span></div>
+          <div class="cell unlocked">💪<span class="check">✓</span><span class="cell-xp">+100</span></div>
+          <div class="cell unlocked">🛡️<span class="check">✓</span><span class="cell-xp">+400</span></div>
+          <div class="cell unlocked">🛡️<span class="check">✓</span><span class="cell-xp">+400</span></div>
           <div class="cell locked">🚶<span class="cell-xp">+50</span></div>
           <div class="cell locked">🎖️<span class="cell-xp">+100</span></div>
           <div class="cell hidden-locked">🔒</div>
@@ -264,7 +274,6 @@
           <div class="cell hidden-locked">🔒</div>
           <div class="cell locked">🏅<span class="cell-xp">+250</span></div>
           <div class="cell locked">🏆<span class="cell-xp">+500</span></div>
-          <div class="cell locked">💪<span class="cell-xp">+100</span></div>
         </div>
       </div>
 
