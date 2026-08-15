@@ -3,7 +3,7 @@
  * - DevQuestFooterAction：侧边栏底部操作位（sidebar.footer.action）的入口按钮
  * - DevQuestOverlay：shell.overlay 里的浮动面板 + 成就解锁 toast 栈
  *
- * 数据源：GET /api/devquest/status（host 解析「最近活跃会话」的项目目录）。
+ * 数据源：GET /api/devquest/status（v0.3 起为全局玩家档，与 cwd/session 无关）。
  * 主题：跟随 DSH CSS 变量（--dsw-alias-*）。
  */
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react'
@@ -184,16 +184,15 @@ function clampPanelPos(left: number, top: number, width: number, height: number)
   }
 }
 
-/** 面板卡片（overlay 内容，可拖拽定位）。sessionId=当前会话 id，面板数据跟随当前会话的项目。 */
+/** 面板卡片（overlay 内容，可拖拽定位）。refresh 由常驻 overlay 传入（页面加载即开始轮询）。 */
 export function DevQuestPanelCard(
-  props: Pick<DevQuestFooterActionProps, 'useStore' | 'actions' | 't'> & { sessionId?: string | undefined },
+  props: Pick<DevQuestFooterActionProps, 'useStore' | 'actions' | 't'> & { refresh: () => void },
 ): ReactElement {
-  const { useStore, actions, t, sessionId } = props
+  const { useStore, actions, t, refresh } = props
   const state: DevQuestUiState = useStore(snapshot => snapshot)
   const [wallOpen, setWallOpen] = useState(false)
   const [category, setCategory] = useState<(typeof CATEGORY_KEYS)[number]>('journey')
   const [hover, setHover] = useState<{ a: DevQuestStatus['achievements'][number]; x: number; y: number } | null>(null)
-  const controllerRef = useRef<AbortController | null>(null)
   // 面板位置：null = 默认右上角；拖拽后保存到 localStorage。
   const [pos, setPos] = useState<{ left: number; top: number } | null>(loadPanelPos)
   const [dragging, setDragging] = useState(false)
@@ -272,37 +271,6 @@ export function DevQuestPanelCard(
     dragRef.current = null
     setDragging(false)
   }
-
-  const refresh = useCallback(() => {
-    controllerRef.current?.abort()
-    const controller = new AbortController()
-    controllerRef.current = controller
-    actions.setState('loading', null)
-    // 显式携带当前会话 id：面板数据跟随用户正在查看的会话所属项目，
-    // 避免 host 侧按「最近活跃」解析时选错项目（不同会话的 seq 不可比）。
-    const query = sessionId !== undefined && sessionId !== ''
-      ? `?session=${encodeURIComponent(sessionId)}`
-      : ''
-    void fetch(`${STATUS_API}${query}`, { signal: controller.signal }).then(response => {
-      if (!response.ok) throw new Error(`devquest ${response.status}`)
-      return response.json() as Promise<{ ok: boolean; status: DevQuestStatus }>
-    }).then(data => {
-      if (controller.signal.aborted) return
-      if (data.ok && data.status !== null && data.status !== undefined) actions.setStatus(data.status)
-      else actions.setState('error', 'empty response')
-    }, () => {
-      if (!controller.signal.aborted) actions.setState('error', 'transport error')
-    })
-  }, [actions, sessionId])
-
-  useEffect(() => {
-    refresh()
-    const timer = setInterval(refresh, POLL_MS)
-    return () => {
-      clearInterval(timer)
-      controllerRef.current?.abort()
-    }
-  }, [refresh])
 
   useEffect(() => {
     if (!state.open) return undefined
@@ -556,7 +524,8 @@ function AchievementToast(
 export function DevQuestFooterAction(props: DevQuestFooterActionProps): ReactElement {
   const { useStore, actions, t, wide } = props
   const state: DevQuestUiState = useStore(snapshot => snapshot)
-  const level = state.status?.level ?? 1
+  // 无状态时不显示等级（避免启动时闪现错误的 Lv.1；overlay 常驻拉取后自然出现真实等级）。
+  const level = state.status?.level
   const open = state.open
 
   // 收起态：极紧凑的纯图标按钮（28px 居中），无突出角标——
@@ -565,7 +534,7 @@ export function DevQuestFooterAction(props: DevQuestFooterActionProps): ReactEle
     return <button
       type="button"
       onClick={() => actions.setOpen(!open)}
-      title={`${t('dq.open')} · Lv.${level}`}
+      title={level === undefined ? t('dq.open') : `${t('dq.open')} · Lv.${level}`}
       aria-label={t('dq.open')}
       aria-expanded={open}
       style={{
@@ -590,20 +559,47 @@ export function DevQuestFooterAction(props: DevQuestFooterActionProps): ReactEle
   >
     <span style={{ color: TONE.accent, display: 'inline-flex' }}><SwordIcon size={17} /></span>
     <span style={footerLabelStyle}>DevQuest</span>
-    <span style={levelChipStyle}>Lv.{level}</span>
+    {level !== undefined && <span style={levelChipStyle}>Lv.{level}</span>}
   </button>
 }
 
-/** shell.overlay：浮动面板 + toast 栈。 */
+/** shell.overlay：浮动面板 + toast 栈。常驻挂载：页面加载即拉取全局状态并 60s 轮询，
+ * 保证侧边栏等级与面板数据在打开面板前就已就绪。 */
 export function DevQuestOverlay(props: DevQuestOverlayProps): ReactElement {
-  const { useStore, actions, t, useSessions } = props
+  const { useStore, actions, t } = props
   const state: DevQuestUiState = useStore(snapshot => snapshot)
-  // 当前会话 id：面板数据跟随用户正在查看的会话所属项目。
-  const currentSessionId = useSessions(s => s.current)
+  const controllerRef = useRef<AbortController | null>(null)
+
+  // v0.3 起状态是全局玩家档，与 cwd/session 无关：直接拉取不带 session 参数。
+  const refresh = useCallback(() => {
+    controllerRef.current?.abort()
+    const controller = new AbortController()
+    controllerRef.current = controller
+    actions.setState('loading', null)
+    void fetch(STATUS_API, { signal: controller.signal }).then(response => {
+      if (!response.ok) throw new Error(`devquest ${response.status}`)
+      return response.json() as Promise<{ ok: boolean; status: DevQuestStatus }>
+    }).then(data => {
+      if (controller.signal.aborted) return
+      if (data.ok && data.status !== null && data.status !== undefined) actions.setStatus(data.status)
+      else actions.setState('error', 'empty response')
+    }, () => {
+      if (!controller.signal.aborted) actions.setState('error', 'transport error')
+    })
+  }, [actions])
+
+  useEffect(() => {
+    refresh()
+    const timer = setInterval(refresh, POLL_MS)
+    return () => {
+      clearInterval(timer)
+      controllerRef.current?.abort()
+    }
+  }, [refresh])
 
   return <>
     {state.open && (
-      <DevQuestPanelCard useStore={useStore} actions={actions} t={t} sessionId={currentSessionId} />
+      <DevQuestPanelCard useStore={useStore} actions={actions} t={t} refresh={refresh} />
     )}
     {state.toasts.length > 0 && state.status !== null && (
       <div style={toastStackStyle}>
