@@ -5,7 +5,7 @@
 > 生态里全是给你摸鱼的小游戏；DevQuest 反其道：**你的工作，就是游戏。**
 
 <p align="center">
-  <strong>📅 每日任务</strong> · <strong>🔥 连击加成</strong> · <strong>🏆 44 枚成就</strong> · <strong>📈 等级称号</strong> · <strong>🛠️ 事件流驱动 · 纯函数计分</strong>
+  <strong>📅 每日任务</strong> · <strong>🔥 连击加成</strong> · <strong>🏆 44 枚成就</strong> · <strong>📈 等级称号</strong> · <strong>🗓️ 季度赛季</strong> · <strong>🌍 跨会话全局进度</strong>
 </p>
 
 <p align="center">
@@ -21,10 +21,11 @@
 | 你做了什么 | 你会得到 |
 |---|---|
 | ✅ 完成一个回合 | +10 XP，连击 +1 |
-| 🧰 调用工具 | +1 XP（编辑/命令/SSH 等「锻造师」工具 +2） |
+| 🧰 调用工具 | +1 XP（编辑/命令/SSH 等「锻造师」工具 +2，单回合封顶 +10） |
 | 📋 清空待办 | 每个 +15 XP |
 | 📝 输出 tokens | 每 10k +1 XP |
-| 💥 犯错后爬起来 | 「东山再起」成就 +100 XP |
+| 💥 犯错的回合 | +2 XP（安慰奖） |
+| 💪 犯错后爬起来 | 「东山再起」成就 +100 XP |
 
 ### 📅 每日任务
 
@@ -52,14 +53,14 @@
 ### 🏅 等级与称号
 
 ```
-Lv.1-4     学徒 Apprentice
-Lv.5-9     工匠 Artisan
-Lv.10-14   锻造师 Forger
-Lv.15-19   宗师 Master
-Lv.20+     传说 Legend
+Lv.1-4     学徒
+Lv.5-9     工匠
+Lv.10-14   锻造师
+Lv.15-19   宗师
+Lv.20+     传说
 ```
 
-每 5 级一档称号，每个里程碑都有成就徽章等着你。
+每 5 级一档称号（面板与工具显示中文称号），每个里程碑都有成就徽章等着你。
 
 ### 🗓️ 赛季
 
@@ -70,6 +71,14 @@ Lv.20+     传说 Legend
 - 面板和 `devquest_status` 显示本赛季进度；「赛季精英」成就按**本赛季**输出 100k tokens 判定
 
 每个季度都是新的冲刺——**等级是你的历史，赛季是你的本季战绩**。
+
+### 🌍 全局进度
+
+**一个玩家，一份存档**（`~/.dsh/devquest/player.json`）：
+
+- 所有会话、所有项目共享同一份进度——换项目不换号
+- 旧版按项目隔离的存档会在升级时**自动合并**进全局档
+- 事件水位去重，重启重放不会重复计分
 
 ### 🏆 44 枚成就 · 六大门类
 
@@ -87,7 +96,7 @@ Lv.20+     传说 Legend
 
 ## 🖥️ 长这样
 
-侧边栏底部 ⚔️ 入口，点击弹出面板；成就解锁时右上角弹出金色 toast：
+侧边栏底部 ⚔️ 入口（收起态为紧凑图标），点击弹出面板；成就解锁时右上角弹出金色 toast：
 
 <p align="center">
   <img src="screenshots/panel.png" alt="DevQuest 面板：等级环 / XP 进度 / 每日任务 / 成就墙" width="440">
@@ -100,7 +109,7 @@ Lv.20+     传说 Legend
 ┌──────────────────────────────┐
 │  ⚔️ DevQuest          Lv.7   │
 │  ▓▓▓▓▓▓▓▓▓░░░░░      62%    │
-│  工匠 Artisan · 赛季 2026-S3 │
+│  工匠 · 赛季 2026-S3          │
 │  🔥 连击 12 ×1.5             │
 │  ──────────────────────────  │
 │  📅 每日任务 2026-08-15      │
@@ -128,25 +137,10 @@ dsh plugin --profile web add "github:lucky8197/dsh-devquest#main"
 
 ```
 devquest_status        # 等级 / XP / 连击 / 今日任务
-devquest_achievements  # 29 枚成就全清单与解锁状态
+devquest_achievements  # 44 枚成就全清单与解锁状态
 devquest_reset         # 重置存档（危险，需 confirm=true）
 ```
-
-## 🛠️ 架构
-
-```
-session/event ──► listener ──► engine(纯函数) ──► store(JSON)
-      ▲                                              │
-      └────── devquest 工具 ◄── routes(HTTP) ◄────────┘
-                                                    │
-                                        slots.inject ──► DevQuestPanel
-```
-
-- **事件流驱动**：订阅 `session/event` firehose，不侵入任何 agent 循环
-- **纯函数计分**：`Action → (XP, 成就判定)` 无副作用，48/48 单测全绿
-- **全局存档**：`~/.dsh/devquest/player.json`，**跨会话跨项目统一进度**（旧版按项目隔离的存档会自动合并），水位去重防重放
 
 ## 📄 License
 
 BSD-3-Clause
-
