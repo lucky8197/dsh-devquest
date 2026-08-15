@@ -4,7 +4,7 @@
  * 不变式：`applyTurn` / `addXp` / `checkAchievements` 都是纯函数
  * （时间由调用方注入 `now`，缺省 Date.now()），无 I/O 无副作用。
  */
-import type { AchievementDef, Action, Counters, PlayerState, SaveData } from './types.ts'
+import type { AchievementDef, Action, Counters, DailyQuest, DailyQuestState, PlayerState, SaveData } from './types.ts'
 
 /** 称号（每 5 级一档）。 */
 export const TITLES = [
@@ -53,6 +53,91 @@ export function dayKey(now: number): string {
   return `${d.getFullYear()}-${m}-${day}`
 }
 
+// ---------------------------------------------------------------------------
+// 每日任务：每天按日期确定性抽取 3 个任务，进度自动推进、完成自动结算 XP。
+// ---------------------------------------------------------------------------
+
+/** 每日任务定义（从计数器取进度）。 */
+export interface DailyQuestDef {
+  id: string
+  label: { zh: string; en: string }
+  goal: number
+  reward: number
+  progress: (c: Counters) => number
+}
+
+/** 每日任务池（每天抽取 DAILY_QUEST_COUNT 个）。 */
+export const DAILY_QUEST_POOL: DailyQuestDef[] = [
+  { id: 'dq_turns_5', label: { zh: '完成 5 个回合', en: 'Finish 5 turns' }, goal: 5, reward: 30, progress: c => c.turnsCompleted },
+  { id: 'dq_turns_15', label: { zh: '完成 15 个回合', en: 'Finish 15 turns' }, goal: 15, reward: 60, progress: c => c.turnsCompleted },
+  { id: 'dq_tools_20', label: { zh: '调用 20 次工具', en: 'Call 20 tools' }, goal: 20, reward: 40, progress: c => c.toolCalls },
+  { id: 'dq_tools_50', label: { zh: '调用 50 次工具', en: 'Call 50 tools' }, goal: 50, reward: 80, progress: c => c.toolCalls },
+  { id: 'dq_edits_10', label: { zh: '编辑/写入 10 次', en: 'Edit or write 10 times' }, goal: 10, reward: 50, progress: c => c.craftTools },
+  { id: 'dq_cmd_10', label: { zh: '命令行 10 次', en: 'Run 10 commands' }, goal: 10, reward: 40, progress: c => (c.toolCallsByTool.pwsh ?? 0) + (c.toolCallsByTool.bash ?? 0) },
+  { id: 'dq_todos_5', label: { zh: '完成 5 个待办', en: 'Complete 5 todos' }, goal: 5, reward: 60, progress: c => c.todosCompleted },
+  { id: 'dq_tokens_50k', label: { zh: '输出 50k tokens', en: 'Output 50k tokens' }, goal: 50_000, reward: 70, progress: c => c.tokensOut },
+  { id: 'dq_subagent_2', label: { zh: '派出 2 个子代理', en: 'Spawn 2 subagents' }, goal: 2, reward: 80, progress: c => c.subagentsSpawned },
+  { id: 'dq_checkin_1', label: { zh: '查看 1 次进度', en: 'Check your progress' }, goal: 1, reward: 20, progress: c => c.devquestCalls },
+]
+
+/** 每天抽取的任务数。 */
+export const DAILY_QUEST_COUNT = 3
+
+/** 确定性 PRNG（按日期字符串做种子）：同一天所有会话与重启看到相同的任务。 */
+function seededRng(seed: string): () => number {
+  let h = 2166136261
+  for (const ch of seed) {
+    h ^= ch.codePointAt(0) ?? 0
+    h = Math.imul(h, 16777619)
+  }
+  let state = h >>> 0
+  return () => {
+    state = (state + 0x6d2b79f5) | 0
+    let t = Math.imul(state ^ (state >>> 15), 1 | state)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/** 按日期滚动今日任务（同一天结果确定，不重复抽取同一任务）。 */
+export function rollDailyQuests(now: number): DailyQuestState {
+  const date = dayKey(now)
+  const rng = seededRng(date)
+  const pool = [...DAILY_QUEST_POOL]
+  const quests: DailyQuest[] = []
+  for (let i = 0; i < DAILY_QUEST_COUNT && pool.length > 0; i++) {
+    const idx = Math.floor(rng() * pool.length)
+    const def = pool.splice(idx, 1)[0]!
+    quests.push({ id: def.id, label: def.label, goal: def.goal, reward: def.reward, progress: 0, done: false })
+  }
+  return { date, quests }
+}
+
+/** 日期过期时重滚（幂等：当天不重抽）。会就地更新 save.daily。 */
+export function ensureDaily(save: SaveData, now: number): DailyQuestState {
+  if (save.daily.date !== dayKey(now)) save.daily = rollDailyQuests(now)
+  return save.daily
+}
+
+/** 推进每日任务进度并自动结算奖励，返回本轮任务奖励 XP（在 turn 结算后调用）。 */
+export function applyDaily(save: SaveData, now: number): number {
+  const daily = ensureDaily(save, now)
+  let gain = 0
+  for (const q of daily.quests) {
+    if (q.done) continue
+    const def = DAILY_QUEST_POOL.find(d => d.id === q.id)
+    if (def === undefined) continue
+    q.progress = Math.min(def.progress(save.counters), q.goal)
+    if (q.progress >= q.goal) {
+      q.done = true
+      q.claimedAt = now
+      save.counters.dailyQuestsDone++
+      gain += q.reward
+    }
+  }
+  return gain
+}
+
 /** 构造最小计数器。 */
 export function freshCounters(): Counters {
   return {
@@ -75,6 +160,7 @@ export function freshCounters(): Counters {
     completedDay: '',
     lastTurnCompletedAt: 0,
     oopsFired: false,
+    dailyQuestsDone: 0,
   }
 }
 
@@ -92,6 +178,7 @@ export function freshSave(cwd: string, season: string, now: number = Date.now())
     counters: freshCounters(),
     achievements: {},
     lastSeqBySession: {},
+    daily: rollDailyQuests(now),
     updatedAt: now,
   }
 }
@@ -191,7 +278,10 @@ export function applyTurn(save: SaveData, actions: Action[], now: number = Date.
       c.completedDay = today
       c.completedToday = 1
     }
-    if (c.consecutiveSuccess >= 5) gain = Math.round(gain * 1.5) // 连击 ×1.5
+    // 连击多档加成：≥5 ×1.5，≥15 ×2.0，≥30 ×2.5。
+    if (c.consecutiveSuccess >= 30) gain = Math.round(gain * 2.5)
+    else if (c.consecutiveSuccess >= 15) gain = Math.round(gain * 2.0)
+    else if (c.consecutiveSuccess >= 5) gain = Math.round(gain * 1.5)
   } else if (failed) {
     c.turnsFailed++
     c.consecutiveSuccess = 0
@@ -199,7 +289,9 @@ export function applyTurn(save: SaveData, actions: Action[], now: number = Date.
 
   // 单回合兜底上限（工具 10 + todo 15 + turn 基础 + tokens，宽松防刷）。
   gain = Math.min(gain, 125)
-  return addXp(s, gain, now)
+  // 每日任务奖励不计入兜底上限（每天固定 3 个，天然防刷）。
+  const questGain = applyDaily(s, now)
+  return addXp(s, gain + questGain, now)
 }
 
 /**
@@ -230,9 +322,10 @@ export function migrateSave(raw: Partial<SaveData>, cwd: string, season: string)
     counters: { ...base.counters, ...(raw.counters ?? {}) },
     achievements: raw.achievements ?? {},
     lastSeqBySession: raw.lastSeqBySession ?? {},
+    daily: raw.daily ?? base.daily,
   }
   out.version = Math.max(1, raw.version ?? 1)
-  // 派生字段一致性：称号跟等级走。
+  // 派生字段一致性：称号跟等级走；每日任务日期过期由 ensureDaily 重滚。
   out.player.title = titleFor(out.player.level).zh
   return out
 }

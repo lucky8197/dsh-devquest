@@ -4,7 +4,7 @@
  * 不变式：`applyTurn` / `addXp` / `checkAchievements` 都是纯函数
  * （时间由调用方注入 `now`，缺省 Date.now()），无 I/O 无副作用。
  */
-import type { AchievementDef, Action, Counters, PlayerState, SaveData } from './types.ts';
+import type { AchievementDef, Action, Counters, DailyQuestState, PlayerState, SaveData } from './types.ts';
 /** 称号（每 5 级一档）。 */
 export declare const TITLES: readonly [{
     readonly min: 1;
@@ -39,6 +39,27 @@ export declare function xpForTool(tool: string): number;
 export declare function xpForAction(action: Action): number;
 /** 日期键 'YYYY-MM-DD'（本地时区）。 */
 export declare function dayKey(now: number): string;
+/** 每日任务定义（从计数器取进度）。 */
+export interface DailyQuestDef {
+    id: string;
+    label: {
+        zh: string;
+        en: string;
+    };
+    goal: number;
+    reward: number;
+    progress: (c: Counters) => number;
+}
+/** 每日任务池（每天抽取 DAILY_QUEST_COUNT 个）。 */
+export declare const DAILY_QUEST_POOL: DailyQuestDef[];
+/** 每天抽取的任务数。 */
+export declare const DAILY_QUEST_COUNT = 3;
+/** 按日期滚动今日任务（同一天结果确定，不重复抽取同一任务）。 */
+export declare function rollDailyQuests(now: number): DailyQuestState;
+/** 日期过期时重滚（幂等：当天不重抽）。会就地更新 save.daily。 */
+export declare function ensureDaily(save: SaveData, now: number): DailyQuestState;
+/** 推进每日任务进度并自动结算奖励，返回本轮任务奖励 XP（在 turn 结算后调用）。 */
+export declare function applyDaily(save: SaveData, now: number): number;
 /** 构造最小计数器。 */
 export declare function freshCounters(): Counters;
 /** 构造最小玩家状态。 */

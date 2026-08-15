@@ -68,6 +68,28 @@ export interface Counters {
     lastSuccessAt?: number;
     /** 已触发「失败后 1 分钟内同工具成功」（oops 一次性标记）。 */
     oopsFired: boolean;
+    /** 累计完成的每日任务数（daily_quest_10 用）。 */
+    dailyQuestsDone: number;
+}
+/** 单个每日任务。 */
+export interface DailyQuest {
+    id: string;
+    /** 任务目标名（面板/工具展示用）。 */
+    label: {
+        zh: string;
+        en: string;
+    };
+    goal: number;
+    reward: number;
+    progress: number;
+    done: boolean;
+    claimedAt?: number;
+}
+/** 每日任务状态（每天按日期确定性刷新）。 */
+export interface DailyQuestState {
+    /** 任务所属日 'YYYY-MM-DD'。 */
+    date: string;
+    quests: DailyQuest[];
 }
 /** 玩家面板状态。 */
 export interface PlayerState {
@@ -89,6 +111,8 @@ export interface SaveData {
     }>;
     /** 幂等水位：sessionId → 已处理的最大 event.seq。 */
     lastSeqBySession: Record<string, number>;
+    /** 每日任务状态。 */
+    daily: DailyQuestState;
     updatedAt: number;
 }
 /** 成就分类（面板成就墙分主题 tab）。 */
@@ -141,5 +165,7 @@ export interface DevQuestStatus {
     season: string;
     counters: Counters;
     achievements: AchievementView[];
+    /** 当日每日任务（含进度/奖励）。 */
+    daily: DailyQuestState;
     updatedAt: number;
 }

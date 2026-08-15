@@ -6,7 +6,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { ACHIEVEMENTS, achievementById } from '../src/achievements.ts'
 import {
-  addXp, applyTurn, checkAchievements, dayKey, freshSave, migrateSave, titleFor, xpToNext,
+  addXp, applyDaily, applyTurn, checkAchievements, dayKey, ensureDaily, freshSave,
+  migrateSave, rollDailyQuests, titleFor, xpToNext,
 } from '../src/engine.ts'
 import type { Action, SaveData } from '../src/types.ts'
 
@@ -14,7 +15,10 @@ import type { Action, SaveData } from '../src/types.ts'
 const NOW = new Date(2026, 7, 15, 12, 0, 0).getTime()
 
 function fresh(): SaveData {
-  return freshSave('C:/proj', '2026-S1', NOW)
+  const s = freshSave('C:/proj', '2026-S1', NOW)
+  // 屏蔽每日任务（空任务列表），保证纯 XP 断言精确；每日任务单独测。
+  s.daily = { date: dayKey(NOW), quests: [] }
+  return s
 }
 
 function turn(actions: Action[], now = NOW): SaveData {
@@ -273,8 +277,142 @@ test('migrateSave：缺失字段补全', () => {
   assert.equal(save.counters.turnsCompleted, 0)
   assert.deepEqual(save.achievements, {})
   assert.deepEqual(save.lastSeqBySession, {})
+  assert.equal(save.daily.quests.length, 3) // 旧档迁移后补上当日任务
 })
 
 test('dayKey 格式', () => {
   assert.equal(dayKey(new Date(2026, 0, 5, 23, 59, 0).getTime()), '2026-01-05')
+})
+
+// ---------------------------------------------------------------------------
+// 每日任务
+// ---------------------------------------------------------------------------
+
+test('rollDailyQuests：同一天结果确定、3 个且不重复', () => {
+  const a = rollDailyQuests(NOW)
+  const b = rollDailyQuests(NOW)
+  assert.deepEqual(a, b) // 确定性
+  assert.equal(a.date, dayKey(NOW))
+  assert.equal(a.quests.length, 3)
+  const ids = new Set(a.quests.map(q => q.id))
+  assert.equal(ids.size, 3) // 不重复
+  for (const q of a.quests) {
+    assert.ok(q.goal > 0 && q.reward > 0)
+    assert.equal(q.progress, 0)
+    assert.equal(q.done, false)
+  }
+  // 不同日期任务序列不同（概率极高）
+  const c = rollDailyQuests(new Date(2026, 7, 16, 12, 0, 0).getTime())
+  assert.notEqual(c.date, a.date)
+})
+
+test('每日任务：进度推进、完成自动结算且只结算一次', () => {
+  let save = fresh()
+  // 手工指定任务：完成 5 个回合
+  save.daily = {
+    date: dayKey(NOW),
+    quests: [{ id: 'dq_turns_5', label: { zh: 't', en: 't' }, goal: 5, reward: 30, progress: 0, done: false }],
+  }
+  // 前 4 回合：任务未完成
+  for (let i = 0; i < 4; i++) {
+    save = applyTurn(save, [{ kind: 'turn-completed', turn: i + 1 }], NOW)
+    assert.equal(save.daily.quests[0]?.done, false)
+    assert.equal(save.daily.quests[0]?.progress, i + 1)
+  }
+  // 第 5 回合：任务完成，+30 XP 奖励，dailyQuestsDone +1
+  const beforeTotal = save.player.xpTotal
+  save = applyTurn(save, [{ kind: 'turn-completed', turn: 5 }], NOW)
+  assert.equal(save.daily.quests[0]?.done, true)
+  assert.equal(save.counters.dailyQuestsDone, 1)
+  // 30 XP 任务奖励 + 回合 XP（第 5 回合连击 ×1.5 = 15）
+  assert.equal(save.player.xpTotal, beforeTotal + 30 + 15)
+  // 再结算不重复奖励
+  const before2Total = save.player.xpTotal
+  save = applyTurn(save, [{ kind: 'turn-completed', turn: 6 }], NOW)
+  assert.equal(save.player.xpTotal, before2Total + 15) // 只有回合 XP，无任务奖励
+  assert.equal(save.counters.dailyQuestsDone, 1)
+})
+
+test('每日任务：跨天自动重滚', () => {
+  let save = fresh()
+  const tomorrow = new Date(2026, 7, 16, 9, 0, 0).getTime()
+  assert.equal(save.daily.date, dayKey(NOW))
+  save = applyTurn(save, [{ kind: 'turn-completed', turn: 1 }], tomorrow)
+  assert.equal(save.daily.date, dayKey(tomorrow))
+  assert.equal(save.daily.quests.length, 3)
+})
+
+test('applyDaily 幂等：不重复发放已完成任务的奖励', () => {
+  let save = fresh()
+  save.daily = {
+    date: dayKey(NOW),
+    quests: [{ id: 'dq_turns_5', label: { zh: 't', en: 't' }, goal: 5, reward: 30, progress: 5, done: false }],
+  }
+  save.counters.turnsCompleted = 5
+  assert.equal(applyDaily(save, NOW), 30)
+  assert.equal(applyDaily(save, NOW), 0) // done 后不再奖励
+  assert.equal(save.counters.dailyQuestsDone, 1)
+})
+
+test('ensureDaily：同天不重抽', () => {
+  let save = fresh()
+  const first = ensureDaily(save, NOW)
+  assert.equal(ensureDaily(save, NOW), first) // 同一对象引用
+})
+
+// ---------------------------------------------------------------------------
+// 连击多档加成
+// ---------------------------------------------------------------------------
+
+test('连击：15 连击 ×2.0', () => {
+  let save = fresh()
+  for (let i = 0; i < 15; i++) {
+    save = applyTurn(save, [{ kind: 'turn-completed', turn: i + 1 }], NOW + i)
+  }
+  // 前 4 轮 +10 = 40；5-14 轮 ×1.5 = 150；第 15 轮 ×2.0 = 20 → 累计 210
+  assert.equal(save.counters.consecutiveSuccess, 15)
+  assert.equal(save.player.xpTotal, 210)
+})
+
+test('连击：30 连击 ×2.5', () => {
+  let save = fresh()
+  for (let i = 0; i < 30; i++) {
+    save = applyTurn(save, [{ kind: 'turn-completed', turn: i + 1 }], NOW + i)
+  }
+  // 40 + 150(5-14 ×1.5) + 300(15-29 ×2.0) + 25(30 ×2.5) = 累计 515
+  assert.equal(save.counters.consecutiveSuccess, 30)
+  assert.equal(save.player.xpTotal, 515)
+})
+
+test('连击：error 清零后加成档位回落', () => {
+  let save = fresh()
+  for (let i = 0; i < 15; i++) {
+    save = applyTurn(save, [{ kind: 'turn-completed', turn: i + 1 }], NOW + i)
+  }
+  save = applyTurn(save, [{ kind: 'turn-failed', turn: 16 }], NOW + 100)
+  assert.equal(save.counters.consecutiveSuccess, 0)
+  const beforeTotal = save.player.xpTotal
+  save = applyTurn(save, [{ kind: 'turn-completed', turn: 17 }], NOW + 200)
+  assert.equal(save.player.xpTotal, beforeTotal + 10) // 连击重置后回到 ×1
+})
+
+// ---------------------------------------------------------------------------
+// 新成就
+// ---------------------------------------------------------------------------
+
+test('成就判定：daily_quest_10 与 level_15', () => {
+  let save = fresh()
+  save.counters.dailyQuestsDone = 10
+  save.player.level = 15
+  const unlocked = checkAchievements(ACHIEVEMENTS, save, NOW)
+  assert.ok(unlocked.includes('daily_quest_10'))
+  assert.ok(unlocked.includes('level_15'))
+  assert.ok(unlocked.includes('level_5'))
+  assert.ok(unlocked.includes('level_10'))
+  assert.ok(!unlocked.includes('level_20'))
+})
+
+test('成就总数：29 枚（含 4 枚隐藏）', () => {
+  assert.equal(ACHIEVEMENTS.length, 29)
+  assert.equal(ACHIEVEMENTS.filter(a => a.hidden === true).length, 4)
 })

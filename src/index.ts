@@ -18,7 +18,7 @@ import type {} from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type { Session } from '@deepseek-ai/dsh-session'
 import { ACHIEVEMENTS, achievementById } from './achievements.ts'
-import { applyTurn, checkAchievements, titleFor, xpToNext } from './engine.ts'
+import { applyTurn, checkAchievements, ensureDaily, titleFor, xpToNext } from './engine.ts'
 import { watchEvents, type SessionAggregate } from './listener.ts'
 import { loadSave, persistSave, deleteSave, scopeKey, type StoreConfig } from './store.ts'
 import { registerDevQuestTools } from './tools.ts'
@@ -93,6 +93,8 @@ export function apply(ctx: Context, config: Config = {}): void {
           ...(rec !== undefined ? { acquiredAt: rec.acquiredAt } : {}),
         }
       }),
+      // 每日任务：跨天自动重滚（就地更新缓存存档，随下次结算持久化）。
+      daily: ensureDaily(save, Date.now()),
       updatedAt: save.updatedAt,
     }
   }

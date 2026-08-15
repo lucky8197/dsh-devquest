@@ -76,6 +76,14 @@ function levelPercent(status: DevQuestStatus): number {
   return Math.max(0.02, Math.min(1, status.xp / status.xpToNext))
 }
 
+/** 连击加成档位（与引擎一致）：≥5 ×1.5，≥15 ×2.0，≥30 ×2.5；无加成返回 null。 */
+function comboMultiplier(consecutive: number): number | null {
+  if (consecutive >= 30) return 2.5
+  if (consecutive >= 15) return 2.0
+  if (consecutive >= 5) return 1.5
+  return null
+}
+
 function formatNumber(n: number): string {
   if (n < 1000) return String(n)
   const v = n / 1000
@@ -204,8 +212,33 @@ export function DevQuestPanelCard(
             <span style={metaStyle}>{t('dq.toolCalls', { n: c.toolCalls })}</span>
             <span style={metaStyle}>{t('dq.todos', { n: c.todosCompleted })}</span>
             <span style={metaStyle}>{t('dq.tokens', { n: formatNumber(c.tokensOut) })}</span>
+            {comboMultiplier(c.consecutiveSuccess) !== null && (
+              <span style={comboStyle}>🔥 {t('dq.combo', { n: c.consecutiveSuccess })} ×{comboMultiplier(c.consecutiveSuccess)}</span>
+            )}
           </div>
         </div>
+      </div>
+
+      {/* 每日任务 */}
+      <div style={sectionStyle}>
+        <div style={sectionHeadStyle}>
+          <span style={sectionTitleStyle}>📅 {t('dq.daily')}</span>
+          <span style={updatedStyle}>{status.daily?.date ?? ''}</span>
+        </div>
+        {(status.daily?.quests ?? []).map(q => {
+          const pct = Math.min(100, Math.round((Math.min(q.progress, q.goal) / Math.max(q.goal, 1)) * 100))
+          return (
+            <div key={q.id} style={questRowStyle}>
+              <div style={questTopStyle}>
+                <span style={questLabelStyle}>{q.done ? '✅' : '⬜'} {q.label.zh}</span>
+                <span style={questRewardStyle}>+{q.reward} XP</span>
+              </div>
+              <div style={questTrackStyle}>
+                <div style={{ ...questFillStyle, width: `${pct}%`, ...(q.done ? questFillDoneStyle : {}) }} />
+              </div>
+            </div>
+          )
+        })}
       </div>
 
       {/* 最近成就 */}
@@ -444,6 +477,35 @@ const xpTextStyle: CSSProperties = { fontSize: 10, color: TONE.muted }
 const metaRowStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: '4px 10px', marginTop: 6 }
 
 const metaStyle: CSSProperties = { fontSize: 10, color: TONE.quiet, background: TONE.row, padding: '2px 6px', borderRadius: 5 }
+
+const comboStyle: CSSProperties = {
+  fontSize: 10,
+  fontWeight: 700,
+  color: TONE.gold,
+  background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 14%, transparent)',
+  border: '1px solid color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 35%, transparent)',
+  padding: '2px 6px',
+  borderRadius: 5,
+}
+
+const questRowStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4 }
+
+const questTopStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }
+
+const questLabelStyle: CSSProperties = { fontSize: 11, color: TONE.text }
+
+const questRewardStyle: CSSProperties = { fontSize: 10, fontWeight: 600, color: TONE.gold }
+
+const questTrackStyle: CSSProperties = { height: 6, borderRadius: 3, background: TONE.row, overflow: 'hidden' }
+
+const questFillStyle: CSSProperties = {
+  height: '100%',
+  background: `linear-gradient(90deg, ${TONE.accent}, ${TONE.green})`,
+  borderRadius: 3,
+  transition: 'width .4s ease',
+}
+
+const questFillDoneStyle: CSSProperties = { background: `linear-gradient(90deg, ${TONE.gold}, ${TONE.green})` }
 
 const sectionStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6 }
 

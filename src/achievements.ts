@@ -175,6 +175,15 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     xp: 200,
     check: s => s.counters.cleanSweeps >= 1,
   },
+  {
+    id: 'daily_quest_10',
+    category: 'quest',
+    name: { zh: '日日自新', en: 'Daily Grind' },
+    description: { zh: '累计完成 10 个每日任务', en: 'Complete 10 daily quests in total' },
+    icon: '📅',
+    xp: 150,
+    check: s => s.counters.dailyQuestsDone >= 10,
+  },
 
   // ⏰ 时光 Time
   {
@@ -238,6 +247,15 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '⚔️',
     xp: 800,
     check: s => s.player.level >= 10,
+  },
+  {
+    id: 'level_15',
+    category: 'legend',
+    name: { zh: '宗师之路', en: 'Master Path' },
+    description: { zh: '达到 15 级', en: 'Reach level 15' },
+    icon: '🛡️',
+    xp: 1200,
+    check: s => s.player.level >= 15,
   },
   {
     id: 'level_20',

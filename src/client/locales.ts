@@ -31,7 +31,9 @@ const zh = {
   'dq.todos': '{n} 个待办',
   'dq.tokens': '{n} tokens',
   'dq.consecutive': '连击 {n}',
+  'dq.combo': '连击 {n}',
   'dq.streak': '活跃 {n} 天',
+  'dq.daily': '每日任务',
   'dq.counters': '计数',
 } as const
 
@@ -61,7 +63,9 @@ const en: Record<keyof typeof zh, string> = {
   'dq.todos': '{n} todos',
   'dq.tokens': '{n} tokens',
   'dq.consecutive': '{n} streak',
+  'dq.combo': 'Combo {n}',
   'dq.streak': '{n} active days',
+  'dq.daily': 'Daily quests',
   'dq.counters': 'Counters',
 }
 

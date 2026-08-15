@@ -29,7 +29,9 @@ declare const zh: {
     readonly 'dq.todos': "{n} 个待办";
     readonly 'dq.tokens': "{n} tokens";
     readonly 'dq.consecutive': "连击 {n}";
+    readonly 'dq.combo': "连击 {n}";
     readonly 'dq.streak': "活跃 {n} 天";
+    readonly 'dq.daily': "每日任务";
     readonly 'dq.counters': "计数";
 };
 declare const en: Record<keyof typeof zh, string>;

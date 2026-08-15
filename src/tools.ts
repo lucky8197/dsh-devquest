@@ -22,6 +22,16 @@ export function renderStatus(status: DevQuestStatus, detail: 'summary' | 'full')
     `   XP: ${xp} / ${xpToNext}（赛季 ${season}，累计 ${counters.turnsCompleted} 回合 / ${counters.toolCalls} 次工具调用 / ${counters.todosCompleted} 个待办 / ${counters.tokensOut} tokens）`,
     `   连击: ${counters.consecutiveSuccess} · 今日回合: ${counters.completedToday} · 活跃: ${counters.streakDays} 天`,
   ]
+  // 每日任务（summary 也展示：当天 3 个任务 + 进度）
+  const quests = status.daily?.quests ?? []
+  if (quests.length > 0) {
+    lines.push(`   📅 每日任务（${status.daily.date}）：`)
+    for (const q of quests) {
+      const mark = q.done ? '✅' : '⬜'
+      const progress = Math.min(q.progress, q.goal)
+      lines.push(`     ${mark} ${q.label.zh} ${progress}/${q.goal}（+${q.reward} XP）`)
+    }
+  }
   if (detail === 'full') {
     const unlocked = status.achievements.filter(a => a.unlocked)
     const locked = status.achievements.filter(a => !a.unlocked && !a.hidden)
