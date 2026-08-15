@@ -34,6 +34,9 @@ const zh = {
   'dq.combo': '连击 {n}',
   'dq.streak': '活跃 {n} 天',
   'dq.daily': '每日任务',
+  'dq.earned': '已解锁',
+  'dq.notEarned': '未解锁',
+  'dq.hiddenHint': '隐藏成就，解锁后可见',
   'dq.counters': '计数',
 } as const
 
@@ -66,6 +69,9 @@ const en: Record<keyof typeof zh, string> = {
   'dq.combo': 'Combo {n}',
   'dq.streak': '{n} active days',
   'dq.daily': 'Daily quests',
+  'dq.earned': 'Earned',
+  'dq.notEarned': 'Locked',
+  'dq.hiddenHint': 'Hidden — revealed on unlock',
   'dq.counters': 'Counters',
 }
 

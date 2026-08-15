@@ -559,12 +559,13 @@ export function DevQuestFooterAction(props: DevQuestFooterActionProps): ReactEle
   const level = state.status?.level ?? 1
   const open = state.open
 
-  // 收起态：窄 rail 放不下「图标 + Lv 徽章」，改为纯图标按钮 + 右上角小等级角标。
+  // 收起态：极紧凑的纯图标按钮（28px 居中），无突出角标——
+  // 底部操作位空间紧张（多个插件共用），任何突出元素都会被挤占/裁切。
   if (!wide) {
     return <button
       type="button"
       onClick={() => actions.setOpen(!open)}
-      title={t('dq.open')}
+      title={`${t('dq.open')} · Lv.${level}`}
       aria-label={t('dq.open')}
       aria-expanded={open}
       style={{
@@ -572,10 +573,7 @@ export function DevQuestFooterAction(props: DevQuestFooterActionProps): ReactEle
         ...(open ? footerActionActiveStyle : {}),
       }}
     >
-      <span style={{ position: 'relative', display: 'inline-flex' }}>
-        <span style={{ color: TONE.accent, display: 'inline-flex' }}><SwordIcon size={19} /></span>
-        <span style={railBadgeStyle}>{level}</span>
-      </span>
+      <span style={{ color: TONE.accent, display: 'inline-flex' }}><SwordIcon size={18} /></span>
     </button>
   }
 
@@ -922,35 +920,19 @@ const footerActionStyle: CSSProperties = {
   fontSize: 12,
 }
 
-/** 收起态（56px rail）入口按钮：定宽小方块，只放图标。 */
+/** 收起态（56px rail）入口按钮：紧凑纯图标，不与其他插件图标抢空间。 */
 const railActionStyle: CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  width: 34,
-  height: 34,
+  width: 28,
+  height: 28,
   border: 'none',
   background: 'transparent',
   color: TONE.muted,
   cursor: 'pointer',
   padding: 0,
-  borderRadius: 8,
-}
-
-/** 收起态等级小角标（绝对定位，不参与布局、不撑宽）。 */
-const railBadgeStyle: CSSProperties = {
-  position: 'absolute',
-  top: -4,
-  right: -7,
-  fontSize: 8,
-  fontWeight: 700,
-  lineHeight: 1,
-  color: TONE.accent,
-  background: TONE.panel,
-  border: '1px solid color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 40%, transparent)',
-  padding: '1px 3px',
-  borderRadius: 999,
-  pointerEvents: 'none',
+  borderRadius: 7,
 }
 
 const footerActionActiveStyle: CSSProperties = { background: TONE.row, color: TONE.text }
