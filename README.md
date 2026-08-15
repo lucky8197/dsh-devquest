@@ -8,6 +8,10 @@
   <strong>📅 每日任务</strong> · <strong>🔥 连击加成</strong> · <strong>🏆 29 枚成就</strong> · <strong>📈 等级称号</strong> · <strong>🛠️ 事件流驱动 · 纯函数计分</strong>
 </p>
 
+<p align="center">
+  <a href="https://github.com/awesome-dsh-plugin/awesome-dsh-plugin"><img src="https://img.shields.io/badge/awesome--dsh--plugin-✔-informational" alt="已收录于 awesome-dsh-plugin"></a>
+</p>
+
 ---
 
 ## 🎮 怎么玩
