@@ -17,8 +17,28 @@ export interface DevQuestRoutesConfig {
   status: () => Promise<DevQuestStatus>
   /** 领取每日全清宝箱；返回是否成功、奖励 XP 与最新状态。 */
   claimChest: () => Promise<{ ok: boolean; gained: number; status: DevQuestStatus }>
+  /** 购买商店商品；返回是否成功、原因与最新状态。 */
+  buy: (itemId: string) => Promise<{ ok: boolean; reason?: string; status: DevQuestStatus }>
+  /** 使用任务重掷；返回是否成功与最新状态。 */
+  reroll: () => Promise<{ ok: boolean; status: DevQuestStatus }>
   /** 结果缓存时长（毫秒）。默认 60s。 */
   cacheTtlMs?: number
+}
+
+/** 读取 POST JSON body（小请求，最多 64KB）。 */
+function readBody(req: IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let data = ''
+    req.on('data', (chunk: Buffer) => {
+      data += chunk
+      if (data.length > 65536) {
+        reject(new Error('body-too-large'))
+        req.destroy()
+      }
+    })
+    req.on('end', () => resolve(data))
+    req.on('error', reject)
+  })
 }
 
 /** 写 JSON 响应。 */
@@ -74,6 +94,54 @@ export function makeDevQuestRoutes(config: DevQuestRoutesConfig): WebRoute[] {
         (result) => {
           invalidateCache() // 状态变了，失效缓存让下次轮询取到新值
           json(res, 200, { ok: result.ok, gained: result.gained, status: result.status })
+        },
+        (error: unknown) => json(res, 500, {
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      )
+    },
+  }, {
+    kind: 'exact',
+    path: `${STATUS_API_PREFIX}/shop/buy`,
+    handler: (req: IncomingMessage, res: ServerResponse): void => {
+      if (req.method !== 'POST') {
+        json(res, 405, { ok: false, error: 'method-not-allowed' })
+        return
+      }
+      readBody(req).then(body => {
+        let itemId = ''
+        try {
+          const parsed = JSON.parse(body) as { itemId?: unknown }
+          if (typeof parsed.itemId === 'string') itemId = parsed.itemId
+        } catch {
+          itemId = ''
+        }
+        if (itemId === '') {
+          json(res, 400, { ok: false, error: 'invalid-item-id' })
+          return undefined
+        }
+        return config.buy(itemId).then((result) => {
+          invalidateCache()
+          json(res, 200, { ok: result.ok, reason: result.reason, status: result.status })
+        })
+      }).then(undefined, (error: unknown) => json(res, 500, {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      }))
+    },
+  }, {
+    kind: 'exact',
+    path: `${STATUS_API_PREFIX}/shop/reroll`,
+    handler: (req: IncomingMessage, res: ServerResponse): void => {
+      if (req.method !== 'POST') {
+        json(res, 405, { ok: false, error: 'method-not-allowed' })
+        return
+      }
+      config.reroll().then(
+        (result) => {
+          invalidateCache()
+          json(res, 200, { ok: result.ok, status: result.status })
         },
         (error: unknown) => json(res, 500, {
           ok: false,

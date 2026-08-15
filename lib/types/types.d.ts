@@ -113,6 +113,54 @@ export interface PlayerState {
     season: string;
     /** 本赛季获得的 XP（换季清零，累计 XP 保留）。 */
     seasonXp: number;
+    /** 当前等级起始时间（升级体验：面板展示升到本级的用时）。 */
+    levelStartedAt?: number;
+}
+/** 每日历史记录（成长周报：按日累计 XP/回合）。 */
+export interface DayHistory {
+    /** 当日获得 XP。 */
+    xp: number;
+    /** 当日完成回合数。 */
+    turns: number;
+}
+/** 赛季商店状态（用本赛季 XP 消费，换季归零）。 */
+export interface ShopState {
+    /** 本赛季累计消费（余额 = seasonXp - spent）。 */
+    spent: number;
+    /** 连击保险库存（失败回合自动消耗一个，保住连击）。 */
+    shields: number;
+    /** 每日任务重掷次数（库存）。 */
+    rerolls: number;
+    /** 已购面板主题（id，空=默认）。 */
+    theme: string;
+    /** 已购称号徽章（id 列表）。 */
+    badges: string[];
+}
+/** 商店商品定义。 */
+export interface ShopItemDef {
+    id: string;
+    kind: 'shield' | 'reroll' | 'theme' | 'badge';
+    name: {
+        zh: string;
+        en: string;
+    };
+    description: {
+        zh: string;
+        en: string;
+    };
+    icon: string;
+    price: number;
+}
+/** 商店商品视图（含是否已购）。 */
+export interface ShopItemView extends ShopItemDef {
+    owned: boolean;
+}
+/** 新手任务链：5 步引导主线。 */
+export interface TutorialState {
+    /** stepId → 完成时间戳。 */
+    steps: Record<string, number>;
+    /** 全部完成（解锁专属称号）。 */
+    done: boolean;
 }
 /** 存档（~/.dsh/devquest/<cwd-hash>.json）。 */
 export interface SaveData {
@@ -130,6 +178,12 @@ export interface SaveData {
     daily: DailyQuestState;
     /** 最近回合结算事件（面板 toast 用，保留最近 N 条）。 */
     settlements?: TurnSettlementEvent[];
+    /** 每日历史（成长周报），date → 当日累计，保留最近 HISTORY_KEEP 天。 */
+    history?: Record<string, DayHistory>;
+    /** 赛季商店状态。 */
+    shop?: ShopState;
+    /** 新手任务链状态。 */
+    tutorial?: TutorialState;
     updatedAt: number;
 }
 /** 单回合结算事件（host 每回合推一条，client 轮询 diff 出 toast）。 */
@@ -202,6 +256,8 @@ export interface DevQuestStatus {
     level: number;
     xp: number;
     xpToNext: number;
+    /** 当前等级起始时间（升级体验：面板显示升到本级的用时）。 */
+    levelStartedAt?: number;
     title: {
         zh: string;
         en: string;
@@ -220,5 +276,40 @@ export interface DevQuestStatus {
     };
     /** 最近回合结算事件（面板 toast 数据源）。 */
     settlements: TurnSettlementEvent[];
+    /** 赛季商店：余额 + 商品（含已购状态）。 */
+    shop: {
+        balance: number;
+        items: ShopItemView[];
+        theme: string;
+        badges: string[];
+        shields: number;
+        rerolls: number;
+    };
+    /** 新手任务链视图。 */
+    tutorial: {
+        steps: {
+            id: string;
+            name: {
+                zh: string;
+                en: string;
+            };
+            icon: string;
+            xp: number;
+            done: boolean;
+            acquiredAt?: number;
+        }[];
+        done: boolean;
+        /** 专属称号（全部完成解锁）。 */
+        title: {
+            zh: string;
+            en: string;
+        };
+    };
+    /** 最近 HISTORY_DAYS 天每日历史（成长周报，时间正序）。 */
+    history: {
+        date: string;
+        xp: number;
+        turns: number;
+    }[];
     updatedAt: number;
 }

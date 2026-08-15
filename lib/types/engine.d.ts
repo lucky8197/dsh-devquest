@@ -4,7 +4,7 @@
  * 不变式：`applyTurn` / `addXp` / `checkAchievements` 都是纯函数
  * （时间由调用方注入 `now`，缺省 Date.now()），无 I/O 无副作用。
  */
-import type { AchievementDef, Action, Counters, DailyQuestState, PlayerState, SaveData } from './types.ts';
+import type { AchievementDef, Action, Counters, DailyQuestState, DayHistory, PlayerState, SaveData, ShopItemDef, ShopState } from './types.ts';
 /** 称号（每 5 级一档）。 */
 export declare const TITLES: readonly [{
     readonly min: 1;
@@ -58,8 +58,8 @@ export declare const DAILY_QUEST_POOL: DailyQuestDef[];
 export declare const DAILY_QUEST_COUNT = 3;
 /** 每日全清宝箱奖励 XP（当天 3 个任务全部完成后可领取一次）。 */
 export declare const DAILY_CHEST_REWARD = 50;
-/** 按日期滚动今日任务（同一天结果确定，不重复抽取同一任务）。 */
-export declare function rollDailyQuests(now: number): DailyQuestState;
+/** 按日期滚动今日任务（同一天结果确定，不重复抽取同一任务；salt 用于重掷）。 */
+export declare function rollDailyQuests(now: number, salt?: string): DailyQuestState;
 /** 日期过期时重滚（幂等：当天不重抽）。会就地更新 save.daily。 */
 export declare function ensureDaily(save: SaveData, now: number): DailyQuestState;
 /** 推进每日任务进度并自动结算奖励，返回本轮任务奖励 XP（在 turn 结算后调用）。 */
@@ -75,6 +75,30 @@ export declare function claimDailyChest(save: SaveData, now?: number, seasonOver
     gained: number;
     save: SaveData;
 };
+/** 构造最小商店状态。 */
+export declare function freshShop(): ShopState;
+/** 商店余额（本赛季可支配 XP）。 */
+export declare function shopBalance(save: SaveData): number;
+/**
+ * 购买商店商品（纯函数，返回副本）。
+ * 余额不足 / 重复购买主题徽章 → { ok: false, reason }。
+ */
+export declare function buyShopItem(save: SaveData, itemId: string, now?: number, seasonOverride?: string): {
+    ok: boolean;
+    reason?: string;
+    save: SaveData;
+};
+/** 使用 1 次任务重掷：重新抽取今日任务（返回副本；库存不足返回 false）。 */
+export declare function useReroll(save: SaveData, now?: number): {
+    ok: boolean;
+    save: SaveData;
+};
+/** 检查新手链：返回新完成的 step id 列表（已完成的跳过），并结算奖励 XP。 */
+export declare function checkTutorial(save: SaveData, now?: number, seasonOverride?: string): {
+    stepIds: string[];
+    complete: boolean;
+    save: SaveData;
+};
 /** 构造最小计数器。 */
 export declare function freshCounters(): Counters;
 /** 构造最小玩家状态。seasonOverride 缺省按当前日期自动推导季度赛季。 */
@@ -83,11 +107,38 @@ export declare function freshPlayer(seasonOverride: string | undefined, now: num
 export declare function freshSave(cwd: string, seasonOverride: string | undefined, now?: number): SaveData;
 /** 存档保留的最近结算事件条数（面板 toast 只关心最近的）。 */
 export declare const SETTLEMENT_KEEP = 12;
+/** 每日历史保留天数（成长周报展示窗口，超出自动裁剪）。 */
+export declare const HISTORY_KEEP = 30;
+/** 赛季商店：用本赛季 XP 消费（换季清零，天然防通胀）。 */
+export declare const SHOP_ITEMS: ShopItemDef[];
+/** 商店主题 id → 面板主题覆盖（client 消费）。 */
+export declare const SHOP_THEMES: Record<string, string>;
+/** 新手任务链：5 步引导主线，全部完成解锁专属称号。 */
+export interface TutorialStepDef {
+    id: string;
+    name: {
+        zh: string;
+        en: string;
+    };
+    icon: string;
+    xp: number;
+    check: (c: Counters) => boolean;
+}
+export declare const TUTORIAL_STEPS: TutorialStepDef[];
+/** 新手链专属称号（全部完成解锁）。 */
+export declare const TUTORIAL_TITLE: {
+    readonly zh: "见习冒险者";
+    readonly en: "Rookie Adventurer";
+};
+/** 新手链全部完成的额外奖励 XP。 */
+export declare const TUTORIAL_COMPLETE_XP = 100;
 /**
  * 加 XP 并处理升级、活跃日统计与赛季换季（返回副本；原存档不变）。
  * seasonOverride 缺省按日期自动推导季度赛季；设置后赛季固定不换季。
  */
 export declare function addXp(save: SaveData, gain: number, now?: number, seasonOverride?: string): SaveData;
+/** 裁剪每日历史：只保留最近 HISTORY_KEEP 天。 */
+export declare function trimHistory(history: Record<string, DayHistory>, now: number): Record<string, DayHistory>;
 /**
  * 单回合结算：聚合该回合的动作，应用工具 XP 封顶与连击加成。
  * completed → turnsCompleted++ / 连击++（≥5 起 ×1.5）；error → turnsFailed++ / 连击清零。

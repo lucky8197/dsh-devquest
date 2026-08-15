@@ -114,12 +114,12 @@ test('host 集成：事件流 → XP/存档 → status 工具', async (t) => {
     const status = await statusTool!.execute({ detail: 'summary' } as never, { agent: { session: { header: { cwd: 'C:/proj' } } } } as never) as unknown as {
       level: number; xp: number; counters: { turnsCompleted: number; toolCalls: number; todosCompleted: number; tokensOut: number }
     }
-    // turn 10 + edit 2 + tokens 1 + todo 15 = 28
+    // turn 10 + edit 2 + tokens 1 + todo 15 = 28；新手链奖励 3 步 ×20 = 60 → 88
     assert.equal(status.counters.turnsCompleted, 1)
     assert.equal(status.counters.toolCalls, 1)
     assert.equal(status.counters.todosCompleted, 1)
     assert.equal(status.counters.tokensOut, 12100)
-    assert.equal(status.xp, 28)
+    assert.equal(status.xp, 88)
     assert.equal(status.level, 1)
 
     // 解锁 first_turn / first_edit / first_todo
@@ -135,9 +135,11 @@ test('host 集成：事件流 → XP/存档 → status 工具', async (t) => {
     emit(session, event('tool/call', { turn: 2, step: 1, callId: 'c2', name: 'edit', arguments: '{}' }))
     emit(session, event('turn/end', { turn: 2, reason: { kind: 'completed' } }))
     await new Promise(r => setTimeout(r, 200))
-    const replay = await statusTool!.execute({ detail: 'summary' } as never, { agent: { session: { header: { cwd: 'C:/proj' } } } } as never) as unknown as { xp: number }
-    // 回合 2 是新回合（seq 继续），仍计分：28 + 10 + 2 = 40
-    assert.equal(replay.xp, 40)
+    const replay = await statusTool!.execute({ detail: 'summary' } as never, { agent: { session: { header: { cwd: 'C:/proj' } } } } as never) as unknown as { xp: number; level: number; counters: { turnsCompleted: number } }
+    // 回合 2 是新回合（seq 继续），仍计分：88 + 10 + 2 = 100，恰好升到 L2（xp 归零）
+    assert.equal(replay.counters.turnsCompleted, 2)
+    assert.equal(replay.level, 2)
+    assert.equal(replay.xp, 0)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

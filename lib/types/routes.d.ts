@@ -12,6 +12,17 @@ export interface DevQuestRoutesConfig {
         gained: number;
         status: DevQuestStatus;
     }>;
+    /** 购买商店商品；返回是否成功、原因与最新状态。 */
+    buy: (itemId: string) => Promise<{
+        ok: boolean;
+        reason?: string;
+        status: DevQuestStatus;
+    }>;
+    /** 使用任务重掷；返回是否成功与最新状态。 */
+    reroll: () => Promise<{
+        ok: boolean;
+        status: DevQuestStatus;
+    }>;
     /** 结果缓存时长（毫秒）。默认 60s。 */
     cacheTtlMs?: number;
 }

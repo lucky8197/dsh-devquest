@@ -18,7 +18,10 @@ import type {} from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type { Session } from '@deepseek-ai/dsh-session'
 import { ACHIEVEMENTS, achievementById } from './achievements.ts'
-import { applyTurnDetailed, checkAchievements, claimDailyChest, dailyQuestsDone, ensureDaily, SETTLEMENT_KEEP, titleFor, xpToNext } from './engine.ts'
+import {
+  applyTurnDetailed, buyShopItem, checkAchievements, checkTutorial, claimDailyChest, dailyQuestsDone, dayKey, ensureDaily,
+  HISTORY_KEEP, SETTLEMENT_KEEP, SHOP_ITEMS, shopBalance, titleFor, TUTORIAL_STEPS, TUTORIAL_TITLE, useReroll, xpToNext,
+} from './engine.ts'
 import { watchEvents, type SessionAggregate } from './listener.ts'
 import { loadSave, persistSave, deleteSave, scopeKey, type StoreConfig } from './store.ts'
 import { registerDevQuestTools } from './tools.ts'
@@ -76,6 +79,7 @@ export function apply(ctx: Context, config: Config = {}): void {
       level: save.player.level,
       xp: save.player.xp,
       xpToNext: xpToNext(save.player.level),
+      ...(save.player.levelStartedAt !== undefined ? { levelStartedAt: save.player.levelStartedAt } : {}),
       title: titleFor(save.player.level),
       season: save.player.season,
       seasonXp: save.player.seasonXp,
@@ -104,8 +108,51 @@ export function apply(ctx: Context, config: Config = {}): void {
         claimed: save.daily.chestClaimed === true,
       },
       settlements: save.settlements ?? [],
+      shop: {
+        balance: shopBalance(save),
+        items: SHOP_ITEMS.map(item => {
+          const owned = item.kind === 'theme'
+            ? save.shop?.theme === item.id
+            : item.kind === 'badge'
+              ? (save.shop?.badges ?? []).includes(item.id)
+              : false
+          return { ...item, owned }
+        }),
+        theme: save.shop?.theme ?? '',
+        badges: save.shop?.badges ?? [],
+        shields: save.shop?.shields ?? 0,
+        rerolls: save.shop?.rerolls ?? 0,
+      },
+      tutorial: {
+        steps: TUTORIAL_STEPS.map(step => {
+          const at = save.tutorial?.steps[step.id]
+          return {
+            id: step.id,
+            name: step.name,
+            icon: step.icon,
+            xp: step.xp,
+            done: at !== undefined,
+            ...(at !== undefined ? { acquiredAt: at } : {}),
+          }
+        }),
+        done: save.tutorial?.done === true,
+        title: TUTORIAL_TITLE,
+      },
+      history: buildHistory(save, Date.now()),
       updatedAt: save.updatedAt,
     }
+  }
+
+  /** 组装成长周报（最近 HISTORY_KEEP 天，时间正序）。 */
+  function buildHistory(save: SaveData, now: number): DevQuestStatus['history'] {
+    const out: DevQuestStatus['history'] = []
+    const map = save.history ?? {}
+    for (let i = HISTORY_KEEP - 1; i >= 0; i--) {
+      const date = dayKey(now - i * 86_400_000)
+      const h = map[date]
+      out.push({ date, xp: h?.xp ?? 0, turns: h?.turns ?? 0 })
+    }
+    return out
   }
 
   // ---- 1. 事件监听：缓冲 → 回合结束结算 ----
@@ -141,6 +188,9 @@ export function apply(ctx: Context, config: Config = {}): void {
       }
       next.settlements = [...(next.settlements ?? []), event].slice(-SETTLEMENT_KEEP)
       const unlocked = checkAchievements(ACHIEVEMENTS, next)
+      // 新手任务链：步骤推进（每步 +20 XP，全清 +100 XP + 专属称号）。
+      const tut = checkTutorial(next, at, seasonOverride)
+      Object.assign(next, tut.save)
       next.lastSeqBySession[sessionId] = seq
       saveCache.set(key, next)
       await persistSave(ctx, storeConfig, next)
@@ -150,6 +200,13 @@ export function apply(ctx: Context, config: Config = {}): void {
           return def !== undefined ? `${def.icon} ${def.name.zh} ${def.name.en}` : id
         })
         console.log(`[devquest] 🏆 成就解锁：${names.join('、')}`)
+      }
+      if (tut.stepIds.length > 0) {
+        const names = tut.stepIds.map(id => {
+          const def = TUTORIAL_STEPS.find(s => s.id === id)
+          return def !== undefined ? `${def.icon} ${def.name.zh}` : id
+        })
+        console.log(`[devquest] 🎓 新手任务：${names.join('、')}${tut.complete ? '（全部完成，解锁「见习冒险者」称号！）' : ''}`)
       }
     })
   })
@@ -174,6 +231,35 @@ export function apply(ctx: Context, config: Config = {}): void {
   })
 
   // ---- 3. HTTP 路由（可选能力：headless 无 webServer 时自动跳过） ----
+  /** 串行执行一个改档操作：读 → 纯函数改 → 缓存/持久化 → 返回最新状态。 */
+  async function mutateSave<T extends { save: SaveData }>(
+    mutate: (save: SaveData) => T,
+    pick: (result: T) => { ok: boolean; reason?: string },
+  ): Promise<{ ok: boolean; reason?: string; status: DevQuestStatus }> {
+    const key = scopeKey()
+    let picked: { ok: boolean; reason?: string } = { ok: false }
+    let fresh: SaveData | undefined
+    await new Promise<void>((resolve, reject) => {
+      enqueue(key, async () => {
+        try {
+          const save = await getSave(key)
+          const result = mutate(save)
+          picked = pick(result)
+          fresh = result.save
+          if (picked.ok) {
+            saveCache.set(key, result.save)
+            await persistSave(ctx, storeConfig, result.save)
+          }
+        } catch (error) {
+          reject(error)
+          return
+        }
+        resolve()
+      })
+    })
+    return { ...picked, status: buildStatus(fresh ?? (await getSave(key))) }
+  }
+
   const routes = makeDevQuestRoutes({
     status: async (): Promise<DevQuestStatus> => {
       const save = await getSave(scopeKey())
@@ -203,6 +289,8 @@ export function apply(ctx: Context, config: Config = {}): void {
       })
       return { ...result, status: buildStatus(fresh ?? (await getSave(key))) }
     },
+    buy: async (itemId: string) => mutateSave(save => buyShopItem(save, itemId, Date.now(), seasonOverride), result => ({ ok: result.ok, ...(result.reason !== undefined ? { reason: result.reason } : {}) })),
+    reroll: async () => mutateSave(save => useReroll(save, Date.now()), result => ({ ok: result.ok })),
     ...(config.cacheTtlMs !== undefined ? { cacheTtlMs: config.cacheTtlMs } : {}),
   })
   ctx.inject(['webServer'], (httpCtx) => {

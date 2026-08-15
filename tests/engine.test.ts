@@ -6,9 +6,9 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { ACHIEVEMENTS, achievementById } from '../src/achievements.ts'
 import {
-  addXp, applyDaily, applyTurn, applyTurnDetailed, autoSeasonId, checkAchievements, claimDailyChest,
-  DAILY_CHEST_REWARD, DAILY_QUEST_POOL, dailyQuestsDone, dayKey, ensureDaily, freshSave,
-  mergeSaves, migrateSave, rollDailyQuests, SETTLEMENT_KEEP, titleFor, xpToNext,
+  addXp, applyDaily, applyTurn, applyTurnDetailed, autoSeasonId, buyShopItem, checkAchievements, checkTutorial, claimDailyChest,
+  DAILY_CHEST_REWARD, DAILY_QUEST_POOL, dailyQuestsDone, dayKey, ensureDaily, freshSave, freshShop, HISTORY_KEEP,
+  mergeSaves, migrateSave, rollDailyQuests, SETTLEMENT_KEEP, SHOP_ITEMS, shopBalance, titleFor, trimHistory, TUTORIAL_STEPS, useReroll, xpToNext,
 } from '../src/engine.ts'
 import type { Action, SaveData } from '../src/types.ts'
 
@@ -543,6 +543,8 @@ test('赛季换季：跨季度自动开启新赛季，赛季 XP/tokens 清零重
   const q1 = new Date(2026, 0, 15, 12, 0, 0).getTime() // 2026-S1
   const q3 = new Date(2026, 7, 15, 12, 0, 0).getTime() // 2026-S3
   let save = freshSave('C:/proj', undefined, q1)
+  // 屏蔽每日任务：避免 tokens 任务干扰赛季 XP 断言（每日任务单独测）。
+  save.daily = { date: dayKey(q1), quests: [] }
   // Q1 内两个回合：赛季 XP 累计
   save = applyTurn(save, [{ kind: 'turn-completed', turn: 1 }], q1)
   save = applyTurn(save, [
@@ -550,7 +552,8 @@ test('赛季换季：跨季度自动开启新赛季，赛季 XP/tokens 清零重
     { kind: 'turn-completed', turn: 2 },
   ], q1 + 1000)
   assert.equal(save.player.season, '2026-S1')
-  assert.equal(save.player.seasonXp, 20 + 6) // 10 + (10 + 6 tokens XP)
+  // 纯引擎 applyTurn 不含新手链（host 层才调用），10 + (10+6) = 26
+  assert.equal(save.player.seasonXp, 26)
   assert.equal(save.counters.seasonTokensOut, 60_000)
   const xpTotalBefore = save.player.xpTotal
   // 跨季度：Q3 首次活跃 → 换季（先屏蔽每日任务，避免累计 tokens 秒完成任务干扰断言）
@@ -769,4 +772,151 @@ test('settlements：存档保留最近 SETTLEMENT_KEEP 条且跨存档合并去�
   assert.equal(merged.settlements![0]!.xp, 99)
   const ids = new Set(merged.settlements!.map(e => e.id))
   assert.equal(ids.size, merged.settlements!.length)
+})
+
+// ---------------------------------------------------------------------------
+// P1/P2：商店 / 连击保险 / 重掷 / 新手链 / 历史 / 等级起点
+// ---------------------------------------------------------------------------
+
+test('商店：余额 = seasonXp - spent，购买扣款并加库存', () => {
+  let save = fresh()
+  save.player.seasonXp = 500
+  save.shop = freshShop()
+  assert.equal(shopBalance(save), 500)
+
+  // 买连击保险（150）
+  const r1 = buyShopItem(save, 'shield-1', NOW)
+  assert.equal(r1.ok, true)
+  assert.equal(r1.save.shop!.shields, 1)
+  assert.equal(r1.save.shop!.spent, 150)
+  assert.equal(shopBalance(r1.save), 350)
+
+  // 余额不足：买 3 连击保险（400）不够 350
+  const r2 = buyShopItem(r1.save, 'shield-3', NOW)
+  assert.equal(r2.ok, false)
+  assert.equal(r2.reason, 'insufficient-balance')
+
+  // 主题：买一次后重复买 → already-owned
+  save.player.seasonXp = 1000
+  const r3 = buyShopItem(save, 'theme-ember', NOW)
+  assert.equal(r3.ok, true)
+  assert.equal(r3.save.shop!.theme, 'theme-ember')
+  const r4 = buyShopItem(r3.save, 'theme-ember', NOW)
+  assert.equal(r4.ok, false)
+  assert.equal(r4.reason, 'already-owned')
+})
+
+test('商店：商品表完备（4 类商品齐备）', () => {
+  const kinds = new Set(SHOP_ITEMS.map(i => i.kind))
+  assert.ok(kinds.has('shield'))
+  assert.ok(kinds.has('reroll'))
+  assert.ok(kinds.has('theme'))
+  assert.ok(kinds.has('badge'))
+  assert.ok(SHOP_ITEMS.length >= 8)
+})
+
+test('连击保险：失误回合消耗一个，连击不清零', () => {
+  let save = fresh()
+  save.shop = { ...freshShop(), shields: 1 }
+  save = applyTurn(save, [{ kind: 'turn-completed', turn: 1 }], NOW) // 连击 1
+  save = applyTurn(save, [{ kind: 'turn-completed', turn: 2 }], NOW + 1) // 连击 2
+  assert.equal(save.counters.consecutiveSuccess, 2)
+  // 失误：消耗保险，连击保留
+  save = applyTurn(save, [{ kind: 'turn-failed', turn: 3 }], NOW + 2)
+  assert.equal(save.counters.turnsFailed, 1)
+  assert.equal(save.counters.consecutiveSuccess, 2)
+  assert.equal(save.shop!.shields, 0)
+  // 再失误：无保险，连击清零
+  save = applyTurn(save, [{ kind: 'turn-failed', turn: 4 }], NOW + 3)
+  assert.equal(save.counters.consecutiveSuccess, 0)
+})
+
+test('任务重掷：消耗库存且任务与默认不同', () => {
+  let save = fresh()
+  save.shop = { ...freshShop(), rerolls: 1 }
+  const before = save.daily.quests.map(q => q.id).join(',')
+  const r = useReroll(save, NOW)
+  assert.equal(r.ok, true)
+  assert.equal(r.save.shop!.rerolls, 0)
+  assert.notEqual(r.save.daily.quests.map(q => q.id).join(','), before)
+  // 无库存时拒绝
+  const r2 = useReroll(r.save, NOW)
+  assert.equal(r2.ok, false)
+})
+
+test('新手链：逐步完成，全部完成解锁称号', () => {
+  let save = fresh()
+  // 第 1 步：完成首个回合
+  const r1 = checkTutorial(save, NOW)
+  assert.equal(r1.stepIds.length, 0) // 什么都没做
+  save = applyTurn(save, [{ kind: 'turn-completed', turn: 1 }], NOW)
+  const r2 = checkTutorial(save, NOW)
+  assert.ok(r2.stepIds.includes('first-turn'))
+  assert.equal(r2.complete, false)
+  // 编辑 + 待办 + 命令
+  save = applyTurn(save, [
+    { kind: 'turn-completed', turn: 2 },
+    { kind: 'tool-call', tool: 'edit' },
+    { kind: 'todo-completed', count: 1 },
+    { kind: 'tool-call', tool: 'pwsh' },
+  ], NOW + 1)
+  const r3 = checkTutorial(save, NOW)
+  assert.ok(r3.stepIds.includes('first-edit'))
+  assert.ok(r3.stepIds.includes('first-todo'))
+  assert.ok(r3.stepIds.includes('first-command'))
+  // 最后一步：查看进度（devquestCalls）
+  save.counters.devquestCalls = 1
+  const r4 = checkTutorial(save, NOW + 2)
+  assert.ok(r4.stepIds.includes('first-check'))
+  assert.equal(r4.complete, true)
+  assert.equal(r4.save.tutorial!.done, true) // 纯函数：r4.save 才是新存档
+  // 全部完成有额外奖励：5 步 × 20 + 100
+  assert.ok(r4.save.player.xpTotal >= 100 + 5 * 20)
+})
+
+test('新手链：已完成步骤不重复奖励', () => {
+  let save = fresh()
+  save.counters.turnsCompleted = 1
+  const r1 = checkTutorial(save, NOW)
+  assert.equal(r1.stepIds.length, 1)
+  const r2 = checkTutorial(r1.save, NOW + 1)
+  assert.equal(r2.stepIds.length, 0) // 不重复
+})
+
+test('每日历史：addXp 累计当日 XP，applyTurn 累计回合，跨天分桶', () => {
+  let save = fresh()
+  save = applyTurn(save, [{ kind: 'turn-completed', turn: 1 }], NOW) // 10 XP + 1 turn
+  save = applyTurn(save, [{ kind: 'turn-completed', turn: 2 }], NOW + 1000) // 10 XP + 1 turn
+  const today = dayKey(NOW)
+  assert.equal(save.history![today]!.xp, 20)
+  assert.equal(save.history![today]!.turns, 2)
+  // 跨天
+  const tomorrow = NOW + 86_400_000
+  save = applyTurn(save, [{ kind: 'turn-completed', turn: 3 }], tomorrow)
+  const t2 = dayKey(tomorrow)
+  assert.equal(save.history![t2]!.xp, 10)
+  assert.equal(save.history![t2]!.turns, 1)
+})
+
+test('每日历史：裁剪到最近 HISTORY_KEEP 天', () => {
+  const save = fresh()
+  const oldDate = dayKey(NOW - 40 * 86_400_000)
+  save.history = { [oldDate]: { xp: 999, turns: 5 } }
+  const cut = trimHistory(save.history!, NOW)
+  assert.equal(cut[oldDate], undefined)
+  // 近 5 天保留
+  const recentDate = dayKey(NOW - 3 * 86_400_000)
+  save.history![recentDate] = { xp: 10, turns: 1 }
+  const cut2 = trimHistory(save.history!, NOW)
+  assert.equal(cut2[recentDate]!.xp, 10)
+})
+
+test('等级起点：升级时记录 levelStartedAt', () => {
+  const save = fresh()
+  const r = applyTurnDetailed(save, [
+    { kind: 'turn-completed', turn: 1 },
+    { kind: 'todo-completed', count: 10 }, // 150 XP → L1(100) → L2
+  ], NOW)
+  assert.equal(r.settlement.leveledUp, true)
+  assert.equal(r.save.player.levelStartedAt, NOW)
 })

@@ -86,6 +86,22 @@ function comboMultiplier(consecutive: number): number | null {
   return null
 }
 
+/** 赛季冲刺目标：本赛季输出 tokens 目标（与 season_100k 成就一致）。 */
+const SEASON_GOAL_TOKENS = 100_000
+
+/** 由赛季 id（如 2026-S3）计算季度剩余天数（本地时区，含今天）。 */
+function seasonDaysLeft(season: string): number {
+  const m = /^(\d{4})-S([1-4])$/.exec(season)
+  if (m === null) return 0
+  const year = Number(m[1])
+  const quarter = Number(m[2])
+  const endMonth = quarter * 3 // 季度最后一个月（1-12）
+  const end = new Date(year, endMonth, 1, 0, 0, 0, 0) // 下季度第一天
+  const now = new Date()
+  const ms = end.getTime() - now.getTime()
+  return Math.max(0, Math.ceil(ms / 86_400_000))
+}
+
 function formatNumber(n: number): string {
   if (n < 1000) return String(n)
   const v = n / 1000
@@ -196,6 +212,11 @@ export function DevQuestPanelCard(
   const [category, setCategory] = useState<(typeof CATEGORY_KEYS)[number]>('journey')
   const [hover, setHover] = useState<{ a: DevQuestStatus['achievements'][number]; x: number; y: number } | null>(null)
   const [claiming, setClaiming] = useState(false)
+  const [shopOpen, setShopOpen] = useState(false)
+  const [reportOpen, setReportOpen] = useState(false)
+  const [buying, setBuying] = useState<string | null>(null)
+  const [shopMsg, setShopMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [rerolling, setRerolling] = useState(false)
   // 面板位置：null = 默认右上角；拖拽后保存到 localStorage。
   const [pos, setPos] = useState<{ left: number; top: number } | null>(loadPanelPos)
   const [dragging, setDragging] = useState(false)
@@ -297,6 +318,44 @@ export function DevQuestPanelCard(
     }
   }, [claiming, actions])
 
+  /** 购买商店商品。 */
+  const buy = useCallback(async (itemId: string): Promise<void> => {
+    if (buying !== null) return
+    setBuying(itemId)
+    setShopMsg(null)
+    try {
+      const response = await fetch('/api/devquest/shop/buy', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ itemId }),
+      })
+      const data = await response.json() as { ok: boolean; reason?: string; status: DevQuestStatus }
+      if (data.status !== null && data.status !== undefined) actions.setStatus(data.status)
+      setShopMsg(data.ok
+        ? { ok: true, text: t('dq.shopBought') }
+        : { ok: false, text: data.reason === 'insufficient-balance' ? t('dq.shopNoBalance') : (data.reason ?? '') })
+    } catch {
+      setShopMsg({ ok: false, text: t('dq.error') })
+    } finally {
+      setBuying(null)
+    }
+  }, [buying, actions, t])
+
+  /** 使用任务重掷。 */
+  const rerollQuests = useCallback(async (): Promise<void> => {
+    if (rerolling) return
+    setRerolling(true)
+    try {
+      const response = await fetch('/api/devquest/shop/reroll', { method: 'POST' })
+      const data = await response.json() as { ok: boolean; status: DevQuestStatus }
+      if (data.status !== null && data.status !== undefined) actions.setStatus(data.status)
+    } catch {
+      // 静默失败
+    } finally {
+      setRerolling(false)
+    }
+  }, [rerolling, actions])
+
   const status = state.status
   // 位置：拖拽后 left/top；未拖过则默认右上角。
   const positionStyle: CSSProperties = pos !== null
@@ -364,7 +423,24 @@ export function DevQuestPanelCard(
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={titleRowStyle}>
             <span style={{ ...titleTextStyle, ...titleToneStyle(status.level) }}>{status.title.zh}</span>
+            {/* 已购称号徽章 */}
+            {(status.shop?.badges ?? []).map(badgeId => {
+              const item = status.shop?.items.find(i => i.id === badgeId)
+              return item !== undefined ? <span key={badgeId} style={titleBadgeStyle} title={item.name.zh}>{item.icon}</span> : null
+            })}
             <span style={seasonStyle}>{t('dq.season', { season: status.season })}</span>
+          </div>
+          {/* E. 升级体验：本等级已坚持多久（levelStartedAt → 天数） */}
+          {status.levelStartedAt !== undefined && (
+            <span style={levelSinceStyle}>{t('dq.levelSince', { days: Math.max(0, Math.floor((Date.now() - status.levelStartedAt) / 86_400_000)) })}</span>
+          )}
+          {/* 赛季冲刺条：本赛季 tokens / 100k 目标 + 剩余天数 */}
+          <div style={sprintRowStyle}>
+            <span style={sprintLabelStyle}>{t('dq.seasonSprint')}</span>
+            <div style={sprintTrackStyle}>
+              <div style={{ ...sprintFillStyle, width: `${Math.min(100, Math.round((c.seasonTokensOut / SEASON_GOAL_TOKENS) * 100))}%` }} />
+            </div>
+            <span style={sprintDaysStyle}>{t('dq.seasonDaysLeft', { days: seasonDaysLeft(status.season) })}</span>
           </div>
           <div style={xpTrackStyle}>
             <div style={{ ...xpFillStyle, width: `${percent}%` }} />
@@ -412,6 +488,59 @@ export function DevQuestPanelCard(
             : <button type="button" onClick={() => void claimChest()} disabled={claiming} style={chestButtonStyle}>
               🎁 {claiming ? t('dq.chestClaiming') : t('dq.chestReady', { xp: 50 })}
             </button>
+        )}
+        {/* 商店入口行：余额 + 保险/重掷库存 + 打开商店 */}
+        <div style={shopBarStyle}>
+          <span style={shopBalanceStyle}>{t('dq.shopBalance', { balance: status.shop?.balance ?? 0 })}</span>
+          {(status.shop?.shields ?? 0) > 0 && <span style={shopStockStyle}>{t('dq.shopShields', { n: status.shop!.shields })}</span>}
+          {(status.shop?.rerolls ?? 0) > 0 && <span style={shopStockStyle}>{t('dq.shopRerolls', { n: status.shop!.rerolls })}</span>}
+          <button type="button" onClick={() => setShopOpen(v => !v)} style={linkButtonStyle}>{shopOpen ? '▾' : '🛒 ' + t('dq.shop')}</button>
+        </div>
+        {shopOpen && (
+          <div style={shopGridStyle}>
+            {status.shop?.items.map(item => {
+              const canAfford = (status.shop!.balance) >= item.price
+              return (
+                <div key={item.id} style={shopItemStyle}>
+                  <div style={shopItemHeadStyle}>
+                    <span style={{ fontSize: 15 }}>{item.icon}</span>
+                    <span style={shopItemNameStyle}>{item.name.zh}</span>
+                    <span style={shopItemPriceStyle}>{item.price}</span>
+                  </div>
+                  <div style={shopItemDescStyle}>{item.description.zh}</div>
+                  {item.owned
+                    ? <div style={shopOwnedStyle}>{t('dq.shopOwned')}</div>
+                    : <button type="button" onClick={() => void buy(item.id)} disabled={buying !== null || !canAfford} style={{ ...shopBuyButtonStyle, ...(!canAfford ? shopBuyDisabledStyle : {}) }}>
+                      {buying === item.id ? '…' : t('dq.shopBuy')}
+                    </button>}
+                </div>
+              )
+            })}
+            {shopMsg !== null && <div style={shopMsgStyle(shopMsg.ok)}>{shopMsg.text}</div>}
+            {(status.shop?.rerolls ?? 0) > 0 && (
+              <button type="button" onClick={() => void rerollQuests()} disabled={rerolling} style={rerollButtonStyle}>
+                🔀 {rerolling ? '…' : t('dq.shopReroll')}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 新手任务链 */}
+      <div style={sectionStyle}>
+        <div style={sectionHeadStyle}>
+          <span style={sectionTitleStyle}>🎓 {t('dq.tutorial')}</span>
+          <span style={updatedStyle}>{status.tutorial?.done ? '✅' : t('dq.tutorialStepDone', { n: status.tutorial?.steps.filter(s => s.done).length ?? 0, m: status.tutorial?.steps.length ?? 5 })}</span>
+        </div>
+        {status.tutorial?.steps.map(step => (
+          <div key={step.id} style={tutorialRowStyle}>
+            <span style={{ fontSize: 13, opacity: step.done ? 1 : 0.55 }}>{step.done ? '✅' : step.icon}</span>
+            <span style={{ ...tutorialNameStyle, ...(step.done ? {} : { color: TONE.muted }) }}>{step.name.zh}</span>
+            <span style={tutorialXpStyle}>+{step.xp}</span>
+          </div>
+        ))}
+        {status.tutorial?.done === true && (
+          <div style={tutorialTitleStyle}>🏅 {t('dq.tutorialTitle', { title: status.tutorial.title.zh })}</div>
         )}
       </div>
 
@@ -476,6 +605,8 @@ export function DevQuestPanelCard(
               const locked = !a.unlocked
               const visible = a.unlocked || !a.hidden
               const p = a.progress
+              // G. 隐藏成就渐进揭示：未解锁但进度 ≥50% 时显示「?」轮廓（不泄露具体内容）。
+              const revealHint = locked && a.hidden && p !== undefined && p.goal > 0 && p.current / p.goal >= 0.5
               return <span
                 key={a.id}
                 onMouseEnter={(e) => {
@@ -490,12 +621,12 @@ export function DevQuestPanelCard(
                   position: 'relative',
                   ...wallCellStyle,
                   ...(locked
-                    ? (a.hidden ? wallCellHiddenLockedStyle : wallCellLockedStyle)
+                    ? (a.hidden && !revealHint ? wallCellHiddenLockedStyle : wallCellLockedStyle)
                     : wallCellUnlockedStyle),
                 }}
               >
                 {a.unlocked && <span style={wallCheckStyle}>✓</span>}
-                <span style={{ fontSize: 17, lineHeight: 1.2 }}>{visible ? a.icon : '🔒'}</span>
+                <span style={{ fontSize: 17, lineHeight: 1.2 }}>{visible ? a.icon : (revealHint ? '❔' : '🔒')}</span>
                 {!a.hidden && (
                   <span style={{ ...wallXpStyle, ...(a.unlocked ? wallXpUnlockedStyle : {}) }}>+{a.xp}</span>
                 )}
@@ -510,6 +641,35 @@ export function DevQuestPanelCard(
           </div>
           {hover !== null && <AchievementTooltip hover={hover} t={t} />}
         </>}
+      </div>
+
+      {/* 成长周报：最近 7 天 XP 柱状图 */}
+      <div style={sectionStyle}>
+        <div style={sectionHeadStyle}>
+          <span style={sectionTitleStyle}>📈 {t('dq.report')}</span>
+          <button type="button" onClick={() => setReportOpen(v => !v)} style={linkButtonStyle}>
+            {reportOpen ? '▾' : '▸'}
+          </button>
+        </div>
+        {reportOpen && (
+          <div style={reportStyle}>
+            <div style={reportBarsStyle}>
+              {(status.history ?? []).slice(-7).map(h => {
+                const max = Math.max(...(status.history ?? []).slice(-7).map(x => x.xp), 1)
+                const pct = Math.max(4, Math.round((h.xp / max) * 100))
+                return (
+                  <div key={h.date} style={reportBarColStyle} title={`${h.date} · ${t('dq.reportXp', { xp: h.xp })} · ${h.turns} 回合`}>
+                    <div style={reportBarWrapStyle}>
+                      <div style={{ ...reportBarStyle, height: `${pct}%` }} />
+                    </div>
+                    <span style={reportBarDateStyle}>{h.date.slice(5)}</span>
+                  </div>
+                )
+              })}
+            </div>
+            <div style={reportLegendStyle}>{t('dq.report7d')}</div>
+          </div>
+        )}
       </div>
     </div>
   </section>
@@ -526,9 +686,10 @@ function AchievementTooltip(
   const { hover, t } = props
   const a = hover.a
   const visible = a.unlocked || !a.hidden
+  const near = !a.unlocked && a.hidden && a.progress !== undefined && a.progress.goal > 0 && a.progress.current / a.progress.goal >= 0.5
   return <div style={{ ...tooltipStyle, left: hover.x, top: hover.y }} role="tooltip">
     <div style={tooltipHeadStyle}>
-      <span style={{ fontSize: 20 }}>{visible ? a.icon : '🔒'}</span>
+      <span style={{ fontSize: 20 }}>{visible ? a.icon : (near ? '❔' : '🔒')}</span>
       <div style={{ minWidth: 0 }}>
         <div style={tooltipNameStyle}>{visible ? `${a.name.zh} ${a.name.en}` : '？？？'}</div>
         <div style={tooltipStatusStyle}>
@@ -539,7 +700,7 @@ function AchievementTooltip(
         </div>
       </div>
     </div>
-    <div style={tooltipDescStyle}>{visible ? a.description.zh : t('dq.hiddenHint')}</div>
+    <div style={tooltipDescStyle}>{visible ? a.description.zh : (near ? t('dq.hiddenNear') : t('dq.hiddenHint'))}</div>
     {!a.unlocked && !a.hidden && a.progress !== undefined && a.progress.goal > 0 && (
       <div style={tooltipProgressWrapStyle}>
         <div style={tooltipProgressTopStyle}>
@@ -1013,6 +1174,101 @@ const chestClaimedStyle: CSSProperties = {
   color: TONE.quiet,
   fontSize: 11,
 }
+
+// ---- P1/P2 样式 ----
+
+/** 已购称号徽章（称号旁小图标）。 */
+const titleBadgeStyle: CSSProperties = { fontSize: 13, lineHeight: 1, marginLeft: -2 }
+
+/** 等级持续天数。 */
+const levelSinceStyle: CSSProperties = { display: 'block', fontSize: 9, color: TONE.quiet, marginTop: 1 }
+
+/** 赛季冲刺条。 */
+const sprintRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }
+
+const sprintLabelStyle: CSSProperties = { fontSize: 9, color: TONE.quiet, whiteSpace: 'nowrap' }
+
+const sprintTrackStyle: CSSProperties = { flex: 1, height: 3, borderRadius: 2, background: 'color-mix(in srgb, var(--dsw-alias-label-tertiary, #718096) 30%, transparent)', overflow: 'hidden' }
+
+const sprintFillStyle: CSSProperties = { height: '100%', borderRadius: 2, background: 'linear-gradient(90deg, var(--dsw-alias-state-warn-primary, #f6c652), var(--dsw-alias-brand-primary, #8ec5ff))' }
+
+const sprintDaysStyle: CSSProperties = { fontSize: 9, color: TONE.muted, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }
+
+/** 商店栏（每日任务下方）。 */
+const shopBarStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, paddingTop: 8, borderTop: `1px solid ${TONE.border}` }
+
+const shopBalanceStyle: CSSProperties = { fontSize: 10, color: TONE.gold, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }
+
+const shopStockStyle: CSSProperties = { fontSize: 9, color: TONE.muted }
+
+const shopGridStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }
+
+const shopItemStyle: CSSProperties = { padding: '7px 9px', borderRadius: 9, background: TONE.row, border: `1px solid ${TONE.border}` }
+
+const shopItemHeadStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 6 }
+
+const shopItemNameStyle: CSSProperties = { flex: 1, fontSize: 11, color: TONE.text, fontWeight: 600 }
+
+const shopItemPriceStyle: CSSProperties = { fontSize: 10, color: TONE.gold, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }
+
+const shopItemDescStyle: CSSProperties = { fontSize: 10, color: TONE.muted, marginTop: 3, lineHeight: 1.4 }
+
+const shopOwnedStyle: CSSProperties = { marginTop: 5, fontSize: 10, color: TONE.green }
+
+const shopBuyButtonStyle: CSSProperties = {
+  marginTop: 5,
+  padding: '3px 10px',
+  border: 'none',
+  borderRadius: 7,
+  background: TONE.accent,
+  color: '#0b1220',
+  fontSize: 10,
+  fontWeight: 700,
+  cursor: 'pointer',
+}
+
+const shopBuyDisabledStyle: CSSProperties = { opacity: 0.45, cursor: 'not-allowed' }
+
+const rerollButtonStyle: CSSProperties = {
+  marginTop: 4,
+  padding: '5px 10px',
+  border: `1px solid ${TONE.borderStrong}`,
+  borderRadius: 8,
+  background: TONE.row,
+  color: TONE.text,
+  fontSize: 10,
+  cursor: 'pointer',
+}
+
+const shopMsgStyle = (ok: boolean): CSSProperties => ({
+  fontSize: 10,
+  color: ok ? TONE.green : TONE.red,
+  marginTop: 2,
+})
+
+/** 新手任务链。 */
+const tutorialRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 7, padding: '3px 0' }
+
+const tutorialNameStyle: CSSProperties = { flex: 1, fontSize: 11, color: TONE.text }
+
+const tutorialXpStyle: CSSProperties = { fontSize: 9, color: TONE.gold }
+
+const tutorialTitleStyle: CSSProperties = { marginTop: 4, fontSize: 11, color: TONE.gold, fontWeight: 700 }
+
+/** 成长周报。 */
+const reportStyle: CSSProperties = { marginTop: 4 }
+
+const reportBarsStyle: CSSProperties = { display: 'flex', alignItems: 'flex-end', gap: 4, height: 52 }
+
+const reportBarColStyle: CSSProperties = { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minWidth: 0 }
+
+const reportBarWrapStyle: CSSProperties = { flex: 1, width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }
+
+const reportBarStyle: CSSProperties = { width: '70%', borderRadius: 3, background: 'linear-gradient(180deg, var(--dsw-alias-brand-primary, #8ec5ff), color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 45%, transparent))', transition: 'height .3s ease' }
+
+const reportBarDateStyle: CSSProperties = { fontSize: 8, color: TONE.quiet, overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }
+
+const reportLegendStyle: CSSProperties = { marginTop: 4, fontSize: 9, color: TONE.quiet, textAlign: 'center' }
 
 /** 成就悬浮简介卡（fixed 定位，pointer-events none 不挡鼠标）。 */
 const tooltipStyle: CSSProperties = {
