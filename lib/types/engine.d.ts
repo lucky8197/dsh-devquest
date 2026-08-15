@@ -56,18 +56,33 @@ export interface DailyQuestDef {
 export declare const DAILY_QUEST_POOL: DailyQuestDef[];
 /** 每天抽取的任务数。 */
 export declare const DAILY_QUEST_COUNT = 3;
+/** 每日全清宝箱奖励 XP（当天 3 个任务全部完成后可领取一次）。 */
+export declare const DAILY_CHEST_REWARD = 50;
 /** 按日期滚动今日任务（同一天结果确定，不重复抽取同一任务）。 */
 export declare function rollDailyQuests(now: number): DailyQuestState;
 /** 日期过期时重滚（幂等：当天不重抽）。会就地更新 save.daily。 */
 export declare function ensureDaily(save: SaveData, now: number): DailyQuestState;
 /** 推进每日任务进度并自动结算奖励，返回本轮任务奖励 XP（在 turn 结算后调用）。 */
 export declare function applyDaily(save: SaveData, now: number): number;
+/** 当天 3 个任务是否已全部完成。 */
+export declare function dailyQuestsDone(daily: DailyQuestState): boolean;
+/**
+ * 领取每日全清宝箱（当天 3 个任务全完成后可领一次，+DAILY_CHEST_REWARD XP）。
+ * 未满足条件时返回 { ok: false, gained: 0, save }（原存档副本不变）。
+ */
+export declare function claimDailyChest(save: SaveData, now?: number, seasonOverride?: string): {
+    ok: boolean;
+    gained: number;
+    save: SaveData;
+};
 /** 构造最小计数器。 */
 export declare function freshCounters(): Counters;
 /** 构造最小玩家状态。seasonOverride 缺省按当前日期自动推导季度赛季。 */
 export declare function freshPlayer(seasonOverride: string | undefined, now: number): PlayerState;
 /** 构造最小存档。seasonOverride 缺省按当前日期自动推导季度赛季。 */
 export declare function freshSave(cwd: string, seasonOverride: string | undefined, now?: number): SaveData;
+/** 存档保留的最近结算事件条数（面板 toast 只关心最近的）。 */
+export declare const SETTLEMENT_KEEP = 12;
 /**
  * 加 XP 并处理升级、活跃日统计与赛季换季（返回副本；原存档不变）。
  * seasonOverride 缺省按日期自动推导季度赛季；设置后赛季固定不换季。
@@ -76,8 +91,33 @@ export declare function addXp(save: SaveData, gain: number, now?: number, season
 /**
  * 单回合结算：聚合该回合的动作，应用工具 XP 封顶与连击加成。
  * completed → turnsCompleted++ / 连击++（≥5 起 ×1.5）；error → turnsFailed++ / 连击清零。
+ * 返回存档副本（原存档不变）。
  */
 export declare function applyTurn(save: SaveData, actions: Action[], now?: number, seasonOverride?: string): SaveData;
+/** 单回合结算明细（面板 toast / 工具展示用）。 */
+export interface TurnSettlement {
+    /** 本轮获得的 XP（含连击加成与每日任务奖励）。 */
+    xp: number;
+    /** 连击加成倍率（无加成时 null）。 */
+    combo: number | null;
+    /** 每日任务奖励 XP。 */
+    questXp: number;
+    /** 结算前等级。 */
+    levelBefore: number;
+    /** 结算后等级。 */
+    levelAfter: number;
+    /** 是否升级。 */
+    leveledUp: boolean;
+    /** 完成/失败的回合数（本轮）。 */
+    turnsDone: number;
+}
+/**
+ * 单回合结算（返回存档 + 结算明细）。语义同 applyTurn。
+ */
+export declare function applyTurnDetailed(save: SaveData, actions: Action[], now?: number, seasonOverride?: string): {
+    save: SaveData;
+    settlement: TurnSettlement;
+};
 /**
  * 成就判定：返回新解锁的成就 id 列表（一次性；已解锁的不重复）。
  * 副作用仅限对传入存档副本写入成就记录。

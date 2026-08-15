@@ -1,6 +1,7 @@
 /**
  * DevQuest HTTP 路由：浏览器面板通过同源 JSON 接口拉取状态
- * （`GET /api/devquest/status`），60s 缓存 + in-flight 复用。
+ * （`GET /api/devquest/status`）与领取每日全清宝箱（`POST /api/devquest/claim-chest`）。
+ * 60s 缓存 + in-flight 复用（仅 status；claim 会主动失效缓存）。
  * v0.3 起存档为全局玩家档，不再按 cwd/session 分项目。
  */
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -14,6 +15,8 @@ export const STATUS_API_PREFIX = '/api/devquest'
 export interface DevQuestRoutesConfig {
   /** 取全局玩家状态（读档 + 组装视图）。 */
   status: () => Promise<DevQuestStatus>
+  /** 领取每日全清宝箱；返回是否成功、奖励 XP 与最新状态。 */
+  claimChest: () => Promise<{ ok: boolean; gained: number; status: DevQuestStatus }>
   /** 结果缓存时长（毫秒）。默认 60s。 */
   cacheTtlMs?: number
 }
@@ -28,6 +31,10 @@ function json(res: ServerResponse, status: number, body: unknown): void {
 export function makeDevQuestRoutes(config: DevQuestRoutesConfig): WebRoute[] {
   const { cacheTtlMs = 60_000 } = config
   let cached: { at: number; promise: Promise<DevQuestStatus> } | undefined
+
+  const invalidateCache = (): void => {
+    cached = undefined
+  }
 
   const status = (): Promise<DevQuestStatus> => {
     if (cached !== undefined && Date.now() - cached.at < cacheTtlMs) return cached.promise
@@ -49,6 +56,25 @@ export function makeDevQuestRoutes(config: DevQuestRoutesConfig): WebRoute[] {
       }
       status().then(
         (result) => json(res, 200, { ok: true, status: result }),
+        (error: unknown) => json(res, 500, {
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      )
+    },
+  }, {
+    kind: 'exact',
+    path: `${STATUS_API_PREFIX}/claim-chest`,
+    handler: (req: IncomingMessage, res: ServerResponse): void => {
+      if (req.method !== 'POST') {
+        json(res, 405, { ok: false, error: 'method-not-allowed' })
+        return
+      }
+      config.claimChest().then(
+        (result) => {
+          invalidateCache() // 状态变了，失效缓存让下次轮询取到新值
+          json(res, 200, { ok: result.ok, gained: result.gained, status: result.status })
+        },
         (error: unknown) => json(res, 500, {
           ok: false,
           error: error instanceof Error ? error.message : String(error),

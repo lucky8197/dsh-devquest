@@ -1,9 +1,11 @@
 import type { EngineStoreHandle } from '@deepseek-ai/dsh-client-runtime/client';
-import type { DevQuestStatus } from '../types.ts';
-/** 一条成就解锁 toast。 */
+import type { DevQuestStatus, TurnSettlementEvent } from '../types.ts';
+/** 一条解锁/结算 toast。 */
 export interface DevQuestToast {
     id: string;
-    achievementId: string;
+    kind: 'achievement' | 'settlement';
+    achievementId?: string;
+    settlement?: TurnSettlementEvent;
     at: number;
 }
 /** DevQuest UI 状态（组件只读快照）。 */
@@ -17,6 +19,8 @@ export interface DevQuestUiState {
     toasts: DevQuestToast[];
     /** 已见过的解锁成就 id（首拉种子，之后 diff 出 toast）。 */
     seen: string[];
+    /** 已见过的结算事件 id（diff 出结算 toast）。 */
+    seenSettlements: string[];
 }
 /** Store 写操作。 */
 export type DevQuestUiActions = {

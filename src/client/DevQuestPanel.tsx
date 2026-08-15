@@ -13,6 +13,8 @@ import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { DevQuestStatus } from '../types.ts'
+import { titleFor } from '../engine.ts'
+import type { DevQuestToast } from './store.ts'
 import type { DevQuestUiState } from './store.ts'
 import type { createDevQuestStore } from './store.ts'
 import { NS } from './locales.ts'
@@ -193,6 +195,7 @@ export function DevQuestPanelCard(
   const [wallOpen, setWallOpen] = useState(false)
   const [category, setCategory] = useState<(typeof CATEGORY_KEYS)[number]>('journey')
   const [hover, setHover] = useState<{ a: DevQuestStatus['achievements'][number]; x: number; y: number } | null>(null)
+  const [claiming, setClaiming] = useState(false)
   // 面板位置：null = 默认右上角；拖拽后保存到 localStorage。
   const [pos, setPos] = useState<{ left: number; top: number } | null>(loadPanelPos)
   const [dragging, setDragging] = useState(false)
@@ -279,6 +282,21 @@ export function DevQuestPanelCard(
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [state.open, actions])
 
+  /** 领取每日全清宝箱：POST 后刷新本地状态。 */
+  const claimChest = useCallback(async (): Promise<void> => {
+    if (claiming) return
+    setClaiming(true)
+    try {
+      const response = await fetch('/api/devquest/claim-chest', { method: 'POST' })
+      const data = await response.json() as { ok: boolean; gained: number; status: DevQuestStatus }
+      if (data.ok && data.status !== null && data.status !== undefined) actions.setStatus(data.status)
+    } catch {
+      // 静默失败：下次轮询会纠正状态
+    } finally {
+      setClaiming(false)
+    }
+  }, [claiming, actions])
+
   const status = state.status
   // 位置：拖拽后 left/top；未拖过则默认右上角。
   const positionStyle: CSSProperties = pos !== null
@@ -311,6 +329,12 @@ export function DevQuestPanelCard(
   const wallItems = status.achievements.filter(a => a.category === category)
   const c = status.counters
   const percent = Math.round(levelPercent(status) * 100)
+
+  // 最近的里程碑：未解锁且可见、有进度的成就里完成度最高（最接近解锁）的一个。
+  const milestone = status.achievements
+    .filter(a => !a.unlocked && !a.hidden && a.progress !== undefined && a.progress.goal > 0)
+    .map(a => ({ a, ratio: a.progress!.current / a.progress!.goal }))
+    .sort((x, y) => y.ratio - x.ratio)[0]
 
   return <section
     ref={cardRef}
@@ -381,6 +405,14 @@ export function DevQuestPanelCard(
             </div>
           )
         })}
+        {/* 每日全清宝箱：3 个任务全完成后可领取一次 +50 XP */}
+        {status.dailyChest !== undefined && (status.dailyChest.ready || status.dailyChest.claimed) && (
+          status.dailyChest.claimed
+            ? <div style={chestClaimedStyle}>🎁 {t('dq.chestClaimed')}</div>
+            : <button type="button" onClick={() => void claimChest()} disabled={claiming} style={chestButtonStyle}>
+              🎁 {claiming ? t('dq.chestClaiming') : t('dq.chestReady', { xp: 50 })}
+            </button>
+        )}
       </div>
 
       {/* 最近成就 */}
@@ -412,6 +444,20 @@ export function DevQuestPanelCard(
             {wallOpen ? '▾' : '▸'}
           </button>
         </div>
+        {milestone !== undefined && (
+          <div style={milestoneStyle}>
+            <span style={milestoneIconStyle}>{milestone.a.icon}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={milestoneTopStyle}>
+                <span style={milestoneNameStyle}>{t('dq.nextMilestone', { name: milestone.a.name.zh })}</span>
+                <span style={milestoneNumStyle}>{milestone.a.progress!.current}/{milestone.a.progress!.goal}</span>
+              </div>
+              <div style={milestoneTrackStyle}>
+                <div style={{ ...milestoneFillStyle, width: `${Math.min(100, Math.round(milestone.ratio * 100))}%` }} />
+              </div>
+            </div>
+          </div>
+        )}
         {wallOpen && <>
           <div style={tabsStyle}>
             {CATEGORY_KEYS.map(key => (
@@ -429,6 +475,7 @@ export function DevQuestPanelCard(
             {wallItems.map(a => {
               const locked = !a.unlocked
               const visible = a.unlocked || !a.hidden
+              const p = a.progress
               return <span
                 key={a.id}
                 onMouseEnter={(e) => {
@@ -451,6 +498,12 @@ export function DevQuestPanelCard(
                 <span style={{ fontSize: 17, lineHeight: 1.2 }}>{visible ? a.icon : '🔒'}</span>
                 {!a.hidden && (
                   <span style={{ ...wallXpStyle, ...(a.unlocked ? wallXpUnlockedStyle : {}) }}>+{a.xp}</span>
+                )}
+                {/* 未解锁且可计数的成就：格子底部 2px 进度条 */}
+                {locked && p !== undefined && p.goal > 0 && (
+                  <span style={wallProgressTrackStyle}>
+                    <span style={{ ...wallProgressFillStyle, width: `${Math.min(100, Math.round((p.current / p.goal) * 100))}%` }} />
+                  </span>
                 )}
               </span>
             })}
@@ -487,6 +540,17 @@ function AchievementTooltip(
       </div>
     </div>
     <div style={tooltipDescStyle}>{visible ? a.description.zh : t('dq.hiddenHint')}</div>
+    {!a.unlocked && !a.hidden && a.progress !== undefined && a.progress.goal > 0 && (
+      <div style={tooltipProgressWrapStyle}>
+        <div style={tooltipProgressTopStyle}>
+          <span style={tooltipProgressLabelStyle}>{t('dq.progress')}</span>
+          <span style={tooltipProgressNumStyle}>{a.progress.current}/{a.progress.goal}</span>
+        </div>
+        <div style={tooltipProgressTrackStyle}>
+          <div style={{ ...tooltipProgressFillStyle, width: `${Math.min(100, Math.round((a.progress.current / a.progress.goal) * 100))}%` }} />
+        </div>
+      </div>
+    )}
   </div>
 }
 
@@ -494,16 +558,38 @@ function AchievementTooltip(
 // 成就 toast
 // ---------------------------------------------------------------------------
 
-function AchievementToast(
-  props: { toast: { id: string; achievementId: string }; status: DevQuestStatus; actions: DevQuestFooterActionProps['actions']; t: DevQuestFooterActionProps['t'] },
+/** 统一 toast 分发：成就解锁 / 回合结算。 */
+function DevQuestToast(
+  props: { toast: DevQuestToast; status: DevQuestStatus; actions: DevQuestFooterActionProps['actions']; t: DevQuestFooterActionProps['t'] },
 ): ReactElement {
   const { toast, status, actions, t } = props
-  const def = status.achievements.find(a => a.id === toast.achievementId)
   useEffect(() => {
     const timer = setTimeout(() => actions.dismissToast(toast.id), 6000)
     return () => clearTimeout(timer)
   }, [toast.id, actions])
 
+  if (toast.kind === 'settlement' && toast.settlement !== undefined) {
+    const s = toast.settlement
+    const comboText = s.combo !== null ? ` · 🔥 ×${s.combo}` : ''
+    const questText = s.questXp > 0 ? ` · 📅 +${s.questXp}` : ''
+    return <div style={{ ...toastStyle, borderColor: 'color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 40%, transparent)' }} role="status">
+      <div style={{ fontSize: 18 }}>{s.leveledUp ? '⬆️' : '⚔️'}</div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ ...toastTitleStyle, color: s.leveledUp ? TONE.gold : TONE.accent }}>
+          {s.leveledUp ? t('dq.levelUp', { level: s.levelAfter }) : t('dq.turnDone')}
+        </div>
+        <div style={toastNameStyle}>+{s.xp} XP{comboText}{questText}</div>
+        <div style={toastDescStyle}>
+          {s.leveledUp
+            ? t('dq.levelUpTo', { title: titleFor(s.levelAfter).zh })
+            : t('dq.turnStats', { turns: s.turnsDone })}
+        </div>
+      </div>
+      <button type="button" onClick={() => actions.dismissToast(toast.id)} aria-label={t('dq.close')} style={toastCloseStyle}>×</button>
+    </div>
+  }
+
+  const def = status.achievements.find(a => a.id === toast.achievementId)
   if (def === undefined) return <></>
   return <div style={toastStyle} role="status">
     <div style={{ fontSize: 18 }}>{def.icon}</div>
@@ -604,7 +690,7 @@ export function DevQuestOverlay(props: DevQuestOverlayProps): ReactElement {
     {state.toasts.length > 0 && state.status !== null && (
       <div style={toastStackStyle}>
         {state.toasts.map(toast => (
-          <AchievementToast key={toast.id} toast={toast} status={state.status!} actions={actions} t={t} />
+          <DevQuestToast key={toast.id} toast={toast} status={state.status!} actions={actions} t={t} />
         ))}
       </div>
     )}
@@ -836,6 +922,97 @@ const wallCheckStyle: CSSProperties = {
 const wallXpStyle: CSSProperties = { fontSize: 8, color: TONE.quiet }
 
 const wallXpUnlockedStyle: CSSProperties = { color: TONE.gold, fontWeight: 600 }
+
+/** 未解锁成就格子的微型进度条（底部 2px）。 */
+const wallProgressTrackStyle: CSSProperties = {
+  display: 'block',
+  width: '80%',
+  height: 2,
+  borderRadius: 1,
+  background: 'color-mix(in srgb, var(--dsw-alias-label-tertiary, #718096) 30%, transparent)',
+  overflow: 'hidden',
+  marginTop: 1,
+}
+
+const wallProgressFillStyle: CSSProperties = {
+  display: 'block',
+  height: '100%',
+  borderRadius: 1,
+  background: TONE.accent,
+}
+
+/** 「最近的里程碑」引导条。 */
+const milestoneStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '7px 9px',
+  borderRadius: 9,
+  background: 'color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 9%, transparent)',
+  border: '1px solid color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 22%, transparent)',
+  marginBottom: 8,
+}
+
+const milestoneIconStyle: CSSProperties = { fontSize: 16, lineHeight: 1 }
+
+const milestoneTopStyle: CSSProperties = { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }
+
+const milestoneNameStyle: CSSProperties = { fontSize: 10, color: TONE.text, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
+
+const milestoneNumStyle: CSSProperties = { fontSize: 9, color: TONE.muted, fontVariantNumeric: 'tabular-nums' }
+
+const milestoneTrackStyle: CSSProperties = {
+  height: 3,
+  borderRadius: 2,
+  background: 'color-mix(in srgb, var(--dsw-alias-label-tertiary, #718096) 30%, transparent)',
+  overflow: 'hidden',
+  marginTop: 3,
+}
+
+const milestoneFillStyle: CSSProperties = { height: '100%', borderRadius: 2, background: TONE.accent }
+
+/** tooltip 内进度。 */
+const tooltipProgressWrapStyle: CSSProperties = { marginTop: 7 }
+
+const tooltipProgressTopStyle: CSSProperties = { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 3 }
+
+const tooltipProgressLabelStyle: CSSProperties = { fontSize: 9, color: TONE.quiet, textTransform: 'uppercase', letterSpacing: 0.3 }
+
+const tooltipProgressNumStyle: CSSProperties = { fontSize: 9, color: TONE.muted, fontVariantNumeric: 'tabular-nums' }
+
+const tooltipProgressTrackStyle: CSSProperties = { height: 3, borderRadius: 2, background: 'color-mix(in srgb, var(--dsw-alias-label-tertiary, #718096) 30%, transparent)', overflow: 'hidden' }
+
+const tooltipProgressFillStyle: CSSProperties = { height: '100%', borderRadius: 2, background: TONE.accent }
+
+/** 每日全清宝箱按钮。 */
+const chestButtonStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 6,
+  width: '100%',
+  padding: '7px 10px',
+  marginTop: 6,
+  border: '1px solid color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 45%, transparent)',
+  borderRadius: 9,
+  background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 12%, transparent)',
+  color: TONE.gold,
+  fontSize: 11,
+  fontWeight: 600,
+  cursor: 'pointer',
+}
+
+const chestClaimedStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '7px 10px',
+  marginTop: 6,
+  borderRadius: 9,
+  background: TONE.row,
+  color: TONE.quiet,
+  fontSize: 11,
+}
 
 /** 成就悬浮简介卡（fixed 定位，pointer-events none 不挡鼠标）。 */
 const tooltipStyle: CSSProperties = {

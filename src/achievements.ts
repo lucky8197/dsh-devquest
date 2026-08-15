@@ -2,7 +2,7 @@
  * DevQuest 成就清单（27 枚，开发文档 §6）。
  * check 均为纯函数：基于存档（含计数器）与注入时间判定。
  */
-import type { AchievementDef, Counters } from './types.ts'
+import type { AchievementDef, Counters, SaveData } from './types.ts'
 
 const SSH_TOOLS = new Set(['ssh_exec', 'ssh_upload', 'ssh_download', 'ssh_tunnel', 'ssh_cluster', 'ssh_list'])
 
@@ -24,6 +24,11 @@ function minuteOf(now: number): number {
   return new Date(now).getMinutes()
 }
 
+/** 计数成就的进度（current/goal）。 */
+function countProgress(get: (s: SaveData) => number, goal: number): (s: SaveData) => { current: number; goal: number } {
+  return (s: SaveData) => ({ current: Math.min(get(s), goal), goal })
+}
+
 export const ACHIEVEMENTS: AchievementDef[] = [
   // ⚔️ 旅程 Journey
   {
@@ -34,6 +39,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '🚶',
     xp: 50,
     check: s => s.counters.turnsCompleted >= 1,
+    progress: countProgress(s => s.counters.turnsCompleted, 1),
   },
   {
     id: 'turns_10',
@@ -43,6 +49,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '🎖️',
     xp: 100,
     check: s => s.counters.turnsCompleted >= 10,
+    progress: countProgress(s => s.counters.turnsCompleted, 10),
   },
   {
     id: 'turns_50',
@@ -52,6 +59,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '🏅',
     xp: 250,
     check: s => s.counters.turnsCompleted >= 50,
+    progress: countProgress(s => s.counters.turnsCompleted, 50),
   },
   {
     id: 'turns_100',
@@ -61,6 +69,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '🏆',
     xp: 500,
     check: s => s.counters.turnsCompleted >= 100,
+    progress: countProgress(s => s.counters.turnsCompleted, 100),
   },
   {
     id: 'comeback',
@@ -79,6 +88,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '🛡️',
     xp: 400,
     check: s => s.counters.consecutiveSuccess >= 25,
+    progress: countProgress(s => s.counters.consecutiveSuccess, 25),
   },
   {
     id: 'turns_25',
@@ -88,6 +98,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '🎗️',
     xp: 150,
     check: s => s.counters.turnsCompleted >= 25,
+    progress: countProgress(s => s.counters.turnsCompleted, 25),
   },
   {
     id: 'turns_250',
@@ -97,6 +108,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '🗿',
     xp: 750,
     check: s => s.counters.turnsCompleted >= 250,
+    progress: countProgress(s => s.counters.turnsCompleted, 250),
   },
   {
     id: 'comeback_10',
@@ -106,6 +118,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '🔄',
     xp: 300,
     check: s => s.counters.comebacks >= 10,
+    progress: countProgress(s => s.counters.comebacks, 10),
   },
 
   // 🛠️ 锻造 Crafting
@@ -117,6 +130,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '✏️',
     xp: 50,
     check: s => toolCount(s.counters, 'edit') + toolCount(s.counters, 'str-replace-editor') >= 1,
+    progress: countProgress(s => toolCount(s.counters, 'edit') + toolCount(s.counters, 'str-replace-editor'), 1),
   },
   {
     id: 'edits_100',
@@ -126,6 +140,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '⚒️',
     xp: 200,
     check: s => s.counters.craftTools >= 100,
+    progress: countProgress(s => s.counters.craftTools, 100),
   },
   {
     id: 'first_cmd',
@@ -135,6 +150,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '⌨️',
     xp: 50,
     check: s => anyTool(s.counters, ['pwsh', 'bash']),
+    progress: countProgress(s => toolCount(s.counters, 'pwsh') + toolCount(s.counters, 'bash'), 1),
   },
   {
     id: 'first_remote',
@@ -144,6 +160,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '🛰️',
     xp: 100,
     check: s => anyTool(s.counters, [...SSH_TOOLS]),
+    progress: countProgress(s => [...SSH_TOOLS].reduce((sum, t) => sum + toolCount(s.counters, t), 0), 1),
   },
   {
     id: 'first_subagent',
@@ -153,6 +170,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '🧠',
     xp: 150,
     check: s => s.counters.subagentsSpawned >= 1,
+    progress: countProgress(s => s.counters.subagentsSpawned, 1),
   },
   {
     id: 'tool_666',
@@ -163,6 +181,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     xp: 666,
     hidden: true,
     check: s => s.counters.toolCalls >= 666,
+    progress: countProgress(s => s.counters.toolCalls, 666),
   },
   {
     id: 'cmd_100',
@@ -172,6 +191,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '🖥️',
     xp: 200,
     check: s => toolCount(s.counters, 'pwsh') + toolCount(s.counters, 'bash') >= 100,
+    progress: countProgress(s => toolCount(s.counters, 'pwsh') + toolCount(s.counters, 'bash'), 100),
   },
   {
     id: 'tools_250',
@@ -181,6 +201,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '🔩',
     xp: 300,
     check: s => s.counters.toolCalls >= 250,
+    progress: countProgress(s => s.counters.toolCalls, 250),
   },
   {
     id: 'subagents_10',
@@ -190,6 +211,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '🤝',
     xp: 300,
     check: s => s.counters.subagentsSpawned >= 10,
+    progress: countProgress(s => s.counters.subagentsSpawned, 10),
   },
   {
     id: 'edits_500',
@@ -199,6 +221,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '🗜️',
     xp: 400,
     check: s => s.counters.craftTools >= 500,
+    progress: countProgress(s => s.counters.craftTools, 500),
   },
 
   // ✅ 使命 Quest
@@ -210,6 +233,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '📜',
     xp: 50,
     check: s => s.counters.todosCompleted >= 1,
+    progress: countProgress(s => s.counters.todosCompleted, 1),
   },
   {
     id: 'todos_10',
@@ -219,6 +243,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '✅',
     xp: 150,
     check: s => s.counters.todosCompleted >= 10,
+    progress: countProgress(s => s.counters.todosCompleted, 10),
   },
   {
     id: 'todos_50',
@@ -228,6 +253,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '🗺️',
     xp: 400,
     check: s => s.counters.todosCompleted >= 50,
+    progress: countProgress(s => s.counters.todosCompleted, 50),
   },
   {
     id: 'clean_sweep',
@@ -237,6 +263,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '🧹',
     xp: 200,
     check: s => s.counters.cleanSweeps >= 1,
+    progress: countProgress(s => s.counters.cleanSweeps, 1),
   },
   {
     id: 'daily_quest_10',
@@ -246,6 +273,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '📅',
     xp: 150,
     check: s => s.counters.dailyQuestsDone >= 10,
+    progress: countProgress(s => s.counters.dailyQuestsDone, 10),
   },
   {
     id: 'todos_100',
@@ -255,6 +283,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '🏁',
     xp: 600,
     check: s => s.counters.todosCompleted >= 100,
+    progress: countProgress(s => s.counters.todosCompleted, 100),
   },
   {
     id: 'daily_quest_30',
@@ -264,6 +293,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '🗓️',
     xp: 400,
     check: s => s.counters.dailyQuestsDone >= 30,
+    progress: countProgress(s => s.counters.dailyQuestsDone, 30),
   },
 
   // ⏰ 时光 Time
@@ -299,6 +329,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '📆',
     xp: 300,
     check: s => s.counters.streakDays >= 7,
+    progress: countProgress(s => s.counters.streakDays, 7),
   },
   {
     id: 'grinder',
@@ -308,6 +339,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '🔥',
     xp: 500,
     check: s => s.counters.completedToday >= 50,
+    progress: countProgress(s => s.counters.completedToday, 50),
   },
   {
     id: 'night_owl_10',
@@ -317,6 +349,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '🌙',
     xp: 400,
     check: s => s.counters.nightTurns >= 10,
+    progress: countProgress(s => s.counters.nightTurns, 10),
   },
   {
     id: 'streak_30',
@@ -326,6 +359,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '⭐',
     xp: 800,
     check: s => s.counters.streakDays >= 30,
+    progress: countProgress(s => s.counters.streakDays, 30),
   },
 
   // 💎 传奇 Legend
@@ -337,6 +371,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '🔨',
     xp: 300,
     check: s => s.player.level >= 5,
+    progress: countProgress(s => s.player.level, 5),
   },
   {
     id: 'level_10',
@@ -346,6 +381,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '⚔️',
     xp: 800,
     check: s => s.player.level >= 10,
+    progress: countProgress(s => s.player.level, 10),
   },
   {
     id: 'level_15',
@@ -355,6 +391,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '🛡️',
     xp: 1200,
     check: s => s.player.level >= 15,
+    progress: countProgress(s => s.player.level, 15),
   },
   {
     id: 'level_20',
@@ -364,6 +401,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '👑',
     xp: 2000,
     check: s => s.player.level >= 20,
+    progress: countProgress(s => s.player.level, 20),
   },
   {
     id: 'level_25',
@@ -373,6 +411,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '🌟',
     xp: 2500,
     check: s => s.player.level >= 25,
+    progress: countProgress(s => s.player.level, 25),
   },
   {
     id: 'level_30',
@@ -382,6 +421,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '☀️',
     xp: 4000,
     check: s => s.player.level >= 30,
+    progress: countProgress(s => s.player.level, 30),
   },
   {
     id: 'season_100k',
@@ -391,6 +431,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     icon: '💎',
     xp: 500,
     check: s => s.counters.seasonTokensOut >= 100_000,
+    progress: countProgress(s => s.counters.seasonTokensOut, 100_000),
   },
 
   // 🥚 彩蛋 Easter Eggs（hidden）
@@ -416,6 +457,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     xp: 233,
     hidden: true,
     check: s => s.counters.devquestCalls >= 1,
+    progress: countProgress(s => s.counters.devquestCalls, 1),
   },
   {
     id: 'oops',
@@ -436,6 +478,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     xp: 500,
     hidden: true,
     check: s => s.counters.maxTokensTurn >= 100_000,
+    progress: countProgress(s => s.counters.maxTokensTurn, 100_000),
   },
   {
     id: 'jack_of_all',
@@ -446,6 +489,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     xp: 300,
     hidden: true,
     check: s => s.counters.todayTools.length >= 10,
+    progress: countProgress(s => s.counters.todayTools.length, 10),
   },
 ]
 

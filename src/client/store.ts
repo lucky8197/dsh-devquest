@@ -4,12 +4,14 @@
  */
 import { defineStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type { EngineStoreHandle } from '@deepseek-ai/dsh-client-runtime/client'
-import type { DevQuestStatus } from '../types.ts'
+import type { DevQuestStatus, TurnSettlementEvent } from '../types.ts'
 
-/** 一条成就解锁 toast。 */
+/** 一条解锁/结算 toast。 */
 export interface DevQuestToast {
   id: string
-  achievementId: string
+  kind: 'achievement' | 'settlement'
+  achievementId?: string
+  settlement?: TurnSettlementEvent
   at: number
 }
 
@@ -24,6 +26,8 @@ export interface DevQuestUiState {
   toasts: DevQuestToast[]
   /** 已见过的解锁成就 id（首拉种子，之后 diff 出 toast）。 */
   seen: string[]
+  /** 已见过的结算事件 id（diff 出结算 toast）。 */
+  seenSettlements: string[]
 }
 
 /** Store 写操作。 */
@@ -46,6 +50,7 @@ export function createDevQuestStore(): EngineStoreHandle<DevQuestUiState, DevQue
       refreshedAt: null,
       toasts: [],
       seen: [],
+      seenSettlements: [],
     }),
     actions: {
       setState: (draft, state, error) => {
@@ -63,10 +68,16 @@ export function createDevQuestStore(): EngineStoreHandle<DevQuestUiState, DevQue
         if (!isFirstLoad) {
           for (const id of unlockedIds) {
             if (draft.seen.includes(id)) continue
-            draft.toasts.push({ id: `${id}-${Date.now()}`, achievementId: id, at: Date.now() })
+            draft.toasts.push({ id: `a-${id}-${Date.now()}`, kind: 'achievement', achievementId: id, at: Date.now() })
+          }
+          // 结算事件 diff：新事件 → 结算 toast（成就优先展示，结算紧随其后）。
+          for (const ev of status.settlements ?? []) {
+            if (draft.seenSettlements.includes(ev.id)) continue
+            draft.toasts.push({ id: `s-${ev.id}`, kind: 'settlement', settlement: ev, at: Date.now() })
           }
         }
         draft.seen = Array.from(new Set([...draft.seen, ...unlockedIds]))
+        draft.seenSettlements = Array.from(new Set([...draft.seenSettlements, ...(status.settlements ?? []).map(e => e.id)]))
         draft.status = status
         draft.state = 'ready'
         draft.error = null

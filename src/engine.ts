@@ -101,6 +101,9 @@ export const DAILY_QUEST_POOL: DailyQuestDef[] = [
 /** 每天抽取的任务数。 */
 export const DAILY_QUEST_COUNT = 3
 
+/** 每日全清宝箱奖励 XP（当天 3 个任务全部完成后可领取一次）。 */
+export const DAILY_CHEST_REWARD = 50
+
 /** 确定性 PRNG（按日期字符串做种子）：同一天所有会话与重启看到相同的任务。 */
 function seededRng(seed: string): () => number {
   let h = 2166136261
@@ -128,7 +131,7 @@ export function rollDailyQuests(now: number): DailyQuestState {
     const def = pool.splice(idx, 1)[0]!
     quests.push({ id: def.id, label: def.label, goal: def.goal, reward: def.reward, progress: 0, done: false })
   }
-  return { date, quests }
+  return { date, quests, chestClaimed: false }
 }
 
 /** 日期过期时重滚（幂等：当天不重抽）。会就地更新 save.daily。 */
@@ -154,6 +157,29 @@ export function applyDaily(save: SaveData, now: number): number {
     }
   }
   return gain
+}
+
+/** 当天 3 个任务是否已全部完成。 */
+export function dailyQuestsDone(daily: DailyQuestState): boolean {
+  return daily.quests.length > 0 && daily.quests.every(q => q.done)
+}
+
+/**
+ * 领取每日全清宝箱（当天 3 个任务全完成后可领一次，+DAILY_CHEST_REWARD XP）。
+ * 未满足条件时返回 { ok: false, gained: 0, save }（原存档副本不变）。
+ */
+export function claimDailyChest(
+  save: SaveData,
+  now: number = Date.now(),
+  seasonOverride?: string,
+): { ok: boolean; gained: number; save: SaveData } {
+  const s = structuredClone(save)
+  const daily = ensureDaily(s, now)
+  if (!dailyQuestsDone(daily) || daily.chestClaimed === true) {
+    return { ok: false, gained: 0, save: s }
+  }
+  daily.chestClaimed = true
+  return { ok: true, gained: DAILY_CHEST_REWARD, save: addXp(s, DAILY_CHEST_REWARD, now, seasonOverride) }
 }
 
 /** 构造最小计数器。 */
@@ -203,9 +229,13 @@ export function freshSave(cwd: string, seasonOverride: string | undefined, now: 
     achievements: {},
     lastSeqBySession: {},
     daily: rollDailyQuests(now),
+    settlements: [],
     updatedAt: now,
   }
 }
+
+/** 存档保留的最近结算事件条数（面板 toast 只关心最近的）。 */
+export const SETTLEMENT_KEEP = 12
 
 /**
  * 加 XP 并处理升级、活跃日统计与赛季换季（返回副本；原存档不变）。
@@ -247,10 +277,42 @@ export function addXp(save: SaveData, gain: number, now: number = Date.now(), se
 /**
  * 单回合结算：聚合该回合的动作，应用工具 XP 封顶与连击加成。
  * completed → turnsCompleted++ / 连击++（≥5 起 ×1.5）；error → turnsFailed++ / 连击清零。
+ * 返回存档副本（原存档不变）。
  */
 export function applyTurn(save: SaveData, actions: Action[], now: number = Date.now(), seasonOverride?: string): SaveData {
+  return applyTurnDetailed(save, actions, now, seasonOverride).save
+}
+
+/** 单回合结算明细（面板 toast / 工具展示用）。 */
+export interface TurnSettlement {
+  /** 本轮获得的 XP（含连击加成与每日任务奖励）。 */
+  xp: number
+  /** 连击加成倍率（无加成时 null）。 */
+  combo: number | null
+  /** 每日任务奖励 XP。 */
+  questXp: number
+  /** 结算前等级。 */
+  levelBefore: number
+  /** 结算后等级。 */
+  levelAfter: number
+  /** 是否升级。 */
+  leveledUp: boolean
+  /** 完成/失败的回合数（本轮）。 */
+  turnsDone: number
+}
+
+/**
+ * 单回合结算（返回存档 + 结算明细）。语义同 applyTurn。
+ */
+export function applyTurnDetailed(
+  save: SaveData,
+  actions: Action[],
+  now: number = Date.now(),
+  seasonOverride?: string,
+): { save: SaveData; settlement: TurnSettlement } {
   const s = structuredClone(save)
   const c = s.counters
+  const levelBefore = s.player.level
   // 赛季换季：先清零赛季统计再累计，保证新赛季首回合的 XP/tokens 归入新赛季。
   const season = seasonOverride ?? autoSeasonId(now)
   if (s.player.season !== season) {
@@ -320,6 +382,7 @@ export function applyTurn(save: SaveData, actions: Action[], now: number = Date.
   const completed = actions.some(a => a.kind === 'turn-completed')
   const failed = actions.some(a => a.kind === 'turn-failed')
 
+  let combo: number | null = null
   if (completed) {
     // 东山再起：连击被清零后重新完成（comeback_10 / dq_comeback_1 用）。
     if (c.consecutiveSuccess === 0 && c.turnsFailed > 0) c.comebacks++
@@ -336,9 +399,9 @@ export function applyTurn(save: SaveData, actions: Action[], now: number = Date.
       c.completedToday = 1
     }
     // 连击多档加成：≥5 ×1.5，≥15 ×2.0，≥30 ×2.5。
-    if (c.consecutiveSuccess >= 30) gain = Math.round(gain * 2.5)
-    else if (c.consecutiveSuccess >= 15) gain = Math.round(gain * 2.0)
-    else if (c.consecutiveSuccess >= 5) gain = Math.round(gain * 1.5)
+    if (c.consecutiveSuccess >= 30) { gain = Math.round(gain * 2.5); combo = 2.5 }
+    else if (c.consecutiveSuccess >= 15) { gain = Math.round(gain * 2.0); combo = 2.0 }
+    else if (c.consecutiveSuccess >= 5) { gain = Math.round(gain * 1.5); combo = 1.5 }
   } else if (failed) {
     c.turnsFailed++
     c.consecutiveSuccess = 0
@@ -348,7 +411,20 @@ export function applyTurn(save: SaveData, actions: Action[], now: number = Date.
   gain = Math.min(gain, 125)
   // 每日任务奖励不计入兜底上限（每天固定 3 个，天然防刷）。
   const questGain = applyDaily(s, now)
-  return addXp(s, gain + questGain, now, seasonOverride)
+  const next = addXp(s, gain + questGain, now, seasonOverride)
+  const turnsDone = completed || failed ? 1 : 0
+  return {
+    save: next,
+    settlement: {
+      xp: gain + questGain,
+      combo,
+      questXp: questGain,
+      levelBefore,
+      levelAfter: next.player.level,
+      leveledUp: next.player.level > levelBefore,
+      turnsDone,
+    },
+  }
 }
 
 /**
@@ -380,6 +456,7 @@ export function migrateSave(raw: Partial<SaveData>, cwd: string, seasonOverride:
     achievements: raw.achievements ?? {},
     lastSeqBySession: raw.lastSeqBySession ?? {},
     daily: raw.daily ?? base.daily,
+    settlements: raw.settlements ?? [],
   }
   out.version = Math.max(1, raw.version ?? 1)
   // 派生字段一致性：称号跟等级走；每日任务日期过期由 ensureDaily 重滚。
@@ -431,7 +508,13 @@ export function mergeSaves(saves: SaveData[], now: number = Date.now()): SaveDat
     for (const [sid, seq] of Object.entries(s.lastSeqBySession)) {
       out.lastSeqBySession[sid] = Math.max(out.lastSeqBySession[sid] ?? -1, seq)
     }
+    for (const ev of s.settlements ?? []) {
+      if (out.settlements!.find(x => x.id === ev.id) === undefined) out.settlements!.push(ev)
+    }
   }
+  // 结算事件：按时间倒序保留最近 SETTLEMENT_KEEP 条。
+  out.settlements!.sort((a, b) => b.at - a.at)
+  out.settlements = out.settlements!.slice(0, SETTLEMENT_KEEP)
   // 状态类字段取最新存档（连击/活跃日/今日计数/工具成败对等）
   c.consecutiveSuccess = latest.counters.consecutiveSuccess
   c.lastActiveDay = latest.counters.lastActiveDay

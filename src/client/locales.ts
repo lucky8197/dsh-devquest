@@ -37,6 +37,15 @@ const zh = {
   'dq.earned': '已解锁',
   'dq.notEarned': '未解锁',
   'dq.hiddenHint': '隐藏成就，解锁后可见',
+  'dq.nextMilestone': '最近的里程碑 · {name}',
+  'dq.progress': '进度',
+  'dq.turnDone': '回合结算',
+  'dq.levelUp': '升级！Lv.{level}',
+  'dq.levelUpTo': '新称号 · {title}',
+  'dq.turnStats': '完成 {turns} 个回合',
+  'dq.chestReady': '领取全清宝箱 +{xp} XP',
+  'dq.chestClaiming': '领取中…',
+  'dq.chestClaimed': '全清宝箱已领取',
   'dq.counters': '计数',
 } as const
 
@@ -72,6 +81,15 @@ const en: Record<keyof typeof zh, string> = {
   'dq.earned': 'Earned',
   'dq.notEarned': 'Locked',
   'dq.hiddenHint': 'Hidden — revealed on unlock',
+  'dq.nextMilestone': 'Next milestone · {name}',
+  'dq.progress': 'Progress',
+  'dq.turnDone': 'Turn settled',
+  'dq.levelUp': 'Level up! Lv.{level}',
+  'dq.levelUpTo': 'New title · {title}',
+  'dq.turnStats': 'Finished {turns} turn(s)',
+  'dq.chestReady': 'Claim daily chest +{xp} XP',
+  'dq.chestClaiming': 'Claiming…',
+  'dq.chestClaimed': 'Daily chest claimed',
   'dq.counters': 'Counters',
 }
 

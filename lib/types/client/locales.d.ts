@@ -35,6 +35,15 @@ declare const zh: {
     readonly 'dq.earned': "已解锁";
     readonly 'dq.notEarned': "未解锁";
     readonly 'dq.hiddenHint': "隐藏成就，解锁后可见";
+    readonly 'dq.nextMilestone': "最近的里程碑 · {name}";
+    readonly 'dq.progress': "进度";
+    readonly 'dq.turnDone': "回合结算";
+    readonly 'dq.levelUp': "升级！Lv.{level}";
+    readonly 'dq.levelUpTo': "新称号 · {title}";
+    readonly 'dq.turnStats': "完成 {turns} 个回合";
+    readonly 'dq.chestReady': "领取全清宝箱 +{xp} XP";
+    readonly 'dq.chestClaiming': "领取中…";
+    readonly 'dq.chestClaimed': "全清宝箱已领取";
     readonly 'dq.counters': "计数";
 };
 declare const en: Record<keyof typeof zh, string>;

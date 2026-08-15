@@ -101,6 +101,8 @@ export interface DailyQuestState {
     /** 任务所属日 'YYYY-MM-DD'。 */
     date: string;
     quests: DailyQuest[];
+    /** 全清宝箱是否已领取（每天一次，3 个任务全完成可领 +50 XP）。 */
+    chestClaimed?: boolean;
 }
 /** 玩家面板状态。 */
 export interface PlayerState {
@@ -126,7 +128,26 @@ export interface SaveData {
     lastSeqBySession: Record<string, number>;
     /** 每日任务状态。 */
     daily: DailyQuestState;
+    /** 最近回合结算事件（面板 toast 用，保留最近 N 条）。 */
+    settlements?: TurnSettlementEvent[];
     updatedAt: number;
+}
+/** 单回合结算事件（host 每回合推一条，client 轮询 diff 出 toast）。 */
+export interface TurnSettlementEvent {
+    /** 单调递增事件 id（client 去重用）。 */
+    id: string;
+    at: number;
+    /** 本轮 XP（含连击加成与每日任务奖励）。 */
+    xp: number;
+    /** 连击加成倍率（无加成时 null）。 */
+    combo: number | null;
+    /** 每日任务奖励 XP。 */
+    questXp: number;
+    levelBefore: number;
+    levelAfter: number;
+    leveledUp: boolean;
+    /** 本轮完成/失败回合数。 */
+    turnsDone: number;
 }
 /** 成就分类（面板成就墙分主题 tab）。 */
 export type AchievementCategory = 'journey' | 'crafting' | 'quest' | 'time' | 'legend' | 'egg';
@@ -146,6 +167,11 @@ export interface AchievementDef {
     xp: number;
     hidden?: boolean;
     check: (save: SaveData, now: number) => boolean;
+    /** 可选：进度条信息（current/goal）。缺省表示纯条件成就，不显示进度。 */
+    progress?: (save: SaveData) => {
+        current: number;
+        goal: number;
+    };
 }
 /** 成就视图（status API / 面板用，含解锁状态）。 */
 export interface AchievementView {
@@ -164,6 +190,11 @@ export interface AchievementView {
     hidden: boolean;
     unlocked: boolean;
     acquiredAt?: number;
+    /** 未解锁成就的进度（若有）。 */
+    progress?: {
+        current: number;
+        goal: number;
+    };
 }
 /** DevQuest 状态视图（工具与 HTTP API 共用）。 */
 export interface DevQuestStatus {
@@ -182,5 +213,12 @@ export interface DevQuestStatus {
     achievements: AchievementView[];
     /** 当日每日任务（含进度/奖励）。 */
     daily: DailyQuestState;
+    /** 每日全清宝箱状态（当天 3 个任务全完成后可领取）。 */
+    dailyChest: {
+        ready: boolean;
+        claimed: boolean;
+    };
+    /** 最近回合结算事件（面板 toast 数据源）。 */
+    settlements: TurnSettlementEvent[];
     updatedAt: number;
 }

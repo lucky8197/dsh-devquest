@@ -6,8 +6,9 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { ACHIEVEMENTS, achievementById } from '../src/achievements.ts'
 import {
-  addXp, applyDaily, applyTurn, autoSeasonId, checkAchievements, DAILY_QUEST_POOL, dayKey, ensureDaily, freshSave,
-  mergeSaves, migrateSave, rollDailyQuests, titleFor, xpToNext,
+  addXp, applyDaily, applyTurn, applyTurnDetailed, autoSeasonId, checkAchievements, claimDailyChest,
+  DAILY_CHEST_REWARD, DAILY_QUEST_POOL, dailyQuestsDone, dayKey, ensureDaily, freshSave,
+  mergeSaves, migrateSave, rollDailyQuests, SETTLEMENT_KEEP, titleFor, xpToNext,
 } from '../src/engine.ts'
 import type { Action, SaveData } from '../src/types.ts'
 
@@ -635,4 +636,137 @@ test('mergeSaves：等级升级重算', () => {
   assert.equal(merged.player.level, 3) // 100+283+520>500，L3 需 520 不够
   assert.equal(merged.player.xp, 500 - 100 - 283)
   assert.equal(merged.player.title, '学徒') // level 3 < 5
+})
+
+// ---------------------------------------------------------------------------
+// P0：回合结算明细 / 成就进度 / 每日全清宝箱
+// ---------------------------------------------------------------------------
+
+test('applyTurnDetailed：返回结算明细（XP/连击/每日任务/升级）', () => {
+  // 完成 1 回合：+10 XP；连击 1 无加成
+  const r1 = applyTurnDetailed(fresh(), [{ kind: 'turn-completed', turn: 1 }], NOW)
+  assert.equal(r1.settlement.xp, 10)
+  assert.equal(r1.settlement.combo, null)
+  assert.equal(r1.settlement.questXp, 0)
+  assert.equal(r1.settlement.leveledUp, false)
+  assert.equal(r1.settlement.levelBefore, 1)
+  assert.equal(r1.settlement.levelAfter, 1)
+  assert.equal(r1.settlement.turnsDone, 1)
+  assert.equal(r1.save.player.xp, 10)
+
+  // 失败回合：+2 XP，combo null，turnsDone 1
+  const r2 = applyTurnDetailed(fresh(), [{ kind: 'turn-failed', turn: 1 }], NOW)
+  assert.equal(r2.settlement.xp, 2)
+  assert.equal(r2.settlement.turnsDone, 1)
+
+  // 升级：+300 XP 从 L1 → L2（100）+ 部分 L3
+  const r3 = applyTurnDetailed(fresh(), [
+    { kind: 'turn-completed', turn: 1 },
+    { kind: 'todo-completed', count: 20 },
+    { kind: 'tokens', tokens: 100_000 },
+  ], NOW)
+  assert.equal(r3.settlement.leveledUp, true)
+  assert.equal(r3.settlement.levelBefore, 1)
+  assert.equal(r3.settlement.levelAfter, 2)
+  assert.equal(r3.save.player.level, 2)
+})
+
+test('applyTurnDetailed：连击倍率计入结算明细', () => {
+  // 连续 5 回合（turns 1-5）→ 第 5 回合 combo ×1.5
+  let save = fresh()
+  let last: { combo: number | null } | undefined
+  for (let i = 0; i < 5; i++) {
+    const r = applyTurnDetailed(save, [{ kind: 'turn-completed', turn: i + 1 }], NOW + i)
+    save = r.save
+    last = r.settlement
+  }
+  assert.equal(last?.combo, 1.5)
+  assert.equal(save.counters.consecutiveSuccess, 5)
+})
+
+test('claimDailyChest：3 任务全完成才可领取一次 +50 XP', () => {
+  // 构造当日 3 个任务全 done 的存档
+  let save = fresh()
+  const daily = rollDailyQuests(NOW)
+  for (const q of daily.quests) { q.done = true }
+  save.daily = daily
+  assert.equal(dailyQuestsDone(save.daily), true)
+
+  const r1 = claimDailyChest(save, NOW)
+  assert.equal(r1.ok, true)
+  assert.equal(r1.gained, DAILY_CHEST_REWARD)
+  assert.equal(r1.save.player.xp, DAILY_CHEST_REWARD)
+  assert.equal(r1.save.daily.chestClaimed, true)
+
+  // 重复领取：拒绝
+  const r2 = claimDailyChest(r1.save, NOW)
+  assert.equal(r2.ok, false)
+  assert.equal(r2.gained, 0)
+  assert.equal(r2.save.player.xp, DAILY_CHEST_REWARD) // 不变
+})
+
+test('claimDailyChest：任务未完成时不可领取', () => {
+  const save = fresh() // fresh() 里 daily.quests = []
+  const r = claimDailyChest(save, NOW)
+  assert.equal(r.ok, false)
+  assert.equal(r.gained, 0)
+})
+
+test('每日任务跨天：宝箱状态随新一天重置', () => {
+  let save = fresh()
+  const tomorrow = NOW + 86_400_000
+  const daily = rollDailyQuests(NOW)
+  for (const q of daily.quests) { q.done = true }
+  save.daily = daily
+  const r = claimDailyChest(save, NOW)
+  assert.equal(r.ok, true)
+  // 下一天 ensureDaily 重滚 → chestClaimed 重置为 false
+  const nextDay = ensureDaily(r.save, tomorrow)
+  assert.equal(nextDay.date, dayKey(tomorrow))
+  assert.equal(nextDay.chestClaimed, false)
+})
+
+test('成就进度：可量化成就带 current/goal，纯条件成就没有', () => {
+  const s = fresh()
+  s.counters.turnsCompleted = 35
+  s.counters.toolCalls = 666
+  const turns50 = achievementById('turns_50')
+  assert.ok(turns50 !== undefined)
+  assert.deepEqual(turns50.progress?.(s), { current: 35, goal: 50 })
+  const steel = achievementById('steel_will')
+  assert.ok(steel !== undefined)
+  assert.deepEqual(steel.progress?.(s), { current: 0, goal: 25 })
+  // 纯条件成就（comeback）无 progress
+  const comeback = achievementById('comeback')
+  assert.ok(comeback !== undefined)
+  assert.equal(comeback.progress, undefined)
+  // 进度封顶：current 不超 goal
+  const tool666 = achievementById('tool_666')
+  assert.ok(tool666 !== undefined)
+  assert.deepEqual(tool666.progress?.(s), { current: 666, goal: 666 })
+})
+
+test('成就进度：封顶到 goal（turns 超量只显示 goal）', () => {
+  const s = fresh()
+  s.counters.turnsCompleted = 120
+  const turns100 = achievementById('turns_100')
+  assert.ok(turns100 !== undefined)
+  assert.deepEqual(turns100.progress?.(s), { current: 100, goal: 100 })
+})
+
+test('settlements：存档保留最近 SETTLEMENT_KEEP 条且跨存档合并去重', () => {
+  const a = fresh()
+  a.settlements = Array.from({ length: SETTLEMENT_KEEP + 5 }, (_, i) => ({
+    id: `ev-a-${i}`, at: NOW + i, xp: 10 + i, combo: null, questXp: 0,
+    levelBefore: 1, levelAfter: 1, leveledUp: false, turnsDone: 1,
+  }))
+  const b = fresh()
+  b.settlements = [{ id: 'ev-b-0', at: NOW + 1000, xp: 99, combo: 1.5, questXp: 30, levelBefore: 1, levelAfter: 2, leveledUp: true, turnsDone: 1 }]
+  const merged = mergeSaves([a, b], NOW + 2000)
+  // 去重合并后截断到最近 SETTLEMENT_KEEP 条，按时间倒序，最新在前
+  assert.equal(merged.settlements!.length, SETTLEMENT_KEEP)
+  assert.equal(merged.settlements![0]!.id, 'ev-b-0') // 最新在前
+  assert.equal(merged.settlements![0]!.xp, 99)
+  const ids = new Set(merged.settlements!.map(e => e.id))
+  assert.equal(ids.size, merged.settlements!.length)
 })

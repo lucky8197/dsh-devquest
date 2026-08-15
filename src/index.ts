@@ -18,12 +18,12 @@ import type {} from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type { Session } from '@deepseek-ai/dsh-session'
 import { ACHIEVEMENTS, achievementById } from './achievements.ts'
-import { applyTurn, checkAchievements, ensureDaily, titleFor, xpToNext } from './engine.ts'
+import { applyTurnDetailed, checkAchievements, claimDailyChest, dailyQuestsDone, ensureDaily, SETTLEMENT_KEEP, titleFor, xpToNext } from './engine.ts'
 import { watchEvents, type SessionAggregate } from './listener.ts'
 import { loadSave, persistSave, deleteSave, scopeKey, type StoreConfig } from './store.ts'
 import { registerDevQuestTools } from './tools.ts'
 import { makeDevQuestRoutes } from './routes.ts'
-import type { Action, DevQuestStatus, SaveData } from './types.ts'
+import type { Action, AchievementView, DevQuestStatus, SaveData, TurnSettlementEvent } from './types.ts'
 
 export const name = 'devquest'
 export const inject = ['fs', 'sessions', 'tools'] as const
@@ -49,6 +49,7 @@ export function apply(ctx: Context, config: Config = {}): void {
   // ---- 引擎状态：存档缓存 + 每作用域串行化队列 ----
   const saveCache = new Map<string, SaveData>()
   const tails = new Map<string, Promise<void>>()
+  let settlementSeq = 0
 
   /** 取存档（缓存优先，无则从盘读）。 */
   async function getSave(key: string): Promise<SaveData> {
@@ -81,7 +82,7 @@ export function apply(ctx: Context, config: Config = {}): void {
       counters: save.counters,
       achievements: ACHIEVEMENTS.map(a => {
         const rec = save.achievements[a.id]
-        return {
+        const view: AchievementView = {
           id: a.id,
           category: a.category,
           name: a.name,
@@ -92,9 +93,17 @@ export function apply(ctx: Context, config: Config = {}): void {
           unlocked: rec !== undefined,
           ...(rec !== undefined ? { acquiredAt: rec.acquiredAt } : {}),
         }
+        // 未解锁成就附带进度（面板显示「还差多少」）。
+        if (rec === undefined && a.progress !== undefined) view.progress = a.progress(save)
+        return view
       }),
       // 每日任务：跨天自动重滚（就地更新缓存存档，随下次结算持久化）。
       daily: ensureDaily(save, Date.now()),
+      dailyChest: {
+        ready: dailyQuestsDone(save.daily) && save.daily.chestClaimed !== true,
+        claimed: save.daily.chestClaimed === true,
+      },
+      settlements: save.settlements ?? [],
       updatedAt: save.updatedAt,
     }
   }
@@ -116,7 +125,21 @@ export function apply(ctx: Context, config: Config = {}): void {
       const save = await getSave(key)
       // 幂等水位：该会话已结算过 ≥ 本次 seq 的回合 → 重放跳过。
       if (seq <= (save.lastSeqBySession[sessionId] ?? -1)) return
-      const next = applyTurn(save, actions, Date.now(), seasonOverride)
+      const at = Date.now()
+      const { save: next, settlement } = applyTurnDetailed(save, actions, at, seasonOverride)
+      // 结算事件入存档（面板 toast 数据源，保留最近 N 条）。
+      const event: TurnSettlementEvent = {
+        id: `${at}-${settlementSeq++}`,
+        at,
+        xp: settlement.xp,
+        combo: settlement.combo,
+        questXp: settlement.questXp,
+        levelBefore: settlement.levelBefore,
+        levelAfter: settlement.levelAfter,
+        leveledUp: settlement.leveledUp,
+        turnsDone: settlement.turnsDone,
+      }
+      next.settlements = [...(next.settlements ?? []), event].slice(-SETTLEMENT_KEEP)
       const unlocked = checkAchievements(ACHIEVEMENTS, next)
       next.lastSeqBySession[sessionId] = seq
       saveCache.set(key, next)
@@ -155,6 +178,30 @@ export function apply(ctx: Context, config: Config = {}): void {
     status: async (): Promise<DevQuestStatus> => {
       const save = await getSave(scopeKey())
       return buildStatus(save)
+    },
+    claimChest: async (): Promise<{ ok: boolean; gained: number; status: DevQuestStatus }> => {
+      const key = scopeKey()
+      let result: { ok: boolean; gained: number } = { ok: false, gained: 0 }
+      let fresh: SaveData | undefined
+      await new Promise<void>((resolve, reject) => {
+        enqueue(key, async () => {
+          try {
+            const save = await getSave(key)
+            const claimed = claimDailyChest(save, Date.now(), seasonOverride)
+            result = { ok: claimed.ok, gained: claimed.gained }
+            fresh = claimed.save
+            if (claimed.ok) {
+              saveCache.set(key, claimed.save)
+              await persistSave(ctx, storeConfig, claimed.save)
+            }
+          } catch (error) {
+            reject(error)
+            return
+          }
+          resolve()
+        })
+      })
+      return { ...result, status: buildStatus(fresh ?? (await getSave(key))) }
     },
     ...(config.cacheTtlMs !== undefined ? { cacheTtlMs: config.cacheTtlMs } : {}),
   })

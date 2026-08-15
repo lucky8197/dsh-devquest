@@ -6,6 +6,12 @@ export declare const STATUS_API_PREFIX = "/api/devquest";
 export interface DevQuestRoutesConfig {
     /** 取全局玩家状态（读档 + 组装视图）。 */
     status: () => Promise<DevQuestStatus>;
+    /** 领取每日全清宝箱；返回是否成功、奖励 XP 与最新状态。 */
+    claimChest: () => Promise<{
+        ok: boolean;
+        gained: number;
+        status: DevQuestStatus;
+    }>;
     /** 结果缓存时长（毫秒）。默认 60s。 */
     cacheTtlMs?: number;
 }
