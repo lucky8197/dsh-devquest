@@ -337,12 +337,32 @@ function AchievementToast(
 // 入口组件
 // ---------------------------------------------------------------------------
 
-/** 侧边栏底部操作位：DevQuest 入口按钮（wide 时带等级徽章）。 */
+/** 侧边栏底部操作位：DevQuest 入口按钮。wide=false（56px rail）时只显示图标+角标，避免被裁切。 */
 export function DevQuestFooterAction(props: DevQuestFooterActionProps): ReactElement {
   const { useStore, actions, t, wide } = props
   const state: DevQuestUiState = useStore(snapshot => snapshot)
   const level = state.status?.level ?? 1
   const open = state.open
+
+  // 收起态：窄 rail 放不下「图标 + Lv 徽章」，改为纯图标按钮 + 右上角小等级角标。
+  if (!wide) {
+    return <button
+      type="button"
+      onClick={() => actions.setOpen(!open)}
+      title={t('dq.open')}
+      aria-label={t('dq.open')}
+      aria-expanded={open}
+      style={{
+        ...railActionStyle,
+        ...(open ? footerActionActiveStyle : {}),
+      }}
+    >
+      <span style={{ position: 'relative', display: 'inline-flex' }}>
+        <span style={{ color: TONE.accent, display: 'inline-flex' }}><SwordIcon size={19} /></span>
+        <span style={railBadgeStyle}>{level}</span>
+      </span>
+    </button>
+  }
 
   return <button
     type="button"
@@ -355,8 +375,8 @@ export function DevQuestFooterAction(props: DevQuestFooterActionProps): ReactEle
       ...(open ? footerActionActiveStyle : {}),
     }}
   >
-    <span style={{ color: TONE.accent, display: 'inline-flex' }}><SwordIcon size={wide ? 17 : 18} /></span>
-    {wide && <span style={footerLabelStyle}>DevQuest</span>}
+    <span style={{ color: TONE.accent, display: 'inline-flex' }}><SwordIcon size={17} /></span>
+    <span style={footerLabelStyle}>DevQuest</span>
     <span style={levelChipStyle}>Lv.{level}</span>
   </button>
 }
@@ -622,6 +642,37 @@ const footerActionStyle: CSSProperties = {
   padding: '4px 8px',
   borderRadius: 8,
   fontSize: 12,
+}
+
+/** 收起态（56px rail）入口按钮：定宽小方块，只放图标。 */
+const railActionStyle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 34,
+  height: 34,
+  border: 'none',
+  background: 'transparent',
+  color: TONE.muted,
+  cursor: 'pointer',
+  padding: 0,
+  borderRadius: 8,
+}
+
+/** 收起态等级小角标（绝对定位，不参与布局、不撑宽）。 */
+const railBadgeStyle: CSSProperties = {
+  position: 'absolute',
+  top: -4,
+  right: -7,
+  fontSize: 8,
+  fontWeight: 700,
+  lineHeight: 1,
+  color: TONE.accent,
+  background: TONE.panel,
+  border: '1px solid color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 40%, transparent)',
+  padding: '1px 3px',
+  borderRadius: 999,
+  pointerEvents: 'none',
 }
 
 const footerActionActiveStyle: CSSProperties = { background: TONE.row, color: TONE.text }
