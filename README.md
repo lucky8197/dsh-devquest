@@ -81,7 +81,6 @@ Lv.20+     传说 Legend
 <p align="center">
   <img src="screenshots/panel.png" alt="DevQuest 面板：等级环 / XP 进度 / 每日任务 / 成就墙" width="440">
   <img src="screenshots/toast.png" alt="成就解锁 toast" width="300">
-  <img src="screenshots/sidebar.png" alt="侧边栏入口按钮" width="130">
 </p>
 
 面板里是：
