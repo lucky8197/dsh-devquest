@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>DevQuest shots</title>
+<style>
+  :root {
+    --canvas: #0d1420;
+    --layer2: #101722;
+    --panel: #171f2b;
+    --row: #1d2735;
+    --border: rgba(196,211,232,0.16);
+    --border-strong: rgba(196,211,232,0.31);
+    --text: #f2f6fc;
+    --muted: #9daabd;
+    --quiet: #718096;
+    --accent: #8ec5ff;
+    --gold: #f6c652;
+    --green: #78dda0;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--canvas);
+    font-family: "Segoe UI", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    width: 1280px; height: 800px; position: relative; overflow: hidden;
+  }
+
+  /* ===== 侧边栏 rail ===== */
+  .rail {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 56px;
+    background: var(--layer2); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; align-items: center; padding-top: 10px;
+  }
+  .rail-foot { margin-top: auto; padding-bottom: 12px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .rail-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; border: none; background: transparent;
+    color: var(--muted); cursor: pointer; border-radius: 8px;
+  }
+  .rail-btn:hover { background: var(--row); color: var(--text); }
+  .rail-icon { position: relative; display: inline-flex; color: var(--accent); }
+  .rail-badge {
+    position: absolute; top: -4px; right: -7px; font-size: 8px; font-weight: 700; line-height: 1;
+    color: var(--accent); background: var(--panel);
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+    padding: 1px 3px; border-radius: 999px; pointer-events: none;
+  }
+  .rail-settings {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; border-radius: 8px; color: var(--quiet);
+  }
+
+  /* ===== 主内容区（模糊背景示意） ===== */
+  .main {
+    position: absolute; left: 56px; top: 0; right: 0; bottom: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--quiet); font-size: 13px; letter-spacing: 1px;
+    background: radial-gradient(1200px 500px at 60% 20%, rgba(142,197,255,0.05), transparent 60%);
+  }
+
+  /* ===== 面板卡片 ===== */
+  .card {
+    position: absolute; top: 16px; right: 16px; width: 330px; max-height: calc(100vh - 32px);
+    display: flex; flex-direction: column; overflow: hidden;
+    background: var(--panel); border: 1px solid var(--border-strong);
+    border-radius: 14px; box-shadow: 0 18px 50px rgba(0,0,0,0.35);
+  }
+  .card-head {
+    display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+    border-bottom: 1px solid var(--border); cursor: grab; user-select: none;
+  }
+  .card-head .sword { color: var(--accent); display: inline-flex; }
+  .card-title { font-size: 14px; color: var(--text); letter-spacing: 0.2px; }
+  .icon-btn { margin-left: auto; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; border: none; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; }
+  .card-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 14px; }
+
+  .hero { display: flex; gap: 12px; align-items: center; }
+  .ring-wrap { position: relative; width: 84px; height: 84px; }
+  .ring-badge { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+  .ring-lv { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.1; }
+  .ring-sub { font-size: 10px; color: var(--muted); }
+  .hero-info { flex: 1; min-width: 0; }
+  .title-row { display: flex; align-items: baseline; gap: 8px; }
+  .title-txt { font-size: 13px; font-weight: 600; color: var(--text); }
+  .season { font-size: 10px; color: var(--quiet); }
+  .xp-track { height: 7px; border-radius: 4px; background: var(--row); overflow: hidden; margin-top: 8px; }
+  .xp-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--green)); border-radius: 4px; width: 62%; }
+  .xp-row { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; }
+  .xp-text { font-size: 10px; color: var(--muted); }
+  .meta-row { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 6px; }
+  .meta { font-size: 10px; color: var(--quiet); background: var(--row); padding: 2px 6px; border-radius: 5px; }
+  .combo {
+    font-size: 10px; font-weight: 700; color: var(--gold);
+    background: color-mix(in srgb, var(--gold) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--gold) 35%, transparent);
+    padding: 2px 6px; border-radius: 5px;
+  }
+
+  .section { display: flex; flex-direction: column; gap: 6px; }
+  .sec-head { display: flex; align-items: center; justify-content: space-between; }
+  .sec-title { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+  .sec-date { font-size: 10px; color: var(--quiet); }
+
+  .quest { display: flex; flex-direction: column; gap: 4px; }
+  .quest-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .quest-label { font-size: 11px; color: var(--text); }
+  .quest-reward { font-size: 10px; font-weight: 600; color: var(--gold); }
+  .quest-track { height: 6px; border-radius: 3px; background: var(--row); overflow: hidden; }
+  .quest-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--accent), var(--green)); }
+  .quest-fill.done { background: linear-gradient(90deg, var(--gold), var(--green)); }
+
+  .recent { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .recent li { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 8px; background: var(--row); }
+  .r-name { font-size: 12px; color: var(--text); }
+  .r-en { font-size: 10px; color: var(--quiet); font-style: normal; margin-left: 4px; }
+  .r-time { font-size: 10px; color: var(--quiet); margin-left: auto; }
+
+  .wall-head { display: flex; align-items: center; gap: 6px; }
+  .wall-count { color: var(--quiet); font-weight: 400; }
+  .wall-toggle { margin-left: auto; border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 11px; }
+  .tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+  .tab { border: none; border-radius: 6px; padding: 3px 8px; font-size: 10px; color: var(--muted); background: transparent; cursor: pointer; }
+  .tab.on { background: var(--row); color: var(--text); }
+  .wall-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .cell {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+    padding: 4px 2px; border-radius: 8px; background: var(--row); font-size: 17px;
+  }
+  .cell.locked { opacity: 0.55; }
+  .cell.hidden-locked { opacity: 0.5; filter: grayscale(1); }
+  .cell-xp { font-size: 8px; color: var(--quiet); }
+
+  /* ===== toast ===== */
+  .toast {
+    position: absolute; top: 16px; right: 16px; width: 300px;
+    display: flex; gap: 10px; align-items: flex-start;
+    padding: 10px 12px; background: var(--panel);
+    border: 1px solid var(--gold); border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  }
+  .toast-icon { font-size: 18px; }
+  .toast-title { font-size: 10px; font-weight: 700; color: var(--gold); text-transform: uppercase; letter-spacing: 0.4px; }
+  .toast-name { font-size: 13px; font-weight: 600; color: var(--text); margin-top: 2px; }
+  .toast-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .toast-x { border: none; background: transparent; color: var(--quiet); cursor: pointer; font-size: 15px; line-height: 1; margin-left: auto; padding: 0; }
+
+  /* 变体控制 */
+  .v-toast .card { display: none; }
+  .v-panel .toast { display: none; }
+  .v-panel .rail, .v-panel .main { display: none; }
+  .v-sidebar .card, .v-sidebar .toast, .v-sidebar .main { display: none; }
+  .v-toast .rail, .v-toast .main { display: none; }
+  body.v-toast { width: 360px; height: 240px; }
+  body.v-sidebar { width: 120px; height: 800px; }
+</style>
+</head>
+<body class="v-panel">
+
+  <!-- 侧边栏 rail -->
+  <div class="rail">
+    <div class="rail-settings" style="margin-top:6px;font-size:14px;">⚙️</div>
+    <div class="rail-foot">
+      <button class="rail-btn" title="DevQuest 进度">
+        <span class="rail-icon">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20 14.5 9.5M14.5 9.5 17 7m-2.5 2.5L17 7m-2.5 2.5L18.5 5.5M17 7l1.5-1.5M17 7l2 2-1.5 1.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="m14.5 9.5 2.5 2.5-1.5 1.5L4 20" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/></svg>
+          <span class="rail-badge">7</span>
+        </span>
+      </button>
+    </div>
+  </div>
+
+  <!-- 主内容示意 -->
+  <div class="main">⌘ 会话内容区域（示意）</div>
+
+  <!-- 面板 -->
+  <div class="card">
+    <div class="card-head">
+      <span class="sword"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 20 14.5 9.5M14.5 9.5 17 7m-2.5 2.5L17 7m-2.5 2.5L18.5 5.5M17 7l1.5-1.5M17 7l2 2-1.5 1.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="m14.5 9.5 2.5 2.5-1.5 1.5L4 20" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/></svg></span>
+      <strong class="card-title">DevQuest</strong>
+      <button class="icon-btn" aria-label="关闭"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+    </div>
+    <div class="card-body">
+
+      <div class="hero">
+        <div class="ring-wrap">
+          <svg width="84" height="84" viewBox="0 0 84 84" style="transform:rotate(-90deg)">
+            <circle cx="42" cy="42" r="34" fill="none" stroke="var(--border)" stroke-width="5"/>
+            <circle cx="42" cy="42" r="34" fill="none" stroke="var(--accent)" stroke-width="5" stroke-linecap="round" stroke-dasharray="132.4 213.6"/>
+          </svg>
+          <div class="ring-badge">
+            <span class="ring-lv">Lv.7</span>
+            <span class="ring-sub">工匠</span>
+          </div>
+        </div>
+        <div class="hero-info">
+          <div class="title-row">
+            <span class="title-txt">工匠 Artisan</span>
+            <span class="season">赛季 2026-S1</span>
+          </div>
+          <div class="xp-track"><div class="xp-fill"></div></div>
+          <div class="xp-row">
+            <span class="xp-text">460 / 742 XP</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta">42 回合</span>
+            <span class="meta">666 次工具调用</span>
+            <span class="meta">15 个待办</span>
+            <span class="combo">🔥 连击 12 ×1.5</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="sec-head">
+          <span class="sec-title">📅 每日任务</span>
+          <span class="sec-date">2026-08-15</span>
+        </div>
+        <div class="quest">
+          <div class="quest-top"><span class="quest-label">⬜ 完成 5 个回合</span><span class="quest-reward">+30 XP</span></div>
+          <div class="quest-track"><div class="quest-fill" style="width:60%"></div></div>
+        </div>
+        <div class="quest">
+          <div class="quest-top"><span class="quest-label">⬜ 调用 20 次工具</span><span class="quest-reward">+40 XP</span></div>
+          <div class="quest-track"><div class="quest-fill" style="width:38%"></div></div>
+        </div>
+        <div class="quest">
+          <div class="quest-top"><span class="quest-label">✅ 查看 1 次进度</span><span class="quest-reward">+20 XP</span></div>
+          <div class="quest-track"><div class="quest-fill done" style="width:100%"></div></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="sec-head">
+          <span class="sec-title">最近成就</span>
+          <span class="sec-date">更新于 2m</span>
+        </div>
+        <ul class="recent">
+          <li><span style="font-size:15px">🛡️</span><span><span class="r-name">钢铁意志 <em class="r-en">Iron Will</em></span></span><span class="r-time">14:32</span></li>
+          <li><span style="font-size:15px">⚒️</span><span><span class="r-name">百炼成钢 <em class="r-en">Hundred Edits</em></span></span><span class="r-time">2h</span></li>
+        </ul>
+      </div>
+
+      <div class="section">
+        <div class="sec-head">
+          <span class="wall-head"><span class="sec-title">成就墙</span><span class="wall-count">18/29</span></span>
+          <button class="wall-toggle">▸</button>
+        </div>
+        <div class="tabs">
+          <button class="tab on">旅程</button><button class="tab">锻造</button><button class="tab">使命</button>
+          <button class="tab">时光</button><button class="tab">传奇</button><button class="tab">彩蛋</button>
+        </div>
+        <div class="wall-grid">
+          <div class="cell">🚶<span class="cell-xp">+50</span></div>
+          <div class="cell">🎖️<span class="cell-xp">+100</span></div>
+          <div class="cell">🏅<span class="cell-xp">+250</span></div>
+          <div class="cell">🏆<span class="cell-xp">+500</span></div>
+          <div class="cell">💪<span class="cell-xp">+100</span></div>
+          <div class="cell">🛡️<span class="cell-xp">+400</span></div>
+          <div class="cell locked">🚶<span class="cell-xp">+50</span></div>
+          <div class="cell locked">🎖️<span class="cell-xp">+100</span></div>
+          <div class="cell hidden-locked">🔒</div>
+          <div class="cell hidden-locked">🔒</div>
+          <div class="cell hidden-locked">🔒</div>
+          <div class="cell locked">🏅<span class="cell-xp">+250</span></div>
+          <div class="cell locked">🏆<span class="cell-xp">+500</span></div>
+          <div class="cell locked">💪<span class="cell-xp">+100</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- toast -->
+  <div class="toast">
+    <div class="toast-icon">🛡️</div>
+    <div style="min-width:0">
+      <div class="toast-title">🏆 成就解锁！</div>
+      <div class="toast-name">钢铁意志 <em style="font-size:10px;color:var(--quiet);font-style:normal;margin-left:4px">Iron Will</em></div>
+      <div class="toast-desc">连续 25 回合零失误 · +400 XP</div>
+    </div>
+    <button class="toast-x">×</button>
+  </div>
+
+</body>
+</html>
