@@ -52,6 +52,15 @@ export interface Counters {
   oopsFired: boolean
   /** 累计完成的每日任务数（daily_quest_10 用）。 */
   dailyQuestsDone: number
+  /** 东山再起次数：失误后重新完成的回合数（comeback_10 / dq_comeback_1 用）。 */
+  comebacks: number
+  /** 凌晨(0-5h)完成的回合数（night_owl_10 / dq_night_1 用）。 */
+  nightTurns: number
+  /** 单回合最大输出 tokens（thinker 用）。 */
+  maxTokensTurn: number
+  /** 今日使用过的工具名（去重；jack_of_all / dq_distinct_8 用），跨天清零。 */
+  todayTools: string[]
+  todayToolsDay: string
 }
 
 /** 单个每日任务。 */

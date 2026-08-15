@@ -6,7 +6,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { ACHIEVEMENTS, achievementById } from '../src/achievements.ts'
 import {
-  addXp, applyDaily, applyTurn, checkAchievements, dayKey, ensureDaily, freshSave,
+  addXp, applyDaily, applyTurn, checkAchievements, DAILY_QUEST_POOL, dayKey, ensureDaily, freshSave,
   migrateSave, rollDailyQuests, titleFor, xpToNext,
 } from '../src/engine.ts'
 import type { Action, SaveData } from '../src/types.ts'
@@ -412,7 +412,112 @@ test('成就判定：daily_quest_10 与 level_15', () => {
   assert.ok(!unlocked.includes('level_20'))
 })
 
-test('成就总数：29 枚（含 4 枚隐藏）', () => {
-  assert.equal(ACHIEVEMENTS.length, 29)
-  assert.equal(ACHIEVEMENTS.filter(a => a.hidden === true).length, 4)
+test('成就总数：44 枚（含 6 枚隐藏）', () => {
+  assert.equal(ACHIEVEMENTS.length, 44)
+  assert.equal(ACHIEVEMENTS.filter(a => a.hidden === true).length, 6)
+})
+
+test('每日任务池：21 种类型', () => {
+  const ids = new Set(DAILY_QUEST_POOL.map(q => q.id))
+  assert.equal(DAILY_QUEST_POOL.length, 21)
+  assert.equal(ids.size, 21) // 无重复
+})
+
+// ---------------------------------------------------------------------------
+// 新计数器与成就
+// ---------------------------------------------------------------------------
+
+test('comebacks：失误后重新完成计数', () => {
+  let save = fresh()
+  save = applyTurn(save, [{ kind: 'turn-failed', turn: 1 }], NOW)
+  save = applyTurn(save, [{ kind: 'turn-completed', turn: 2 }], NOW + 1)
+  assert.equal(save.counters.comebacks, 1)
+  save.counters.comebacks = 10
+  const unlocked = checkAchievements(ACHIEVEMENTS, save, NOW)
+  assert.ok(unlocked.includes('comeback_10'))
+})
+
+test('nightTurns：凌晨回合计数与成就', () => {
+  const nightAt = new Date(2026, 7, 15, 3, 0, 0).getTime()
+  let save = fresh()
+  save = applyTurn(save, [{ kind: 'turn-completed', turn: 1 }], nightAt)
+  assert.equal(save.counters.nightTurns, 1)
+  save.counters.nightTurns = 10
+  const unlocked = checkAchievements(ACHIEVEMENTS, save, nightAt)
+  assert.ok(unlocked.includes('night_owl_10'))
+})
+
+test('maxTokensTurn：单回合最大输出与沉思者', () => {
+  let save = fresh()
+  save = applyTurn(save, [
+    { kind: 'tokens', tokens: 120_000 },
+    { kind: 'turn-completed', turn: 1 },
+  ], NOW)
+  assert.equal(save.counters.maxTokensTurn, 120_000)
+  const unlocked = checkAchievements(ACHIEVEMENTS, save, NOW)
+  assert.ok(unlocked.includes('thinker'))
+})
+
+test('todayTools：今日工具去重与百变大咖', () => {
+  let save = fresh()
+  const tools = ['read', 'write', 'edit', 'grep', 'pwsh', 'memory', 'dtodo', 'job_output', 'todo_write', 'ssh_exec', 'devquest_status']
+  const actions = tools.map(tool => ({ kind: 'tool-call' as const, tool }))
+  actions.push({ kind: 'turn-completed', turn: 1 })
+  save = applyTurn(save, actions, NOW)
+  assert.equal(save.counters.todayTools.length, tools.length)
+  const unlocked = checkAchievements(ACHIEVEMENTS, save, NOW)
+  assert.ok(unlocked.includes('jack_of_all'))
+})
+
+test('新成就：数量里程碑与等级', () => {
+  let save = fresh()
+  save.counters.turnsCompleted = 250
+  save.counters.toolCalls = 250
+  save.counters.craftTools = 500
+  save.counters.todosCompleted = 100
+  save.counters.subagentsSpawned = 10
+  save.counters.dailyQuestsDone = 30
+  save.counters.streakDays = 30
+  save.counters.toolCallsByTool.pwsh = 100
+  save.player.level = 30
+  const unlocked = checkAchievements(ACHIEVEMENTS, save, NOW)
+  assert.ok(unlocked.includes('turns_25'))
+  assert.ok(unlocked.includes('turns_250'))
+  assert.ok(unlocked.includes('tools_250'))
+  assert.ok(unlocked.includes('edits_500'))
+  assert.ok(unlocked.includes('cmd_100'))
+  assert.ok(unlocked.includes('todos_100'))
+  assert.ok(unlocked.includes('subagents_10'))
+  assert.ok(unlocked.includes('daily_quest_30'))
+  assert.ok(unlocked.includes('streak_30'))
+  assert.ok(unlocked.includes('level_25'))
+  assert.ok(unlocked.includes('level_30'))
+})
+
+test('新每日任务：comeback / night / distinct 进度推进', () => {
+  let save = fresh()
+  // 手工指定 3 个新任务
+  save.daily = {
+    date: dayKey(NOW),
+    quests: [
+      { id: 'dq_comeback_1', label: { zh: 't', en: 't' }, goal: 1, reward: 80, progress: 0, done: false },
+      { id: 'dq_night_1', label: { zh: 't', en: 't' }, goal: 1, reward: 90, progress: 0, done: false },
+      { id: 'dq_distinct_8', label: { zh: 't', en: 't' }, goal: 8, reward: 100, progress: 0, done: false },
+    ],
+  }
+  // 失败后凌晨完成一个回合，用 8 种不同工具
+  const nightAt = new Date(2026, 7, 15, 3, 0, 0).getTime()
+  save = applyTurn(save, [{ kind: 'turn-failed', turn: 1 }], nightAt)
+  const tools = ['read', 'write', 'edit', 'grep', 'pwsh', 'memory', 'dtodo', 'job_output']
+  const actions = tools.map(tool => ({ kind: 'tool-call' as const, tool }))
+  actions.push({ kind: 'turn-completed', turn: 2 })
+  const before = save.player.xpTotal
+  save = applyTurn(save, actions, nightAt + 1)
+  // 三个任务全部完成：80 + 90 + 100
+  assert.equal(save.daily.quests[0]?.done, true)
+  assert.equal(save.daily.quests[1]?.done, true)
+  assert.equal(save.daily.quests[2]?.done, true)
+  // 任务奖励 270 + 工具 XP 10（封顶）+ 回合 10（连击 1，无加成）
+  assert.equal(save.player.xpTotal, before + 270 + 20)
+  assert.equal(save.counters.dailyQuestsDone, 3)
 })
