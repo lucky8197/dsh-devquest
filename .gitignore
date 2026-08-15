@@ -1,0 +1,6 @@
+# 依赖（软链到本机 DSH 安装；不提交）
+node_modules/
+
+# 编辑器 / 系统噪音
+.DS_Store
+*.log

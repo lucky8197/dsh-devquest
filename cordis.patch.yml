@@ -1,0 +1,4 @@
+# devquest bundle patch：把插件挂进 profile
+- insert:
+    - id: devquest
+      name: 'dsh-devquest'
