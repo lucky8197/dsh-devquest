@@ -108,6 +108,41 @@ function LevelRing({ status }: { status: DevQuestStatus }): ReactElement {
   </svg>
 }
 
+/**
+ * 称号分档色调：等级越高视觉越华丽。
+ * - 1-4  学徒     灰蓝（朴素）
+ * - 5-9  工匠     青铜
+ * - 10-14 锻造师   亮蓝（品牌色）
+ * - 15-19 宗师     紫罗兰
+ * - 20-24 传说     金 + 光晕
+ * - 25-29 神话     青绿渐变 + 光晕
+ * - 30+   太阳神   炽金橙渐变 + 强光晕
+ */
+function titleTone(level: number): { color?: string; gradient?: string; textShadow?: string } {
+  if (level >= 30) return { gradient: 'linear-gradient(90deg, #ffd36b, #ff9a3c, #ff6b6b)', textShadow: '0 0 14px rgba(255,180,80,0.5)' }
+  if (level >= 25) return { gradient: 'linear-gradient(90deg, #78dda0, #8ec5ff)', textShadow: '0 0 12px rgba(120,221,160,0.4)' }
+  if (level >= 20) return { color: TONE.gold, textShadow: '0 0 12px rgba(246,198,82,0.5)' }
+  if (level >= 15) return { color: '#c5a3ff', textShadow: '0 0 10px rgba(197,163,255,0.35)' }
+  if (level >= 10) return { color: TONE.accent }
+  if (level >= 5) return { color: '#d9a066' }
+  return { color: TONE.muted }
+}
+
+/** 称号色调 → CSS 样式（渐变称号用 background-clip: text）。 */
+function titleToneStyle(level: number): CSSProperties {
+  const t = titleTone(level)
+  const style: CSSProperties = {}
+  if (t.gradient !== undefined) {
+    style.background = t.gradient
+    style.WebkitBackgroundClip = 'text'
+    style.WebkitTextFillColor = 'transparent'
+  } else if (t.color !== undefined) {
+    style.color = t.color
+  }
+  if (t.textShadow !== undefined) style.textShadow = t.textShadow
+  return style
+}
+
 function formatTime(at: number): string {
   const d = new Date(at)
   const h = String(d.getHours()).padStart(2, '0')
@@ -157,6 +192,7 @@ export function DevQuestPanelCard(
   const state: DevQuestUiState = useStore(snapshot => snapshot)
   const [wallOpen, setWallOpen] = useState(false)
   const [category, setCategory] = useState<(typeof CATEGORY_KEYS)[number]>('journey')
+  const [hover, setHover] = useState<{ a: DevQuestStatus['achievements'][number]; x: number; y: number } | null>(null)
   const controllerRef = useRef<AbortController | null>(null)
   // 面板位置：null = 默认右上角；拖拽后保存到 localStorage。
   const [pos, setPos] = useState<{ left: number; top: number } | null>(loadPanelPos)
@@ -330,12 +366,12 @@ export function DevQuestPanelCard(
           <LevelRing status={status} />
           <div style={levelBadgeStyle}>
             <span style={levelNumStyle}>Lv.{status.level}</span>
-            <span style={levelSubStyle}>{status.title.zh}</span>
+            <span style={{ ...levelSubStyle, ...titleToneStyle(status.level) }}>{status.title.zh}</span>
           </div>
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={titleRowStyle}>
-            <span style={titleTextStyle}>{status.title.zh}</span>
+            <span style={{ ...titleTextStyle, ...titleToneStyle(status.level) }}>{status.title.zh}</span>
             <span style={seasonStyle}>{t('dq.season', { season: status.season })}</span>
           </div>
           <div style={xpTrackStyle}>
@@ -427,7 +463,14 @@ export function DevQuestPanelCard(
               const visible = a.unlocked || !a.hidden
               return <span
                 key={a.id}
-                title={visible ? `${a.name.zh} ${a.name.en} — ${a.description.zh}（+${a.xp} XP）` : '???'}
+                onMouseEnter={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect()
+                  const x = Math.max(8, Math.min(rect.left + rect.width / 2 - 110, window.innerWidth - 228))
+                  const below = rect.bottom + 8
+                  const y = below + 120 > window.innerHeight ? Math.max(8, rect.top - 120) : below
+                  setHover({ a, x, y })
+                }}
+                onMouseLeave={() => setHover(null)}
                 style={{
                   position: 'relative',
                   ...wallCellStyle,
@@ -444,10 +487,39 @@ export function DevQuestPanelCard(
               </span>
             })}
           </div>
+          {hover !== null && <AchievementTooltip hover={hover} t={t} />}
         </>}
       </div>
     </div>
   </section>
+}
+
+// ---------------------------------------------------------------------------
+// 成就悬浮简介
+// ---------------------------------------------------------------------------
+
+/** 成就墙悬浮提示：鼠标移到成就格上时显示名称/简介/奖励/解锁状态。 */
+function AchievementTooltip(
+  props: { hover: { a: DevQuestStatus['achievements'][number]; x: number; y: number }; t: DevQuestFooterActionProps['t'] },
+): ReactElement {
+  const { hover, t } = props
+  const a = hover.a
+  const visible = a.unlocked || !a.hidden
+  return <div style={{ ...tooltipStyle, left: hover.x, top: hover.y }} role="tooltip">
+    <div style={tooltipHeadStyle}>
+      <span style={{ fontSize: 20 }}>{visible ? a.icon : '🔒'}</span>
+      <div style={{ minWidth: 0 }}>
+        <div style={tooltipNameStyle}>{visible ? `${a.name.zh} ${a.name.en}` : '？？？'}</div>
+        <div style={tooltipStatusStyle}>
+          {a.unlocked
+            ? <span style={{ color: TONE.green }}>✅ {t('dq.earned')}</span>
+            : <span style={{ color: TONE.quiet }}>🔒 {t('dq.notEarned')}</span>}
+          {!a.hidden && <span style={tooltipXpStyle}>+{a.xp} XP</span>}
+        </div>
+      </div>
+    </div>
+    <div style={tooltipDescStyle}>{visible ? a.description.zh : t('dq.hiddenHint')}</div>
+  </div>
 }
 
 // ---------------------------------------------------------------------------
@@ -770,6 +842,29 @@ const wallCheckStyle: CSSProperties = {
 const wallXpStyle: CSSProperties = { fontSize: 8, color: TONE.quiet }
 
 const wallXpUnlockedStyle: CSSProperties = { color: TONE.gold, fontWeight: 600 }
+
+/** 成就悬浮简介卡（fixed 定位，pointer-events none 不挡鼠标）。 */
+const tooltipStyle: CSSProperties = {
+  position: 'fixed',
+  width: 220,
+  padding: '9px 11px',
+  background: TONE.panel,
+  border: `1px solid ${TONE.borderStrong}`,
+  borderRadius: 10,
+  boxShadow: '0 10px 28px rgba(0,0,0,0.35)',
+  pointerEvents: 'none',
+  zIndex: 1001,
+}
+
+const tooltipHeadStyle: CSSProperties = { display: 'flex', gap: 8, alignItems: 'center' }
+
+const tooltipNameStyle: CSSProperties = { fontSize: 12, fontWeight: 600, color: TONE.text }
+
+const tooltipStatusStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }
+
+const tooltipXpStyle: CSSProperties = { fontSize: 10, fontWeight: 700, color: TONE.gold }
+
+const tooltipDescStyle: CSSProperties = { fontSize: 11, color: TONE.muted, marginTop: 6, lineHeight: 1.5 }
 
 const emptyStyle: CSSProperties = { fontSize: 11, color: TONE.quiet, padding: '8px 0' }
 

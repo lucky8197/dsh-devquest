@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -85,7 +85,7 @@
   .title-txt { font-size: 13px; font-weight: 600; color: var(--text); }
   .season { font-size: 10px; color: var(--quiet); }
   .xp-track { height: 7px; border-radius: 4px; background: var(--row); overflow: hidden; margin-top: 8px; }
-  .xp-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--green)); border-radius: 4px; width: 62%; }
+  .xp-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--green)); border-radius: 4px; width: 12%; }
   .xp-row { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; }
   .xp-text { font-size: 10px; color: var(--muted); }
   .meta-row { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 6px; }
@@ -139,6 +139,19 @@
   .cell .check { position: absolute; top: 1px; right: 3px; font-size: 9px; font-weight: 700; line-height: 1; color: var(--green); }
   .cell-xp { font-size: 8px; color: var(--quiet); }
   .cell.unlocked .cell-xp { color: var(--gold); font-weight: 600; }
+
+  /* 成就悬浮简介（示意） */
+  .tip {
+    position: fixed; width: 220px; padding: 9px 11px;
+    background: var(--panel); border: 1px solid var(--border-strong);
+    border-radius: 10px; box-shadow: 0 10px 28px rgba(0,0,0,0.35);
+    pointer-events: none; z-index: 1001; left: 985px; top: 556px;
+  }
+  .tip-head { display: flex; gap: 8px; align-items: center; }
+  .tip-name { font-size: 12px; font-weight: 600; color: var(--text); }
+  .tip-status { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+  .tip-xp { font-size: 10px; font-weight: 700; color: var(--gold); }
+  .tip-desc { font-size: 11px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
 
   /* ===== toast ===== */
   .toast {
@@ -198,18 +211,18 @@
             <circle cx="42" cy="42" r="34" fill="none" stroke="var(--accent)" stroke-width="5" stroke-linecap="round" stroke-dasharray="132.4 213.6"/>
           </svg>
           <div class="ring-badge">
-            <span class="ring-lv">Lv.7</span>
-            <span class="ring-sub">工匠</span>
+            <span class="ring-lv">Lv.21</span>
+            <span class="ring-sub" style="color:var(--gold);text-shadow:0 0 12px rgba(246,198,82,.5)">传说</span>
           </div>
         </div>
         <div class="hero-info">
           <div class="title-row">
-            <span class="title-txt">工匠</span>
+            <span class="title-txt" style="color:var(--gold);text-shadow:0 0 12px rgba(246,198,82,.5)">传说 Legend</span>
             <span class="season">赛季 2026-S3</span>
           </div>
           <div class="xp-track"><div class="xp-fill"></div></div>
           <div class="xp-row">
-            <span class="xp-text">460 / 742 XP</span>
+            <span class="xp-text">1200 / 9624 XP</span>
           </div>
           <div class="meta-row">
             <span class="meta">42 回合</span>
@@ -280,6 +293,21 @@
     </div>
   </div>
 
+  <!-- 成就悬浮简介（示意） -->
+  <div class="tip">
+    <div class="tip-head">
+      <span style="font-size:20px">🛡️</span>
+      <div>
+        <div class="tip-name">钢铁意志 Iron Will</div>
+        <div class="tip-status">
+          <span style="color:var(--green)">✅ 已解锁</span>
+          <span class="tip-xp">+400 XP</span>
+        </div>
+      </div>
+    </div>
+    <div class="tip-desc">连续 25 回合零失误</div>
+  </div>
+
   <!-- toast -->
   <div class="toast">
     <div class="toast-icon">🛡️</div>
@@ -293,6 +321,7 @@
 
 </body>
 </html>
+
 
 
 
