@@ -39,6 +39,8 @@ export declare function xpForTool(tool: string): number;
 export declare function xpForAction(action: Action): number;
 /** 日期键 'YYYY-MM-DD'（本地时区）。 */
 export declare function dayKey(now: number): string;
+/** 赛季 id（自动按季度）：2026-S1 = 2026 年 Q1（1-3 月），以此类推。 */
+export declare function autoSeasonId(now: number): string;
 /** 每日任务定义（从计数器取进度）。 */
 export interface DailyQuestDef {
     id: string;
@@ -62,23 +64,24 @@ export declare function ensureDaily(save: SaveData, now: number): DailyQuestStat
 export declare function applyDaily(save: SaveData, now: number): number;
 /** 构造最小计数器。 */
 export declare function freshCounters(): Counters;
-/** 构造最小玩家状态。 */
-export declare function freshPlayer(season: string): PlayerState;
-/** 构造最小存档。 */
-export declare function freshSave(cwd: string, season: string, now?: number): SaveData;
+/** 构造最小玩家状态。seasonOverride 缺省按当前日期自动推导季度赛季。 */
+export declare function freshPlayer(seasonOverride: string | undefined, now: number): PlayerState;
+/** 构造最小存档。seasonOverride 缺省按当前日期自动推导季度赛季。 */
+export declare function freshSave(cwd: string, seasonOverride: string | undefined, now?: number): SaveData;
 /**
- * 加 XP 并处理升级与活跃日统计（返回副本；原存档不变）。
+ * 加 XP 并处理升级、活跃日统计与赛季换季（返回副本；原存档不变）。
+ * seasonOverride 缺省按日期自动推导季度赛季；设置后赛季固定不换季。
  */
-export declare function addXp(save: SaveData, gain: number, now?: number): SaveData;
+export declare function addXp(save: SaveData, gain: number, now?: number, seasonOverride?: string): SaveData;
 /**
  * 单回合结算：聚合该回合的动作，应用工具 XP 封顶与连击加成。
  * completed → turnsCompleted++ / 连击++（≥5 起 ×1.5）；error → turnsFailed++ / 连击清零。
  */
-export declare function applyTurn(save: SaveData, actions: Action[], now?: number): SaveData;
+export declare function applyTurn(save: SaveData, actions: Action[], now?: number, seasonOverride?: string): SaveData;
 /**
  * 成就判定：返回新解锁的成就 id 列表（一次性；已解锁的不重复）。
  * 副作用仅限对传入存档副本写入成就记录。
  */
 export declare function checkAchievements(defs: AchievementDef[], save: SaveData, now?: number): string[];
 /** 存档迁移/补全：把旧版本或缺失字段的存档升级为当前结构。 */
-export declare function migrateSave(raw: Partial<SaveData>, cwd: string, season: string): SaveData;
+export declare function migrateSave(raw: Partial<SaveData>, cwd: string, seasonOverride: string | undefined): SaveData;

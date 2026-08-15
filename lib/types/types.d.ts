@@ -76,6 +76,8 @@ export interface Counters {
     nightTurns: number;
     /** 单回合最大输出 tokens（thinker 用）。 */
     maxTokensTurn: number;
+    /** 本赛季输出 tokens（season_100k 用），换季清零。 */
+    seasonTokensOut: number;
     /** 今日使用过的工具名（去重；jack_of_all / dq_distinct_8 用），跨天清零。 */
     todayTools: string[];
     todayToolsDay: string;
@@ -107,6 +109,8 @@ export interface PlayerState {
     xpTotal: number;
     title: string;
     season: string;
+    /** 本赛季获得的 XP（换季清零，累计 XP 保留）。 */
+    seasonXp: number;
 }
 /** 存档（~/.dsh/devquest/<cwd-hash>.json）。 */
 export interface SaveData {
@@ -172,6 +176,8 @@ export interface DevQuestStatus {
         en: string;
     };
     season: string;
+    /** 本赛季获得的 XP。 */
+    seasonXp: number;
     counters: Counters;
     achievements: AchievementView[];
     /** 当日每日任务（含进度/奖励）。 */

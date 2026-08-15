@@ -6,7 +6,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { ACHIEVEMENTS, achievementById } from '../src/achievements.ts'
 import {
-  addXp, applyDaily, applyTurn, checkAchievements, DAILY_QUEST_POOL, dayKey, ensureDaily, freshSave,
+  addXp, applyDaily, applyTurn, autoSeasonId, checkAchievements, DAILY_QUEST_POOL, dayKey, ensureDaily, freshSave,
   migrateSave, rollDailyQuests, titleFor, xpToNext,
 } from '../src/engine.ts'
 import type { Action, SaveData } from '../src/types.ts'
@@ -15,7 +15,7 @@ import type { Action, SaveData } from '../src/types.ts'
 const NOW = new Date(2026, 7, 15, 12, 0, 0).getTime()
 
 function fresh(): SaveData {
-  const s = freshSave('C:/proj', '2026-S1', NOW)
+  const s = freshSave('C:/proj', undefined, NOW)
   // 屏蔽每日任务（空任务列表），保证纯 XP 断言精确；每日任务单独测。
   s.daily = { date: dayKey(NOW), quests: [] }
   return s
@@ -182,7 +182,7 @@ test('成就判定：first_turn / steel_will / comeback', () => {
 test('成就判定：等级与 tokens', () => {
   let save = fresh()
   save.player.level = 10
-  save.counters.tokensOut = 100_000
+  save.counters.seasonTokensOut = 100_000
   const unlocked = checkAchievements(ACHIEVEMENTS, save, NOW)
   assert.ok(unlocked.includes('level_5'))
   assert.ok(unlocked.includes('level_10'))
@@ -271,7 +271,7 @@ test('applyTurn 纯函数：不改动原存档', () => {
 
 test('migrateSave：缺失字段补全', () => {
   const raw = { version: 1, cwd: 'C:/x', player: { level: 3, xp: 5, xpTotal: 305 } }
-  const save = migrateSave(raw as never, 'C:/x', '2026-S1')
+  const save = migrateSave(raw as never, 'C:/x', undefined)
   assert.equal(save.player.level, 3)
   assert.equal(save.player.title, '学徒')
   assert.equal(save.counters.turnsCompleted, 0)
@@ -520,4 +520,68 @@ test('新每日任务：comeback / night / distinct 进度推进', () => {
   // 任务奖励 270 + 工具 XP 10（封顶）+ 回合 10（连击 1，无加成）
   assert.equal(save.player.xpTotal, before + 270 + 20)
   assert.equal(save.counters.dailyQuestsDone, 3)
+})
+
+// ---------------------------------------------------------------------------
+// 赛季系统
+// ---------------------------------------------------------------------------
+
+test('autoSeasonId：按季度推导赛季', () => {
+  const at = (y: number, m: number, d = 15) => new Date(y, m - 1, d, 12, 0, 0).getTime()
+  assert.equal(autoSeasonId(at(2026, 1)), '2026-S1')
+  assert.equal(autoSeasonId(at(2026, 3)), '2026-S1')
+  assert.equal(autoSeasonId(at(2026, 4)), '2026-S2')
+  assert.equal(autoSeasonId(at(2026, 7)), '2026-S3')
+  assert.equal(autoSeasonId(at(2026, 8)), '2026-S3')
+  assert.equal(autoSeasonId(at(2026, 10)), '2026-S4')
+  assert.equal(autoSeasonId(at(2026, 12)), '2026-S4')
+  assert.equal(autoSeasonId(at(2027, 1)), '2027-S1') // 跨年
+})
+
+test('赛季换季：跨季度自动开启新赛季，赛季 XP/tokens 清零重计', () => {
+  const q1 = new Date(2026, 0, 15, 12, 0, 0).getTime() // 2026-S1
+  const q3 = new Date(2026, 7, 15, 12, 0, 0).getTime() // 2026-S3
+  let save = freshSave('C:/proj', undefined, q1)
+  // Q1 内两个回合：赛季 XP 累计
+  save = applyTurn(save, [{ kind: 'turn-completed', turn: 1 }], q1)
+  save = applyTurn(save, [
+    { kind: 'tokens', tokens: 60_000 },
+    { kind: 'turn-completed', turn: 2 },
+  ], q1 + 1000)
+  assert.equal(save.player.season, '2026-S1')
+  assert.equal(save.player.seasonXp, 20 + 6) // 10 + (10 + 6 tokens XP)
+  assert.equal(save.counters.seasonTokensOut, 60_000)
+  const xpTotalBefore = save.player.xpTotal
+  // 跨季度：Q3 首次活跃 → 换季（先屏蔽每日任务，避免累计 tokens 秒完成任务干扰断言）
+  save.daily = { date: dayKey(q3), quests: [] }
+  save = applyTurn(save, [
+    { kind: 'tokens', tokens: 10_000 },
+    { kind: 'turn-completed', turn: 3 },
+  ], q3)
+  assert.equal(save.player.season, '2026-S3')
+  assert.equal(save.player.seasonXp, 10 + 1) // 新赛季从 0 开始：回合 10 + tokens 1
+  assert.equal(save.counters.seasonTokensOut, 10_000)
+  assert.equal(save.player.xpTotal, xpTotalBefore + 11) // 累计 XP 保留并继续增长
+})
+
+test('season_100k：按本赛季 tokens 判定', () => {
+  let save = fresh()
+  save.counters.seasonTokensOut = 100_000
+  save.counters.tokensOut = 50_000 // 累计不足不算
+  const unlocked = checkAchievements(ACHIEVEMENTS, save, NOW)
+  assert.ok(unlocked.includes('season_100k'))
+  // 只有累计足够、本赛季不足时不触发
+  let save2 = fresh()
+  save2.counters.seasonTokensOut = 50_000
+  save2.counters.tokensOut = 500_000
+  assert.ok(!checkAchievements(ACHIEVEMENTS, save2, NOW).includes('season_100k'))
+})
+
+test('seasonOverride：固定赛季不换季', () => {
+  const q1 = new Date(2026, 0, 15, 12, 0, 0).getTime()
+  const q3 = new Date(2026, 7, 15, 12, 0, 0).getTime()
+  let save = freshSave('C:/proj', 'CUSTOM-S1', q1)
+  save = applyTurn(save, [{ kind: 'turn-completed', turn: 1 }], q3, 'CUSTOM-S1')
+  assert.equal(save.player.season, 'CUSTOM-S1') // 固定赛季不随日期换季
+  assert.equal(save.player.seasonXp, 10)
 })

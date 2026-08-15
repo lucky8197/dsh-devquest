@@ -387,10 +387,10 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     id: 'season_100k',
     category: 'legend',
     name: { zh: '赛季精英', en: 'Season Elite' },
-    description: { zh: '赛季内输出 100k tokens', en: 'Output 100k tokens this season' },
+    description: { zh: '本赛季内输出 100k tokens', en: 'Output 100k tokens this season' },
     icon: '💎',
     xp: 500,
-    check: s => s.counters.tokensOut >= 100_000,
+    check: s => s.counters.seasonTokensOut >= 100_000,
   },
 
   // 🥚 彩蛋 Easter Eggs（hidden）

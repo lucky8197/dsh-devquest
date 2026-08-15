@@ -1,4 +1,4 @@
-/**
+﻿/**
  * DevQuest 存档读写（ctx.fs，与 sandbox 一致，不直接用 node fs）。
  * 存档路径：<dataDir>/<cwd-hash>.json，dataDir 缺省 ~/.dsh/devquest。
  * writeText 后端会自动创建父目录（dsh-fs-local）。
@@ -43,14 +43,14 @@ export async function loadSave(ctx: Context, config: StoreConfig, cwd: string | 
   try {
     const target = await ctx.fs.resolve(file)
     const info = await ctx.fs.stat(target)
-    if (info === undefined) return freshSave(scopeKey(cwd), config.season ?? '2026-S1')
+    if (info === undefined) return freshSave(scopeKey(cwd), config.season)
     const text = await ctx.fs.readText(target)
     const parsed: unknown = JSON.parse(text)
-    return migrateSave(parsed as Partial<SaveData>, scopeKey(cwd), config.season ?? '2026-S1')
+    return migrateSave(parsed as Partial<SaveData>, scopeKey(cwd), config.season)
   } catch (error) {
     // 解析失败/IO 异常：退化为全新存档，绝不阻断会话。
     console.error(`[devquest] load save failed (${file}):`, error)
-    return freshSave(scopeKey(cwd), config.season ?? '2026-S1')
+    return freshSave(scopeKey(cwd), config.season)
   }
 }
 
@@ -69,10 +69,11 @@ export async function deleteSave(ctx: Context, config: StoreConfig, cwd: string 
     const info = await ctx.fs.stat(target)
     if (info === undefined) return false
     // ctx.fs 无删除 API（v1 只读子集之外仅写）；用空档覆盖作为可逆重置。
-    await ctx.fs.writeText(target, JSON.stringify(freshSave(scopeKey(cwd), config.season ?? '2026-S1'), null, 2))
+    await ctx.fs.writeText(target, JSON.stringify(freshSave(scopeKey(cwd), config.season), null, 2))
     return true
   } catch (error) {
     console.error(`[devquest] reset save failed (${file}):`, error)
     return false
   }
 }
+

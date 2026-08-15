@@ -53,6 +53,13 @@ export function dayKey(now: number): string {
   return `${d.getFullYear()}-${m}-${day}`
 }
 
+/** 赛季 id（自动按季度）：2026-S1 = 2026 年 Q1（1-3 月），以此类推。 */
+export function autoSeasonId(now: number): string {
+  const d = new Date(now)
+  const quarter = Math.floor(d.getMonth() / 3) + 1
+  return `${d.getFullYear()}-S${quarter}`
+}
+
 // ---------------------------------------------------------------------------
 // 每日任务：每天按日期确定性抽取 3 个任务，进度自动推进、完成自动结算 XP。
 // ---------------------------------------------------------------------------
@@ -175,22 +182,23 @@ export function freshCounters(): Counters {
     comebacks: 0,
     nightTurns: 0,
     maxTokensTurn: 0,
+    seasonTokensOut: 0,
     todayTools: [],
     todayToolsDay: '',
   }
 }
 
-/** 构造最小玩家状态。 */
-export function freshPlayer(season: string): PlayerState {
-  return { level: 1, xp: 0, xpTotal: 0, title: titleFor(1).zh, season }
+/** 构造最小玩家状态。seasonOverride 缺省按当前日期自动推导季度赛季。 */
+export function freshPlayer(seasonOverride: string | undefined, now: number): PlayerState {
+  return { level: 1, xp: 0, xpTotal: 0, title: titleFor(1).zh, season: seasonOverride ?? autoSeasonId(now), seasonXp: 0 }
 }
 
-/** 构造最小存档。 */
-export function freshSave(cwd: string, season: string, now: number = Date.now()): SaveData {
+/** 构造最小存档。seasonOverride 缺省按当前日期自动推导季度赛季。 */
+export function freshSave(cwd: string, seasonOverride: string | undefined, now: number = Date.now()): SaveData {
   return {
     version: 1,
     cwd,
-    player: freshPlayer(season),
+    player: freshPlayer(seasonOverride, now),
     counters: freshCounters(),
     achievements: {},
     lastSeqBySession: {},
@@ -200,13 +208,22 @@ export function freshSave(cwd: string, season: string, now: number = Date.now())
 }
 
 /**
- * 加 XP 并处理升级与活跃日统计（返回副本；原存档不变）。
+ * 加 XP 并处理升级、活跃日统计与赛季换季（返回副本；原存档不变）。
+ * seasonOverride 缺省按日期自动推导季度赛季；设置后赛季固定不换季。
  */
-export function addXp(save: SaveData, gain: number, now: number = Date.now()): SaveData {
+export function addXp(save: SaveData, gain: number, now: number = Date.now(), seasonOverride?: string): SaveData {
   const s = structuredClone(save)
+  // 赛季换季检测：跨季度首次活跃自动开启新赛季（赛季 XP / 赛季 tokens 清零重计，累计保留）。
+  const season = seasonOverride ?? autoSeasonId(now)
+  if (s.player.season !== season) {
+    s.player.season = season
+    s.player.seasonXp = 0
+    s.counters.seasonTokensOut = 0
+  }
   if (gain > 0) {
     s.player.xp += gain
     s.player.xpTotal += gain
+    s.player.seasonXp += gain
   }
   while (s.player.xp >= xpToNext(s.player.level)) {
     s.player.xp -= xpToNext(s.player.level)
@@ -231,9 +248,16 @@ export function addXp(save: SaveData, gain: number, now: number = Date.now()): S
  * 单回合结算：聚合该回合的动作，应用工具 XP 封顶与连击加成。
  * completed → turnsCompleted++ / 连击++（≥5 起 ×1.5）；error → turnsFailed++ / 连击清零。
  */
-export function applyTurn(save: SaveData, actions: Action[], now: number = Date.now()): SaveData {
+export function applyTurn(save: SaveData, actions: Action[], now: number = Date.now(), seasonOverride?: string): SaveData {
   const s = structuredClone(save)
   const c = s.counters
+  // 赛季换季：先清零赛季统计再累计，保证新赛季首回合的 XP/tokens 归入新赛季。
+  const season = seasonOverride ?? autoSeasonId(now)
+  if (s.player.season !== season) {
+    s.player.season = season
+    s.player.seasonXp = 0
+    c.seasonTokensOut = 0
+  }
   let toolGain = 0
   let gain = 0
   let turnTokens = 0
@@ -277,6 +301,7 @@ export function applyTurn(save: SaveData, actions: Action[], now: number = Date.
         break
       case 'tokens':
         c.tokensOut += a.tokens
+        c.seasonTokensOut += a.tokens
         turnTokens += a.tokens
         break
       case 'subagent':
@@ -323,7 +348,7 @@ export function applyTurn(save: SaveData, actions: Action[], now: number = Date.
   gain = Math.min(gain, 125)
   // 每日任务奖励不计入兜底上限（每天固定 3 个，天然防刷）。
   const questGain = applyDaily(s, now)
-  return addXp(s, gain + questGain, now)
+  return addXp(s, gain + questGain, now, seasonOverride)
 }
 
 /**
@@ -343,8 +368,8 @@ export function checkAchievements(defs: AchievementDef[], save: SaveData, now: n
 }
 
 /** 存档迁移/补全：把旧版本或缺失字段的存档升级为当前结构。 */
-export function migrateSave(raw: Partial<SaveData>, cwd: string, season: string): SaveData {
-  const base = freshSave(cwd, season, raw.updatedAt ?? Date.now())
+export function migrateSave(raw: Partial<SaveData>, cwd: string, seasonOverride: string | undefined): SaveData {
+  const base = freshSave(cwd, seasonOverride, raw.updatedAt ?? Date.now())
   if (!raw || typeof raw !== 'object') return base
   const out: SaveData = {
     ...base,

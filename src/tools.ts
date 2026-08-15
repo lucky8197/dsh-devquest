@@ -16,10 +16,10 @@ export interface DevQuestToolDeps {
 
 /** 状态渲染为人类可读文本。 */
 export function renderStatus(status: DevQuestStatus, detail: 'summary' | 'full'): string {
-  const { level, xp, xpToNext, title, season, counters } = status
+  const { level, xp, xpToNext, title, season, seasonXp, counters } = status
   const lines = [
     `⚔️ DevQuest — Lv.${level} ${title.zh}`,
-    `   XP: ${xp} / ${xpToNext}（赛季 ${season}，累计 ${counters.turnsCompleted} 回合 / ${counters.toolCalls} 次工具调用 / ${counters.todosCompleted} 个待办 / ${counters.tokensOut} tokens）`,
+    `   XP: ${xp} / ${xpToNext}（赛季 ${season} · 本赛季 ${seasonXp} XP，累计 ${counters.turnsCompleted} 回合 / ${counters.toolCalls} 次工具调用 / ${counters.todosCompleted} 个待办 / ${counters.tokensOut} tokens）`,
     `   连击: ${counters.consecutiveSuccess} · 今日回合: ${counters.completedToday} · 活跃: ${counters.streakDays} 天`,
   ]
   // 每日任务（summary 也展示：当天 3 个任务 + 进度）
