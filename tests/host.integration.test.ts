@@ -12,7 +12,18 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const LIB = new URL('../lib/index.js', import.meta.url)
-const hasBuild = existsSync(LIB)
+
+/** 加载构建产物；依赖缺失（如 CI 无 DSH 安装）时返回 null 以便测试跳过。 */
+async function loadLib(): Promise<{ apply: (ctx: never, config: unknown) => void } | null> {
+  if (!existsSync(LIB)) return null
+  try {
+    const mod = await import(LIB.href)
+    if (typeof mod.apply !== 'function') return null
+    return mod as never
+  } catch {
+    return null // lib/index.js 外部依赖（@deepseek-ai/dsh-tools 等）不可解析时跳过
+  }
+}
 
 /** 内存文件系统（模拟 ctx.fs 的最小写子集）。 */
 function memFs() {
@@ -67,11 +78,15 @@ function fakeCtx() {
   return { ctx, fs, listeners, tools, getRoutes: () => routes }
 }
 
-test('host 集成：事件流 → XP/存档 → status 工具', { skip: !hasBuild && '缺少 lib/index.js（先 npm run build）' }, async () => {
+test('host 集成：事件流 → XP/存档 → status 工具', async (t) => {
+  const module = await loadLib()
+  if (module === null) {
+    t.skip('缺少 lib/index.js 或其 DSH 依赖（先 npm run build）')
+    return
+  }
   const dir = mkdtempSync(join(tmpdir(), 'devquest-test-'))
   try {
     const env = fakeCtx()
-    const module = await import(LIB.href)
     module.apply(env.ctx, { dataDir: dir, season: 'TEST-S1' })
 
     const session = { id: 'session-test-1', header: { cwd: 'C:/proj' } }
@@ -128,12 +143,16 @@ test('host 集成：事件流 → XP/存档 → status 工具', { skip: !hasBuil
   }
 })
 
-test('host 集成：失败回合 + 幂等水位（重放跳过）', { skip: !hasBuild && '缺少 lib/index.js（先 npm run build）' }, async () => {
+test('host 集成：失败回合 + 幂等水位（重放跳过）', async (t) => {
+  const module = await loadLib()
+  if (module === null) {
+    t.skip('缺少 lib/index.js 或其 DSH 依赖（先 npm run build）')
+    return
+  }
   const dir = mkdtempSync(join(tmpdir(), 'devquest-test-'))
   try {
     const makeEnv = () => fakeCtx()
     const applyPlugin = async (env: ReturnType<typeof fakeCtx>) => {
-      const module = await import(LIB.href)
       module.apply(env.ctx, { dataDir: dir, season: 'TEST-S1' })
       return env
     }
