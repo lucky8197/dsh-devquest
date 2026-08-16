@@ -830,6 +830,18 @@ test('商店：余额 = seasonXp - spent，购买扣款并加库存', () => {
   assert.equal(r8.save.shop!.theme, '')
 })
 
+test('商店：旧档迁移——已激活的主题回填为已拥有', () => {
+  // 模拟 v0.9.4 及之前的存档：只有 theme 字段，没有 themes 列表
+  const old = fresh()
+  old.shop = { spent: 300, shields: 0, rerolls: 0, theme: 'theme-ember', badges: [] }
+  const migrated = migrateSave(old as unknown as Partial<SaveData>, 'C:/proj', undefined)
+  assert.deepEqual(migrated.shop!.themes, ['theme-ember'])
+  // 已是列表的保持不变
+  old.shop = { spent: 300, shields: 0, rerolls: 0, theme: 'theme-ember', themes: ['theme-ember', 'theme-frost'], badges: [] }
+  const migrated2 = migrateSave(old as unknown as Partial<SaveData>, 'C:/proj', undefined)
+  assert.deepEqual(migrated2.shop!.themes, ['theme-ember', 'theme-frost'])
+})
+
 test('商店：商品表完备（4 类商品齐备）', () => {
   const kinds = new Set(SHOP_ITEMS.map(i => i.kind))
   assert.ok(kinds.has('shield'))
