@@ -1348,7 +1348,8 @@ export function DevQuestOverlay(props: DevQuestOverlayProps): ReactElement {
 const cardStyle: CSSProperties = {
   position: 'fixed',
   width: 330,
-  maxHeight: 'calc(100vh - 32px)',
+  // 面板高度上限：最多屏幕高度的 80%（超出部分在面板内部滚动）。
+  maxHeight: '80vh',
   overflow: 'hidden',
   display: 'flex',
   flexDirection: 'column',
