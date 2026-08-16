@@ -263,20 +263,21 @@ function SectionCard(props: {
 }): ReactElement {
   const { id, title, right, collapsed, onToggle, children } = props
   return <section style={sectionCardStyle} data-section={id} data-collapsed={collapsed ? 'true' : 'false'}>
+    {/* 标题栏：折叠/展开样式保持一致（浅色+深字），只翻转箭头——折叠后是正常标题栏，不是黑条 */}
     <button
       type="button"
       onClick={onToggle}
-      style={{ ...sectionCardHeadStyle, ...(collapsed ? sectionCardHeadCollapsedStyle : {}) }}
+      style={sectionCardHeadStyle}
       aria-expanded={!collapsed}
       title={collapsed ? '展开' : '折叠'}
     >
-      <span style={{ ...sectionCardTitleStyle, ...(collapsed ? sectionCardTitleCollapsedStyle : {}) }}>{title}</span>
+      <span style={sectionCardTitleStyle}>{title}</span>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
         {right}
-        <span style={{ ...sectionCardArrowStyle, ...(collapsed ? sectionCardTitleCollapsedStyle : {}) }}>{collapsed ? '▸' : '▾'}</span>
+        <span style={sectionCardArrowStyle}>{collapsed ? '▸' : '▾'}</span>
       </span>
     </button>
-    {/* 用 display:none 而非条件渲染：DOM 结构稳定，避免折叠部分分区时 flex 布局异常 */}
+    {/* 用 display:none 而非条件渲染：DOM 结构稳定，避免折叠部分分区时布局异常 */}
     <div style={{ ...sectionCardBodyStyle, ...(collapsed ? sectionCardBodyHiddenStyle : {}) }}>{children}</div>
   </section>
 }
@@ -1427,9 +1428,7 @@ const iconButtonStyle: CSSProperties = {
 const cardBodyStyle: CSSProperties = {
   padding: '12px 14px 14px',
   overflowY: 'auto',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 14,
+  display: 'block',
 }
 
 /** 通用分区卡片：独立背景块 + 边框 + 可折叠头部。 */
@@ -1437,12 +1436,13 @@ const sectionCardStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   borderRadius: 10,
+  marginBottom: 12,
   background: 'color-mix(in srgb, var(--dsw-alias-bg-layer-2, #1d2735) 55%, transparent)',
   border: `1px solid ${TONE.border}`,
   overflow: 'hidden',
 }
 
-/** 分区标题栏：可点击折叠。 */
+/** 分区标题栏：可点击折叠（折叠/展开样式一致，仅内容区收起）。 */
 const sectionCardHeadStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
@@ -1458,23 +1458,12 @@ const sectionCardHeadStyle: CSSProperties = {
   textAlign: 'left',
 }
 
-/** 折叠态标题栏：深色品牌底 + 白字，任何主题下都清晰可见（不再是灰/白条）。 */
-const sectionCardHeadCollapsedStyle: CSSProperties = {
-  borderBottom: 'none',
-  background: 'color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 80%, #16202e)',
-}
-
 const sectionCardTitleStyle: CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
   // fallback 用深色：浅色主题下即使变量缺失文字也可见。
   color: 'var(--dsw-alias-label-primary, #1a2230)',
   letterSpacing: 0.3,
-}
-
-/** 折叠态标题文字：白色，保证在深色背景上清晰。 */
-const sectionCardTitleCollapsedStyle: CSSProperties = {
-  color: '#ffffff',
 }
 
 /** 折叠箭头。 */
@@ -1499,7 +1488,7 @@ const sectionCardBodyHiddenStyle: CSSProperties = {
   display: 'none',
 }
 
-const heroStyle: CSSProperties = { display: 'flex', gap: 12, alignItems: 'center' }
+const heroStyle: CSSProperties = { display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }
 
 const levelBadgeStyle: CSSProperties = {
   position: 'absolute',
@@ -1936,7 +1925,7 @@ const recordRowStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 
 const recordChipStyle: CSSProperties = { fontSize: 9, color: TONE.gold, background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 30%, transparent)', padding: '3px 7px', borderRadius: 6 }
 
 /** 下一称号预览行 + 幸运抽奖。 */
-const nextTitleRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }
+const nextTitleRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }
 
 const nextTitleStyle: CSSProperties = { fontSize: 10, color: TONE.muted }
 
