@@ -9,6 +9,15 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/lucky8197/dsh-devquest/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-BSD--3--Clause-blue" alt="license: BSD-3-Clause"></a>
+  <a href="https://github.com/lucky8197/dsh-devquest"><img src="https://img.shields.io/badge/dsh-plugin-informational" alt="DSH plugin"></a>
+  <a href="https://www.npmjs.com/package/dsh-devquest"><img src="https://img.shields.io/npm/v/dsh-devquest" alt="npm version"></a>
+  <img src="https://img.shields.io/badge/dependencies-0-brightgreen" alt="0 runtime dependencies">
+  <img src="https://img.shields.io/badge/tests-86%20%E2%9C%93-brightgreen" alt="86 tests passing">
+  <img src="https://img.shields.io/badge/achievements-47-gold" alt="47 achievements">
+</p>
+
+<p align="center">
   <a href="https://github.com/awesome-dsh-plugin/awesome-dsh-plugin"><img src="https://img.shields.io/badge/awesome--dsh--plugin-✔-informational" alt="已收录于 awesome-dsh-plugin"></a>
 </p>
 
