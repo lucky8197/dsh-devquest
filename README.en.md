@@ -33,145 +33,33 @@ Nothing to configure — just work, and XP accrues:
 | 💥 Fail a turn | +2 XP (consolation) |
 | 💪 Rise after a failure | "Rise Again" achievement +100 XP |
 
-### 🎓 Tutorial Chain
+## ✨ Key Features
 
-A 5-step intro walks you through DevQuest. Each step **+20 XP**; finish all for **+100 XP** and the exclusive title **「Rookie Adventurer」**:
+### 🎮 Progression
+- ⚔️ **Turns/tools/todos/tokens → XP → level → title**: a new title every 5 levels (30+ tiers), bigger combo = bigger multipliers
+- 🏆 **58 achievements** across six categories (Journey/Crafting/Quest/Time/Legend/Egg), rarity-colored, with hidden easter eggs and category collection bonuses
 
-```
-🚶 First turn   ✏️ First edit   📋 First todo
-⌨️ First command   👀 Check progress   →  🏅 Rookie Adventurer
-```
+### 📅 Daily & Weekly
+- 📅 **Daily quests**: 3 random quests per day (24-quest pool), clear all for a chest
+- 🎯 **Daily XP goal**: set today's target, claim a reward on reaching it
+- 🗓️ **Weekly challenges**: 3 goals per week, clear all for a bonus
+- 🐉 **Weekly boss**: the 3 weekly quests fuse into a boss — slay it for season currency
+- 🎁 **Daily lucky draw**: free daily draw for XP / currency / items
 
-Progress is shown live in the panel (`2/5 steps`).
+### 🗓️ Season & Shop
+- 🗓️ **Quarterly seasons**: season XP is the shop currency (resets each season, anti-inflation), with a sprint bar, pass milestones, and an auto season wrap-up
+- 🛒 **Season shop**: combo shields / quest rerolls / XP boost cards / skip cards / title badges
 
-### 🛒 Season Shop
+### 🎨 Personality & Looks
+- 🎨 **Theme skins**: 10 palettes, buy once — own forever, switch free
+- 🏷️ **Multiple titles**: level titles + conditional titles (All-Rounder, etc.), switch freely
+- 🃏 **Class system**: your tool habits reveal a class (Edit Master / Command Runner / Versatile…)
 
-**Season XP is currency** (resets each season, naturally anti-inflation). The standalone 🛒 Shop section shows your balance in its header:
-
-| Item | Price | Effect |
-|---|---|---|
-| 🛡️ Combo Shield | 150 / 400 (×3) | Auto-consume on a failed turn, combo survives |
-| 🔀 Quest Reroll | 120 | Reroll today's daily quests |
-| 👑🌟 Title Badges | 250 | Show crown/star badges next to your title |
-
-### 🎨 Theme Skins
-
-The 🎨 Theme Skins section manages panel colors. **Buy once, own forever, switch free**:
-
-| Skin | Price | Palette |
-|---|---|---|
-| 🔥 Ember | 300 | Ember orange |
-| ❄️ Frost | 300 | Frost blue |
-| 🌿 Verdant | 300 | Verdant green |
-| 🌇 Sunset | 300 | Sunset coral |
-| 🌊 Ocean | 300 | Deep teal |
-| 🌸 Sakura | 300 | Sakura pink |
-| 💜 Royal | 300 | Royal violet |
-
-Each card shows a color-swatch preview. Owned skins show「Active / Use」— tap Use to switch free; unowned show a buy button.
-
-### 📈 Growth Report
-
-Daily XP and turns are recorded (kept 30 days). The report section shows the last 7 days as an XP bar chart.
-
-### 🗓️ Activity Calendar
-
-A 30-day heatmap — the greener the cell, the more XP that day.
-
-### 📊 Stats + 🏛️ Hall of Fame
-
-- 🏆 Highest combo / ⬆️ highest level ever (across seasons)
-- 🔧 Top 5 tools used
-- 🏛️ Hall of Fame: each season's best level/combo/season XP, shown as golden medals
-
-### 🎆 Milestone Celebration
-
-Levels at multiples of 5 (Lv.5/10/15…) trigger a full-screen golden confetti celebration with stats.
-
-### 📅 Daily Quests
-
-**3 random quests per day** (deterministic by date, 24-quest pool, same for everyone):
-
-- 🗡️ Finish 5/15/30 turns · 🧰 Call 20/50/100 tools
-- ✏️ 10/20 edits · ⌨️ 10/20 commands · 📋 5/10 todos · 📝 50k/150k tokens
-- 🛰️ Use SSH · 🤝 Spawn 1/2 subagents · 💪 Rise after failure · 🌙 Night turn · 🎭 8 tools · 👀 Check progress
-
-**XP settles automatically** — nothing to claim manually. Finish all 3 to unlock the day's **🎁 chest** (+50 XP, once per day).
-
-### 🎁 Daily Lucky Draw
-
-One **free draw per day** (weighted):
-
-| Prize | Chance |
-|---|---|
-| ⚡ +50 XP | 30% |
-| ⚡ +100 XP | 20% |
-| 💰 +100 season currency | 15% |
-| 🛡️ Combo shield ×1 | 15% |
-| 🔀 Quest reroll ×1 | 10% |
-| 🌟 +200 XP | 10% |
-
-### 🗓️ Weekly Challenges
-
-**3 goals per week** (ISO week, 12-quest pool), progress auto-tracks, complete all 3 for a **+100 XP** weekly bonus.
-
-### 🏷️ Multiple Titles
-
-Level titles follow your level; conditional titles unlock through real effort — switch freely in the Titles section:
-
-| Title | Unlock |
-|---|---|
-| ⚒️ Hundred Smith | 100 edits/writes |
-| 🗡️ Sword Smith | 500 edits/writes |
-| 🏇 Centurion | 100 turns completed |
-| 🌙 Month Warden | 30 consecutive active days |
-| 👑 All-Rounder | Unlock all 58 achievements |
-
-### 📤 Share Card
-
-The 📤 Share button renders a 640×400 level card (level/title/XP bar/stats/achievement icons) as a downloadable PNG.
-
-### 🔥 Combo
-
-Consecutive turns multiply gains; a failure resets it:
-
-| Combo | Multiplier |
-|---|---|
-| ≥ 5 | ×1.5 |
-| ≥ 15 | ×2.0 |
-| ≥ 30 | ×2.5 |
-
-### 🏅 Levels & Titles
-
-```
-Lv.1-4     Apprentice
-Lv.5-9     Artisan
-Lv.10-14   Smith
-Lv.15-19   Master
-Lv.20+     Legend
-```
-
-### 🗓️ Seasons
-
-**Auto-rotates by quarter** (`2026-S1` = 2026 Q1). Season XP/tokens reset; level and lifetime XP are permanent. A season sprint bar tracks 100k-token goal + days remaining.
-
-### 🌍 Global Progress
-
-**One player, one save** (`~/.dsh/devquest/player.json`): shared across all sessions/projects. Legacy per-project saves auto-merge on upgrade; event watermark dedup prevents double-counting on replay.
-
-### 🏆 58 Achievements · Six Categories
-
-**Journey** First Steps → Centurion → 250 turns → Iron Will → Never Give Up
-**Crafting** First Edit → Hundred Edits → SSH First → Sword Smith → Subagent Commander
-**Quest** Quest Accepted → Quest Master → Clean Sweep → Quest Maniac
-**Time** Night Owl · Early Bird · Seven Days · Month Streak · Grinder
-**Legend** Artisan Path → Master Smith → Master Path → Legend (Lv.20) → Myth (Lv.25) → Sun God (Lv.30)
-
-> 🥚 9 hidden easter eggs (Devil Hour · Keyboard Warrior · Midnight Bell · Combo Master …) — invisible in the panel until unlocked.
-
-- Quantifiable achievements show progress bars; the wall keeps a「Next milestone」guide
-- Rarity tiers color + glow the unlock toast and wall cells (common/rare/epic/legendary)
-- **Collections**: complete a category for a one-time XP bonus (Journey 10→+300, Crafting 12→+400, Quest 10→+300, Time 8→+400, Legend 8→+800, Egg 10→+500)
+### 📊 Data & Experience
+- 📈 **Growth report / activity calendar / stats / hall of fame**: daily XP bars, 30-day heatmap, top-5 tools, season records
+- 📤 **Share card**: one-click PNG of your level / title / stats
+- 🔊 **Sound + desktop notifications**: feedback on achievements / level-ups / boss kills (toggleable)
+- 🎨 **Customizable panel**: font scaling, compact mode, toast filter, drag positioning
 
 ## 🖥️ Screenshot
 
@@ -203,7 +91,7 @@ Restart dsh web → ⚔️ appears at the sidebar bottom.
 Agents can query progress too:
 
 ```
-devquest_status        # level / XP / combo / daily quests
+devquest_status        # level / XP / combo / daily quests / class / boss
 devquest_achievements  # full achievement list & unlock state (58)
 devquest_shop          # season shop: balance/items, buy=<itemId>
 devquest_daily         # daily+weekly brief (plain text, pushable to IM)
