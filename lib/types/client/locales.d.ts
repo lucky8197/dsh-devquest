@@ -124,6 +124,10 @@ declare const zh: {
     readonly 'dq.exported': "存档已导出";
     readonly 'dq.imported': "存档已导入";
     readonly 'dq.importFailed': "导入失败：存档格式无效";
+    readonly 'dq.opFailed': "操作失败";
+    readonly 'dq.titleSwitched': "已切换称号";
+    readonly 'dq.rerolled': "任务已重掷";
+    readonly 'dq.weeklyClaimed': "全清周奖励 +{xp} XP";
     readonly 'dq.weekly': "每周挑战";
     readonly 'dq.weeklyWeek': "{week} 周";
     readonly 'dq.weeklyBonus': "🎁 领取全清周奖励 +{xp} XP";

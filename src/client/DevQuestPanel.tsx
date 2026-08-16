@@ -150,6 +150,12 @@ function formatNumber(n: number): string {
   return `${v >= 100 ? Math.round(v) : v.toFixed(1)}T`
 }
 
+/** v1.2.3：从后端 JSON 响应提取错误文本；成功或无错误返回 null。 */
+function apiErrorOf(data: { ok?: boolean; error?: string } | null): string | null {
+  if (data === null || data.ok === true) return null
+  return data.error !== undefined && data.error !== '' ? data.error : null
+}
+
 function updatedLabel(refreshedAt: number | null): string {
   if (refreshedAt === null) return '—'
   const seconds = Math.max(0, Math.round((Date.now() - refreshedAt) / 1000))
@@ -421,7 +427,9 @@ export function DevQuestPanelCard(
   const [claiming, setClaiming] = useState(false)
   const [buying, setBuying] = useState<string | null>(null)
   const [confirmBuyId, setConfirmBuyId] = useState<string | null>(null)
-  const [shopMsg, setShopMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  // v1.2.3：全局操作结果条（hero 区下方，所有写操作的成功/失败都可见，4s 自动消失）。
+  const [panelMsg, setPanelMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const panelMsgTimer = useRef<number | null>(null)
   const [rerolling, setRerolling] = useState(false)
   const [luckyMsg, setLuckyMsg] = useState<string | null>(null)
   const [claimingLucky, setClaimingLucky] = useState(false)
@@ -439,6 +447,12 @@ export function DevQuestPanelCard(
       return next
     })
   }
+  /** v1.2.3：显示全局操作结果（成功/失败），4 秒自动消失。 */
+  const notify = useCallback((ok: boolean, text: string): void => {
+    setPanelMsg({ ok, text })
+    if (panelMsgTimer.current !== null) window.clearTimeout(panelMsgTimer.current)
+    panelMsgTimer.current = window.setTimeout(() => setPanelMsg(null), 4000)
+  }, [])
   // 统一折叠状态：section id → 是否折叠（true=隐藏内容）。
   // 从 localStorage 恢复上次状态（重开面板不再默认全部展开）。
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(loadCollapsed)
@@ -585,14 +599,17 @@ export function DevQuestPanelCard(
     setClaiming(true)
     try {
       const response = await fetch('/api/devquest/claim-chest', { method: 'POST' })
-      const data = await response.json() as { ok: boolean; gained: number; status: DevQuestStatus }
-      if (data.ok && data.status !== null && data.status !== undefined) actions.setStatus(data.status)
+      const data = await response.json() as { ok: boolean; gained: number; error?: string; status: DevQuestStatus }
+      if (data.status !== null && data.status !== undefined) actions.setStatus(data.status)
+      if (data.ok) notify(true, t('dq.chestClaimed'))
+      else notify(false, apiErrorOf(data) ?? t('dq.opFailed'))
     } catch {
-      // 静默失败：下次轮询会纠正状态
+      // v1.2.3：不再静默，失败可见
+      notify(false, t('dq.opFailed'))
     } finally {
       setClaiming(false)
     }
-  }, [claiming, actions])
+  }, [claiming, actions, notify, t])
 
   /** 购买商店商品：两步确认防误触（第一次点击进确认态，3 秒内再点才真买）。 */
   const buy = useCallback(async (itemId: string): Promise<void> => {
@@ -600,30 +617,30 @@ export function DevQuestPanelCard(
     // 第一次点击：进入确认态（显示「确认购买？」）
     if (confirmBuyId !== itemId) {
       setConfirmBuyId(itemId)
-      setShopMsg(null)
       window.setTimeout(() => setConfirmBuyId(cur => (cur === itemId ? null : cur)), 3000)
       return
     }
     setConfirmBuyId(null)
     setBuying(itemId)
-    setShopMsg(null)
     try {
       const response = await fetch('/api/devquest/shop/buy', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ itemId }),
       })
-      const data = await response.json() as { ok: boolean; reason?: string; status: DevQuestStatus }
+      const data = await response.json() as { ok: boolean; reason?: string; error?: string; status: DevQuestStatus }
       if (data.status !== null && data.status !== undefined) actions.setStatus(data.status)
-      setShopMsg(data.ok
-        ? { ok: true, text: t('dq.shopBought') }
-        : { ok: false, text: data.reason === 'insufficient-balance' ? t('dq.shopNoBalance') : (data.reason ?? '') })
+      if (data.ok) notify(true, t('dq.shopBought'))
+      else {
+        const err = apiErrorOf(data)
+        notify(false, data.reason === 'insufficient-balance' ? t('dq.shopNoBalance') : (err ?? t('dq.opFailed')))
+      }
     } catch {
-      setShopMsg({ ok: false, text: t('dq.error') })
+      notify(false, t('dq.opFailed'))
     } finally {
       setBuying(null)
     }
-  }, [buying, confirmBuyId, actions, t])
+  }, [buying, confirmBuyId, actions, notify, t])
 
   /** 使用任务重掷。 */
   const rerollQuests = useCallback(async (): Promise<void> => {
@@ -631,14 +648,17 @@ export function DevQuestPanelCard(
     setRerolling(true)
     try {
       const response = await fetch('/api/devquest/shop/reroll', { method: 'POST' })
-      const data = await response.json() as { ok: boolean; status: DevQuestStatus }
+      const data = await response.json() as { ok: boolean; error?: string; status: DevQuestStatus }
       if (data.status !== null && data.status !== undefined) actions.setStatus(data.status)
+      if (data.ok) notify(true, t('dq.rerolled'))
+      else notify(false, apiErrorOf(data) ?? t('dq.opFailed'))
     } catch {
-      // 静默失败
+      // v1.2.3：不再静默
+      notify(false, t('dq.opFailed'))
     } finally {
       setRerolling(false)
     }
-  }, [rerolling, actions])
+  }, [rerolling, actions, notify, t])
 
   /** 每日幸运抽奖。 */
   const claimLuckyDraw = useCallback(async (): Promise<void> => {
@@ -647,12 +667,15 @@ export function DevQuestPanelCard(
     setLuckyMsg(null)
     try {
       const response = await fetch('/api/devquest/lucky', { method: 'POST' })
-      const data = await response.json() as { ok: boolean; reward?: { kind: string; amount?: number; count?: number; label: string }; status: DevQuestStatus }
+      const data = await response.json() as { ok: boolean; error?: string; reward?: { kind: string; amount?: number; count?: number; label: string }; status: DevQuestStatus }
       if (data.status !== null && data.status !== undefined) actions.setStatus(data.status)
       if (data.ok && data.reward !== undefined) setLuckyMsg(t('dq.luckyResult', { label: data.reward.label }))
-      else if (!data.ok) setLuckyMsg(t('dq.luckyClaimed'))
+      else if (!data.ok) {
+        const err = apiErrorOf(data)
+        setLuckyMsg(err !== null ? `⚠️ ${err}` : t('dq.luckyClaimed'))
+      }
     } catch {
-      setLuckyMsg(t('dq.error'))
+      setLuckyMsg(t('dq.opFailed'))
     } finally {
       setClaimingLucky(false)
     }
@@ -670,11 +693,11 @@ export function DevQuestPanelCard(
       a.download = `devquest-player-${dayKeyLocal()}.json`
       a.click()
       URL.revokeObjectURL(url)
-      setShopMsg({ ok: true, text: t('dq.exported') })
+      notify(true, t('dq.exported'))
     } catch {
-      setShopMsg({ ok: false, text: t('dq.error') })
+      notify(false, t('dq.opFailed'))
     }
-  }, [t])
+  }, [notify, t])
 
   /** 导入存档（覆盖当前）。 */
   const importSave = useCallback(async (file: File): Promise<void> => {
@@ -689,15 +712,14 @@ export function DevQuestPanelCard(
       })
       const data = await response.json() as { ok: boolean; error?: string; status: DevQuestStatus }
       if (data.status !== null && data.status !== undefined) actions.setStatus(data.status)
-      setShopMsg(data.ok
-        ? { ok: true, text: t('dq.imported') }
-        : { ok: false, text: t('dq.importFailed') })
+      if (data.ok) notify(true, t('dq.imported'))
+      else notify(false, apiErrorOf(data) ?? t('dq.importFailed'))
     } catch {
-      setShopMsg({ ok: false, text: t('dq.importFailed') })
+      notify(false, t('dq.importFailed'))
     } finally {
       setImporting(false)
     }
-  }, [importing, actions, t])
+  }, [importing, actions, notify, t])
 
   /** 切换展示称号（titleId 空 = 跟随等级）。 */
   const switchTitle = useCallback(async (titleId: string): Promise<void> => {
@@ -707,12 +729,15 @@ export function DevQuestPanelCard(
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ titleId }),
       })
-      const data = await response.json() as { ok: boolean; status: DevQuestStatus }
+      const data = await response.json() as { ok: boolean; error?: string; status: DevQuestStatus }
       if (data.status !== null && data.status !== undefined) actions.setStatus(data.status)
+      if (data.ok) notify(true, t('dq.titleSwitched'))
+      else notify(false, apiErrorOf(data) ?? t('dq.opFailed'))
     } catch {
-      // 静默失败
+      // v1.2.3：不再静默
+      notify(false, t('dq.opFailed'))
     }
-  }, [actions])
+  }, [actions, notify, t])
 
   /** 切换已拥有主题（空 = 默认主题）。 */
   const activateTheme = useCallback(async (themeId: string): Promise<void> => {
@@ -722,13 +747,15 @@ export function DevQuestPanelCard(
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ themeId }),
       })
-      const data = await response.json() as { ok: boolean; status: DevQuestStatus }
+      const data = await response.json() as { ok: boolean; error?: string; status: DevQuestStatus }
       if (data.status !== null && data.status !== undefined) actions.setStatus(data.status)
-      if (data.ok) setShopMsg({ ok: true, text: t('dq.themeUsed') })
+      if (data.ok) notify(true, t('dq.themeUsed'))
+      else notify(false, apiErrorOf(data) ?? t('dq.opFailed'))
     } catch {
-      // 静默失败
+      // v1.2.3：不再静默（此前主题切换失败完全无反馈）
+      notify(false, t('dq.opFailed'))
     }
-  }, [actions, t])
+  }, [actions, notify, t])
 
   /** 领取赛季通行证档位奖励。 */
   const claimPassTier = useCallback(async (tierId: string): Promise<void> => {
@@ -738,25 +765,29 @@ export function DevQuestPanelCard(
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ tierId }),
       })
-      const data = await response.json() as { ok: boolean; gained: number; status: DevQuestStatus }
+      const data = await response.json() as { ok: boolean; gained: number; error?: string; status: DevQuestStatus }
       if (data.status !== null && data.status !== undefined) actions.setStatus(data.status)
-      if (data.ok) setShopMsg({ ok: true, text: t('dq.passClaimed', { xp: data.gained }) })
+      if (data.ok) notify(true, t('dq.passClaimed', { xp: data.gained }))
+      else notify(false, apiErrorOf(data) ?? t('dq.opFailed'))
     } catch {
-      // 静默失败
+      // v1.2.3：不再静默
+      notify(false, t('dq.opFailed'))
     }
-  }, [actions, t])
+  }, [actions, notify, t])
 
   /** 使用任务跳过卡。 */
   const useQuestSkipCard = useCallback(async (): Promise<void> => {
     try {
       const response = await fetch('/api/devquest/shop/quest-skip', { method: 'POST' })
-      const data = await response.json() as { ok: boolean; status: DevQuestStatus }
+      const data = await response.json() as { ok: boolean; error?: string; status: DevQuestStatus }
       if (data.status !== null && data.status !== undefined) actions.setStatus(data.status)
-      if (data.ok) setShopMsg({ ok: true, text: t('dq.skipUsed') })
+      if (data.ok) notify(true, t('dq.skipUsed'))
+      else notify(false, apiErrorOf(data) ?? t('dq.opFailed'))
     } catch {
-      // 静默失败
+      // v1.2.3：不再静默
+      notify(false, t('dq.opFailed'))
     }
-  }, [actions, t])
+  }, [actions, notify, t])
 
   /** 领取每周全清奖励。 */
   const claimWeekly = useCallback(async (): Promise<void> => {
@@ -764,14 +795,17 @@ export function DevQuestPanelCard(
     setWeeklyClaiming(true)
     try {
       const response = await fetch('/api/devquest/weekly-bonus', { method: 'POST' })
-      const data = await response.json() as { ok: boolean; gained: number; status: DevQuestStatus }
+      const data = await response.json() as { ok: boolean; gained: number; error?: string; status: DevQuestStatus }
       if (data.status !== null && data.status !== undefined) actions.setStatus(data.status)
+      if (data.ok) notify(true, t('dq.weeklyClaimed', { xp: data.gained }))
+      else notify(false, apiErrorOf(data) ?? t('dq.opFailed'))
     } catch {
-      // 静默失败
+      // v1.2.3：不再静默
+      notify(false, t('dq.opFailed'))
     } finally {
       setWeeklyClaiming(false)
     }
-  }, [weeklyClaiming, actions])
+  }, [weeklyClaiming, actions, notify, t])
 
   /** 生成成就分享卡片（canvas → PNG 下载）。 */
   const shareCard = useCallback(async (): Promise<void> => {
@@ -836,13 +870,13 @@ export function DevQuestPanelCard(
       a.href = canvas.toDataURL('image/png')
       a.download = `devquest-card-${dayKeyLocal()}.png`
       a.click()
-      setShopMsg({ ok: true, text: t('dq.shareDone') })
+      notify(true, t('dq.shareDone'))
     } catch {
-      setShopMsg({ ok: false, text: t('dq.shareFailed') })
+      notify(false, t('dq.shareFailed'))
     } finally {
       setSharing(false)
     }
-  }, [sharing, state.status, t])
+  }, [sharing, state.status, notify, t])
 
   /** 生成赛季报告分享卡片（canvas → PNG 下载）。 */
   const shareSeason = useCallback(async (): Promise<void> => {
@@ -898,13 +932,13 @@ export function DevQuestPanelCard(
       a.href = canvas.toDataURL('image/png')
       a.download = `devquest-season-${s.season}.png`
       a.click()
-      setShopMsg({ ok: true, text: t('dq.shareDone') })
+      notify(true, t('dq.shareDone'))
     } catch {
-      setShopMsg({ ok: false, text: t('dq.shareFailed') })
+      notify(false, t('dq.shareFailed'))
     } finally {
       setSharing(false)
     }
-  }, [sharing, state.status, t])
+  }, [sharing, state.status, notify, t])
 
   const status = state.status
   // 位置：拖拽后 left/top；未拖过则默认右上角。
@@ -1074,6 +1108,13 @@ export function DevQuestPanelCard(
         </div>
       </div>
 
+      {/* v1.2.3：全局操作结果条（成功/失败，4s 自动消失） */}
+      {panelMsg !== null && (
+        <div style={panelMsgStyle(panelMsg.ok)} role="status">
+          {panelMsg.ok ? '✅ ' : '⚠️ '}{panelMsg.text}
+        </div>
+      )}
+
       {/* 每日开工仪式：问候 + 昨日总结 + 今日目标 */}
       <SectionCard
         id="ritual"
@@ -1227,7 +1268,6 @@ export function DevQuestPanelCard(
               </div>
             )
           })}
-          {shopMsg !== null && <div style={shopMsgStyle(shopMsg.ok)}>{shopMsg.text}</div>}
           {(status.shop?.rerolls ?? 0) > 0 && (
             <button type="button" onClick={() => void rerollQuests()} disabled={rerolling} style={rerollButtonStyle}>
               🔀 {rerolling ? '…' : t('dq.shopReroll')}
@@ -2633,10 +2673,19 @@ const rerollButtonStyle: CSSProperties = {
   cursor: 'pointer',
 }
 
-const shopMsgStyle = (ok: boolean): CSSProperties => ({
-  fontSize: 10,
+/** v1.2.3：全局操作结果条（成功绿色 / 失败红色，带淡背景）。 */
+const panelMsgStyle = (ok: boolean): CSSProperties => ({
+  fontSize: 11,
+  lineHeight: 1.4,
   color: ok ? TONE.green : TONE.red,
-  marginTop: 2,
+  background: ok
+    ? 'color-mix(in srgb, var(--dsw-alias-state-success-primary, #78dda0) 10%, transparent)'
+    : 'color-mix(in srgb, var(--dsw-alias-state-error-primary, #ff8592) 10%, transparent)',
+  border: `1px solid ${ok ? TONE.green : TONE.red}`,
+  borderRadius: 8,
+  padding: '6px 10px',
+  marginBottom: 'var(--dq-section-mb, 12px)',
+  wordBreak: 'break-all',
 })
 
 /** 新手任务链。 */
