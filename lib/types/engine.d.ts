@@ -64,6 +64,12 @@ export declare function rollDailyQuests(now: number, salt?: string): DailyQuestS
 export declare function ensureDaily(save: SaveData, now: number): DailyQuestState;
 /** 推进每日任务进度并自动结算奖励，返回本轮任务奖励 XP（在 turn 结算后调用）。 */
 export declare function applyDaily(save: SaveData, now: number): number;
+/**
+ * 每日任务进度即时同步（纯展示，不发奖）：
+ * 从计数器重算每个任务的 progress/done，让面板/工具不用等下一个回合结算就能看到最新进度。
+ * 发奖仍由 applyDaily 在回合结算时执行（claimedAt 标记，不会重复/丢失）。
+ */
+export declare function refreshDailyProgress(save: SaveData, now: number): DailyQuestState;
 /** 当天 3 个任务是否已全部完成。 */
 export declare function dailyQuestsDone(daily: DailyQuestState): boolean;
 /**

@@ -17,10 +17,24 @@ import type {} from '@deepseek-ai/dsh-fs'
 import type {} from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type { Session } from '@deepseek-ai/dsh-session'
+import { createRequire } from 'node:module'
+
+/** 插件版本号（读 package.json；面板头部展示，方便确认加载的代码版本）。 */
+function pluginVersion(): string {
+  try {
+    const require = createRequire(import.meta.url)
+    // lib/index.js 同级向上是 package.json（link 安装 / npm 发布都在）
+    const pkg = require('../package.json') as { version?: string }
+    return pkg.version ?? ''
+  } catch {
+    return ''
+  }
+}
+const PLUGIN_VERSION = pluginVersion()
 import { ACHIEVEMENTS, achievementById, rarityOf } from './achievements.ts'
 import {
   activateTheme, applyTurnDetailed, buildRecordsView, buyShopItem, CATEGORY_IDS, checkAchievements, checkCollections, checkTitles, checkTutorial, claimDailyChest, claimLucky,
-  claimWeeklyBonus, COLLECTION_REWARDS, dailyQuestsDone, dayKey, ensureDaily, ensureWeekly, HISTORY_KEEP, migrateSave, nextTitle,
+  claimWeeklyBonus, COLLECTION_REWARDS, dailyQuestsDone, dayKey, ensureDaily, ensureWeekly, HISTORY_KEEP, migrateSave, nextTitle, refreshDailyProgress,
   SETTLEMENT_KEEP, setActiveTitle, SHOP_ITEMS, shopBalance, titleFor, TITLE_POOL, TUTORIAL_STEPS, TUTORIAL_TITLE, useReroll, xpToLevel, xpToNext,
 } from './engine.ts'
 import { watchEvents, type SessionAggregate } from './listener.ts'
@@ -84,6 +98,7 @@ export function apply(ctx: Context, config: Config = {}): void {
       title: titleFor(save.player.level),
       season: save.player.season,
       seasonXp: save.player.seasonXp,
+      version: PLUGIN_VERSION,
       counters: save.counters,
       achievements: ACHIEVEMENTS.map(a => {
         const rec = save.achievements[a.id]
@@ -103,8 +118,8 @@ export function apply(ctx: Context, config: Config = {}): void {
         if (rec === undefined && a.progress !== undefined) view.progress = a.progress(save)
         return view
       }),
-      // 每日任务：跨天自动重滚（就地更新缓存存档，随下次结算持久化）。
-      daily: ensureDaily(save, Date.now()),
+      // 每日任务：跨天自动重滚 + 进度即时同步（不发奖，发奖由回合结算的 applyDaily 执行）。
+      daily: refreshDailyProgress(save, Date.now()),
       dailyChest: {
         ready: dailyQuestsDone(save.daily) && save.daily.chestClaimed !== true,
         claimed: save.daily.chestClaimed === true,

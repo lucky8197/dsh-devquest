@@ -147,7 +147,9 @@ export function applyDaily(save: SaveData, now: number): number {
   const daily = ensureDaily(save, now)
   let gain = 0
   for (const q of daily.quests) {
-    if (q.done) continue
+    // 以 claimedAt 为「已发奖」标记：面板进度同步（refreshDailyProgress）只改 done，
+    // 不影响这里发奖；已发过奖的跳过。
+    if (q.claimedAt !== undefined) continue
     const def = DAILY_QUEST_POOL.find(d => d.id === q.id)
     if (def === undefined) continue
     q.progress = Math.min(def.progress(save.counters), q.goal)
@@ -159,6 +161,22 @@ export function applyDaily(save: SaveData, now: number): number {
     }
   }
   return gain
+}
+
+/**
+ * 每日任务进度即时同步（纯展示，不发奖）：
+ * 从计数器重算每个任务的 progress/done，让面板/工具不用等下一个回合结算就能看到最新进度。
+ * 发奖仍由 applyDaily 在回合结算时执行（claimedAt 标记，不会重复/丢失）。
+ */
+export function refreshDailyProgress(save: SaveData, now: number): DailyQuestState {
+  const daily = ensureDaily(save, now)
+  for (const q of daily.quests) {
+    const def = DAILY_QUEST_POOL.find(d => d.id === q.id)
+    if (def === undefined) continue
+    q.progress = Math.min(def.progress(save.counters), q.goal)
+    if (q.progress >= q.goal) q.done = true
+  }
+  return daily
 }
 
 /** 当天 3 个任务是否已全部完成。 */

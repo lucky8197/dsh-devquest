@@ -49,63 +49,33 @@ const TONE = {
 } as const
 
 /**
- * 商店主题 id → 面板 CSS 变量覆写。
- * 在面板根元素上覆写 --dsw-alias-*，TONE 与所有引用这些变量的子元素自动跟随。
+ * 商店主题 id → 调色板（hex）。themeVars 转成 CSS 变量覆写，皮肤卡片用色块预览。
  * 配色在浅色主题下保持可读（背景保持浅色、仅强调色改变）。
  */
+const SKIN_PALETTES: Record<string, { brand: string; warn: string; success: string; overlay: string; layer2: string }> = {
+  'theme-ember': { brand: '#e07b39', warn: '#d97706', success: '#d97706', overlay: '#fff6ee', layer2: '#fff0e2' },
+  'theme-frost': { brand: '#3b9fe0', warn: '#4a90c2', success: '#3b9fe0', overlay: '#f0f7fc', layer2: '#e4f1fa' },
+  'theme-verdant': { brand: '#34a85e', warn: '#6aa84f', success: '#34a85e', overlay: '#f1f9f2', layer2: '#e2f3e5' },
+  'theme-sunset': { brand: '#e86a4f', warn: '#e0a63c', success: '#e86a4f', overlay: '#fff5f0', layer2: '#ffece2' },
+  'theme-ocean': { brand: '#1f9e8f', warn: '#2f8fb3', success: '#1f9e8f', overlay: '#f1faf8', layer2: '#e2f3ef' },
+  'theme-sakura': { brand: '#e2637f', warn: '#d98aa0', success: '#e2637f', overlay: '#fef5f7', layer2: '#fdeaf0' },
+  'theme-royal': { brand: '#8a5cf0', warn: '#a06cd5', success: '#8a5cf0', overlay: '#f7f4fd', layer2: '#eee7fb' },
+}
+
+/**
+ * 商店主题 id → 面板 CSS 变量覆写。
+ * 在面板根元素上覆写 --dsw-alias-*，TONE 与所有引用这些变量的子元素自动跟随。
+ */
 function themeVars(themeId: string): CSSProperties {
-  const palettes: Record<string, Record<string, string>> = {
-    'theme-ember': {
-      '--dsw-alias-brand-primary': '#e07b39',
-      '--dsw-alias-state-warn-primary': '#d97706',
-      '--dsw-alias-state-success-primary': '#d97706',
-      '--dsw-alias-bg-overlay': '#fff6ee',
-      '--dsw-alias-bg-layer-2': '#fff0e2',
-    },
-    'theme-frost': {
-      '--dsw-alias-brand-primary': '#3b9fe0',
-      '--dsw-alias-state-warn-primary': '#4a90c2',
-      '--dsw-alias-state-success-primary': '#3b9fe0',
-      '--dsw-alias-bg-overlay': '#f0f7fc',
-      '--dsw-alias-bg-layer-2': '#e4f1fa',
-    },
-    'theme-verdant': {
-      '--dsw-alias-brand-primary': '#34a85e',
-      '--dsw-alias-state-warn-primary': '#6aa84f',
-      '--dsw-alias-state-success-primary': '#34a85e',
-      '--dsw-alias-bg-overlay': '#f1f9f2',
-      '--dsw-alias-bg-layer-2': '#e2f3e5',
-    },
-    'theme-sunset': {
-      '--dsw-alias-brand-primary': '#e86a4f',
-      '--dsw-alias-state-warn-primary': '#e0a63c',
-      '--dsw-alias-state-success-primary': '#e86a4f',
-      '--dsw-alias-bg-overlay': '#fff5f0',
-      '--dsw-alias-bg-layer-2': '#ffece2',
-    },
-    'theme-ocean': {
-      '--dsw-alias-brand-primary': '#1f9e8f',
-      '--dsw-alias-state-warn-primary': '#2f8fb3',
-      '--dsw-alias-state-success-primary': '#1f9e8f',
-      '--dsw-alias-bg-overlay': '#f1faf8',
-      '--dsw-alias-bg-layer-2': '#e2f3ef',
-    },
-    'theme-sakura': {
-      '--dsw-alias-brand-primary': '#e2637f',
-      '--dsw-alias-state-warn-primary': '#d98aa0',
-      '--dsw-alias-state-success-primary': '#e2637f',
-      '--dsw-alias-bg-overlay': '#fef5f7',
-      '--dsw-alias-bg-layer-2': '#fdeaf0',
-    },
-    'theme-royal': {
-      '--dsw-alias-brand-primary': '#8a5cf0',
-      '--dsw-alias-state-warn-primary': '#a06cd5',
-      '--dsw-alias-state-success-primary': '#8a5cf0',
-      '--dsw-alias-bg-overlay': '#f7f4fd',
-      '--dsw-alias-bg-layer-2': '#eee7fb',
-    },
-  }
-  return (palettes[themeId] ?? {}) as CSSProperties
+  const p = SKIN_PALETTES[themeId]
+  if (p === undefined) return {}
+  return {
+    '--dsw-alias-brand-primary': p.brand,
+    '--dsw-alias-state-warn-primary': p.warn,
+    '--dsw-alias-state-success-primary': p.success,
+    '--dsw-alias-bg-overlay': p.overlay,
+    '--dsw-alias-bg-layer-2': p.layer2,
+  } as CSSProperties
 }
 
 const CATEGORY_KEYS = ['journey', 'crafting', 'quest', 'time', 'legend', 'egg'] as const
@@ -776,6 +746,9 @@ export function DevQuestPanelCard(
     <header style={cardHeaderStyle}>
       <span style={{ color: TONE.accent, display: 'inline-flex' }}><SwordIcon size={20} /></span>
       <strong style={cardTitleStyle}>DevQuest</strong>
+      {status.version !== undefined && status.version !== '' && (
+        <span style={versionLabelStyle} title={t('dq.version')}>{status.version}</span>
+      )}
       <button type="button" onClick={() => actions.setOpen(false)} aria-label={t('dq.close')} style={iconButtonStyle}><CloseIcon /></button>
     </header>
 
@@ -988,6 +961,18 @@ export function DevQuestPanelCard(
                   <span style={shopItemPriceStyle}>{item.price}</span>
                 </div>
                 <div style={shopItemDescStyle}>{item.description.zh}</div>
+                {(() => {
+                  const palette = SKIN_PALETTES[item.id]
+                  if (palette === undefined) return null
+                  return (
+                    <div style={skinSwatchRowStyle}>
+                      <span style={skinSwatchStyle(palette.brand)} title="主色" />
+                      <span style={skinSwatchStyle(palette.warn)} title="金色" />
+                      <span style={skinSwatchStyle(palette.layer2)} title="背景" />
+                      <span style={skinSwatchBorderStyle(palette.overlay)} title="面板底" />
+                    </div>
+                  )
+                })()}
                 {active
                   ? <div style={shopOwnedStyle}>{t('dq.themeActive')}</div>
                   : owned
@@ -1598,6 +1583,17 @@ const cardDraggingStyle: CSSProperties = { cursor: 'grabbing', userSelect: 'none
 
 const cardTitleStyle: CSSProperties = { fontSize: 14, color: TONE.text, letterSpacing: 0.2 }
 
+/** 面板头部版本号：小号弱化标签（提示当前加载的插件版本）。 */
+const versionLabelStyle: CSSProperties = {
+  fontSize: 9,
+  lineHeight: 1,
+  color: TONE.quiet,
+  border: `1px solid ${TONE.border}`,
+  borderRadius: 99,
+  padding: '2px 5px',
+  whiteSpace: 'nowrap',
+}
+
 const iconButtonStyle: CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
@@ -2003,6 +1999,26 @@ const shopThemeUseButtonStyle: CSSProperties = {
 
 /** 主题皮肤独立分区：皮肤卡片网格。 */
 const skinGridStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }
+
+/** 皮肤配色预览行：4 个小色块（主色/金色/背景/面板底）。 */
+const skinSwatchRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }
+
+const skinSwatchStyle = (color: string): CSSProperties => ({
+  width: 14,
+  height: 10,
+  borderRadius: 3,
+  background: color,
+  border: '1px solid rgba(120,130,150,0.35)',
+})
+
+/** 面板底色块：浅色底加描边保证可见。 */
+const skinSwatchBorderStyle = (color: string): CSSProperties => ({
+  width: 14,
+  height: 10,
+  borderRadius: 3,
+  background: color,
+  border: '1px solid rgba(120,130,150,0.45)',
+})
 
 /** 当前激活的皮肤卡片：品牌色描边高亮。 */
 const skinItemActiveStyle: CSSProperties = {

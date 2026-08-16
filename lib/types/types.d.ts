@@ -321,6 +321,8 @@ export interface DevQuestStatus {
     season: string;
     /** 本赛季获得的 XP。 */
     seasonXp: number;
+    /** 插件版本号（面板头部展示，方便确认加载的代码版本）。 */
+    version: string;
     counters: Counters;
     achievements: AchievementView[];
     /** 当日每日任务（含进度/奖励）。 */

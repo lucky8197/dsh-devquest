@@ -8,7 +8,7 @@ import { ACHIEVEMENTS, achievementById, ACHIEVEMENT_RARITY, rarityOf } from '../
 import {
   activateTheme, addXp, applyDaily, applyTurn, applyTurnDetailed, applyWeekly, autoSeasonId, buildRecordsView, buyShopItem, checkAchievements, checkCollections, checkTitles,
   checkTutorial, claimDailyChest, claimLucky, claimWeeklyBonus, DAILY_CHEST_REWARD, DAILY_QUEST_POOL, dailyQuestsDone, dayKey, ensureDaily, ensureWeekly,
-  freshSave, freshShop, HISTORY_KEEP, mergeSaves, migrateSave, nextTitle, rollDailyQuests, rollWeeklyQuests, SETTLEMENT_KEEP, setActiveTitle, SHOP_ITEMS,
+  freshSave, freshShop, HISTORY_KEEP, mergeSaves, migrateSave, nextTitle, refreshDailyProgress, rollDailyQuests, rollWeeklyQuests, SETTLEMENT_KEEP, setActiveTitle, SHOP_ITEMS,
   shopBalance, titleFor, TITLE_POOL, trimHistory, trimRecords, TUTORIAL_STEPS, updateRecords, useReroll, weekKey, WEEKLY_BONUS_XP, WEEKLY_QUEST_POOL, xpToLevel, xpToNext,
 } from '../src/engine.ts'
 import type { Action, SaveData } from '../src/types.ts'
@@ -353,6 +353,27 @@ test('applyDaily 幂等：不重复发放已完成任务的奖励', () => {
   save.counters.turnsCompleted = 5
   assert.equal(applyDaily(save, NOW), 30)
   assert.equal(applyDaily(save, NOW), 0) // done 后不再奖励
+  assert.equal(save.counters.dailyQuestsDone, 1)
+})
+
+test('refreshDailyProgress：进度即时同步（不发奖），后续结算仍发奖', () => {
+  // 场景：计数器已达标但任务还没结算（如手动改存档 / 子代理计数补齐后）
+  let save = fresh()
+  save.daily = {
+    date: dayKey(NOW),
+    quests: [{ id: 'dq_subagent_1', label: { zh: 't', en: 't' }, goal: 1, reward: 60, progress: 0, done: false }],
+  }
+  save.counters.subagentsSpawned = 1
+  // 同步视图：progress/done 立即反映计数器
+  refreshDailyProgress(save, NOW)
+  assert.equal(save.daily.quests[0]!.progress, 1)
+  assert.equal(save.daily.quests[0]!.done, true)
+  // 但还没发奖（claimedAt 未设、计数未增）
+  assert.equal(save.daily.quests[0]!.claimedAt, undefined)
+  assert.equal(save.counters.dailyQuestsDone, 0)
+  // 下次回合结算：奖励补发，不因 done 已置 true 而跳过
+  const gain = applyDaily(save, NOW)
+  assert.equal(gain, 60)
   assert.equal(save.counters.dailyQuestsDone, 1)
 })
 

@@ -48,6 +48,7 @@ declare const zh: {
     readonly 'dq.tutorialDone': "已完成全部新手任务";
     readonly 'dq.tutorialTitle': "专属称号 · {title}";
     readonly 'dq.tutorialStepDone': "{n}/{m} 步";
+    readonly 'dq.version': "插件版本号";
     readonly 'dq.levelSince': "本等级已 {days} 天";
     readonly 'dq.seasonSprint': "赛季冲刺";
     readonly 'dq.seasonDaysLeft': "剩 {days} 天";
