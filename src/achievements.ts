@@ -6,6 +6,66 @@ import type { AchievementDef, Counters, SaveData } from './types.ts'
 
 const SSH_TOOLS = new Set(['ssh_exec', 'ssh_upload', 'ssh_download', 'ssh_tunnel', 'ssh_cluster', 'ssh_list'])
 
+// ---------------------------------------------------------------------------
+// v1.3.0 职业/专精系统：按工具使用画像识别职业（纯派生，成就 check 使用）。
+// ---------------------------------------------------------------------------
+
+/** 职业画像定义（id → 展示信息）。 */
+export interface ClassDef {
+  id: string
+  icon: string
+  name: { zh: string; en: string }
+  /** 匹配：工具 id（部分前缀匹配）。 */
+  tools: string[]
+  /** 匹配所需的最小调用次数。 */
+  minCalls: number
+  /** 匹配所需工具数。 */
+  minTools?: number
+}
+
+/** 职业画像表（按工具习惯匹配，命中第一个）。 */
+export const CLASSES: ClassDef[] = [
+  { id: 'class-editor', icon: '✏️', name: { zh: '编辑大师', en: 'Edit Master' }, tools: ['edit', 'write', 'str-replace-editor'], minCalls: 200, minTools: 2 },
+  { id: 'class-commander', icon: '⌨️', name: { zh: '命令行者', en: 'Command Runner' }, tools: ['pwsh', 'bash', 'terminal'], minCalls: 300 },
+  { id: 'class-scholar', icon: '📚', name: { zh: '档案管理员', en: 'Archivist' }, tools: ['read', 'grep', 'glob'], minCalls: 400, minTools: 2 },
+  { id: 'class-liason', icon: '🤝', name: { zh: '协调使', en: 'Coordinator' }, tools: ['subagent', 'agent_teams_', 'workflow'], minCalls: 20, minTools: 2 },
+  { id: 'class-crafter', icon: '🧱', name: { zh: '锻造师', en: 'Crafter' }, tools: ['skill_manage', 'skill', 'memory', 'dtodo'], minCalls: 50, minTools: 2 },
+  { id: 'class-multitool', icon: '🎭', name: { zh: '多面手', en: 'Versatile' }, tools: [], minCalls: 0, minTools: 12 },
+]
+
+/** 今日使用过的工具名（去重；jack_of_all / dq_distinct_8 用），跨天清零。 */
+export function isClassTool(tool: string, cls: ClassDef): boolean {
+  if (cls.tools.length === 0) return true
+  return cls.tools.some(prefix => tool.startsWith(prefix))
+}
+
+/**
+ * 识别玩家职业画像：统计工具调用分布，按 CLASSES 表匹配。
+ * 无匹配时返回 null（玩家还不够专注）。
+ */
+export function computeClass(counters: Counters): ClassDef | null {
+  const byTool = counters.toolCallsByTool ?? {}
+  for (const cls of CLASSES) {
+    if (cls.tools.length === 0) {
+      // 多面手：今日用过 ≥minTools 种不同工具。
+      const distinct = counters.todayTools?.length ?? 0
+      if (distinct >= (cls.minTools ?? 0)) return cls
+      continue
+    }
+    const matched: string[] = []
+    let total = 0
+    for (const tool of Object.keys(byTool)) {
+      if (isClassTool(tool, cls)) {
+        total += byTool[tool] ?? 0
+        if ((byTool[tool] ?? 0) > 0) matched.push(tool)
+      }
+    }
+    const minTools = cls.minTools ?? 1
+    if (total >= cls.minCalls && matched.length >= minTools) return cls
+  }
+  return null
+}
+
 function toolCount(c: Counters, tool: string): number {
   return c.toolCallsByTool[tool] ?? 0
 }
@@ -583,6 +643,75 @@ export const ACHIEVEMENTS: AchievementDef[] = [
       return h >= 12 && h < 13 && s.counters.turnsCompleted >= 1
     },
   },
+  // v1.3.0 新成就（职业 ×2 / Boss ×2 / 每日目标 ×1 / 彩蛋 ×1）
+  {
+    id: 'class_editor',
+    category: 'crafting',
+    name: { zh: '编辑大师', en: 'Edit Master' },
+    description: { zh: '达成编辑大师职业画像（编辑/写入类工具 ≥200 次且 ≥2 种）', en: 'Become an Edit Master (200+ edits across 2+ edit tools)' },
+    icon: '✏️',
+    xp: 500,
+    check: s => computeClass(s.counters)?.id === 'class-editor',
+    progress: countProgress(
+      s => Object.entries(s.counters.toolCallsByTool ?? {})
+        .filter(([t]) => isClassTool(t, CLASSES[0]!))
+        .reduce((a, [, n]) => a + n, 0),
+      200,
+    ),
+  },
+  {
+    id: 'class_versatile',
+    category: 'legend',
+    name: { zh: '百变星君', en: 'Versatile Star' },
+    description: { zh: '达成多面手职业画像（单日使用 ≥12 种工具）', en: 'Turn into a Versatile (12+ distinct tools in one day)' },
+    icon: '🎭',
+    xp: 500,
+    check: s => computeClass(s.counters)?.id === 'class-multitool',
+    progress: countProgress(s => s.counters.todayTools?.length ?? 0, 12),
+  },
+  {
+    id: 'boss_slayer',
+    category: 'quest',
+    name: { zh: '首杀讨伐', en: 'First Hunt' },
+    description: { zh: '击败任意一只每周 BOSS', en: 'Defeat any weekly boss' },
+    icon: '🐉',
+    xp: 300,
+    check: s => (s.counters.bossSlain ?? 0) >= 1,
+    progress: countProgress(s => s.counters.bossSlain ?? 0, 1),
+  },
+  {
+    id: 'boss_3',
+    category: 'quest',
+    name: { zh: '猎龙者', en: 'Dragonslayer' },
+    description: { zh: '累计击败 3 只每周 BOSS', en: 'Defeat 3 weekly bosses in total' },
+    icon: '🗡️',
+    xp: 800,
+    check: s => (s.counters.bossSlain ?? 0) >= 3,
+    progress: countProgress(s => s.counters.bossSlain ?? 0, 3),
+  },
+  {
+    id: 'goal_1',
+    category: 'time',
+    name: { zh: '今日达标', en: 'On Target' },
+    description: { zh: '首次达成每日 XP 目标', en: 'Reach your daily XP goal once' },
+    icon: '🎯',
+    xp: 200,
+    check: s => (s.counters.goalDays ?? 0) >= 1,
+    progress: countProgress(s => s.counters.goalDays ?? 0, 1),
+  },
+  {
+    id: 'egg_boss_dusk',
+    category: 'egg',
+    name: { zh: '黄昏讨伐', en: 'Dusk Hunt' },
+    description: { zh: '21:00-22:00 之间击败每周 BOSS', en: 'Defeat a weekly boss between 21:00 and 22:00' },
+    icon: '🦇',
+    xp: 150,
+    hidden: true,
+    check: (s, now) => {
+      const h = hourOf(now)
+      return h >= 21 && h < 22 && (s.counters.bossSlain ?? 0) >= 1
+    },
+  },
 ]
 
 /** 按 id 查成就（未命中返回 undefined）。 */
@@ -652,6 +781,13 @@ export const ACHIEVEMENT_RARITY: Record<string, 'common' | 'rare' | 'epic' | 'le
   daily_quest_50: 'legendary',
   streak_14: 'epic',
   lunch_break: 'rare',
+  // v1.3.0
+  class_editor: 'epic',
+  class_versatile: 'epic',
+  boss_slayer: 'rare',
+  boss_3: 'legendary',
+  goal_1: 'rare',
+  egg_boss_dusk: 'rare',
 }
 
 /** 取成就稀有度（缺省 common）。 */

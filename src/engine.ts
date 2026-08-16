@@ -238,9 +238,9 @@ export function freshShop(): ShopState {
   return { spent: 0, shields: 0, rerolls: 0, theme: '', themes: [], badges: [], xpBoostTurns: 0, questSkips: 0, passClaimed: [] }
 }
 
-/** 商店余额（本赛季可支配 XP）。 */
+/** 商店余额（本赛季可支配 XP；含 v1.3.0 每周 BOSS 掉落）。 */
 export function shopBalance(save: SaveData): number {
-  return Math.max(0, save.player.seasonXp - (save.shop?.spent ?? 0))
+  return Math.max(0, save.player.seasonXp - (save.shop?.spent ?? 0) + (save.shop?.bossEarned ?? 0))
 }
 
 /**
@@ -354,6 +354,46 @@ export function useReroll(save: SaveData, now: number = Date.now()): { ok: boole
 }
 
 // ---------------------------------------------------------------------------
+// v1.3.0 每日 XP 目标：设定今日目标，达成领取一次性奖励。
+// ---------------------------------------------------------------------------
+
+/** 每日目标可设定的档位（XP）。 */
+export const DAILY_GOAL_OPTIONS = [200, 400, 800, 1500] as const
+
+/** 每日目标达成奖励 XP。 */
+export const DAILY_GOAL_REWARD = 50
+
+/** 今日已获 XP（跨天自动归零）。 */
+export function todayXpOf(save: SaveData, now: number = Date.now()): number {
+  const c = save.counters
+  return c.todayXpDay === dayKey(now) ? (c.todayXp ?? 0) : 0
+}
+
+/** 设定每日 XP 目标（0=关闭）。 */
+export function setDailyGoal(save: SaveData, goal: number, now: number = Date.now()): { ok: boolean; save: SaveData } {
+  const s = structuredClone(save)
+  const g = goal === 0 ? 0 : (DAILY_GOAL_OPTIONS as readonly number[]).includes(goal) ? goal : DAILY_GOAL_OPTIONS[0]
+  s.player.dailyGoal = g
+  return { ok: true, save: s }
+}
+
+/**
+ * 领取每日目标奖励：今日 XP 达到目标且当日未领 → +50 XP（每天一次）。
+ * 返回是否成功与领取的 XP。
+ */
+export function claimDailyGoal(save: SaveData, now: number = Date.now(), seasonOverride?: string): { ok: boolean; gained: number; save: SaveData } {
+  const s = structuredClone(save)
+  const goal = s.player.dailyGoal ?? 0
+  const today = dayKey(now)
+  if (goal <= 0) return { ok: false, gained: 0, save: s }
+  if (s.player.dailyGoalClaimedDay === today) return { ok: false, gained: 0, save: s }
+  if (todayXpOf(s, now) < goal) return { ok: false, gained: 0, save: s }
+  s.player.dailyGoalClaimedDay = today
+  s.counters.goalDays = (s.counters.goalDays ?? 0) + 1
+  return { ok: true, gained: DAILY_GOAL_REWARD, save: addXp(s, DAILY_GOAL_REWARD, now, seasonOverride) }
+}
+
+// ---------------------------------------------------------------------------
 // 新手任务链：5 步引导，全部完成解锁专属称号。
 // ---------------------------------------------------------------------------
 
@@ -419,6 +459,8 @@ export function freshCounters(): Counters {
     seasonTokensOut: 0,
     todayTools: [],
     todayToolsDay: '',
+    todayXp: 0,
+    todayXpDay: '',
   }
 }
 
@@ -699,6 +741,90 @@ export function applyWeekly(save: SaveData, now: number): number {
   return gain
 }
 
+// ---------------------------------------------------------------------------
+// v1.3.0 每周 BOSS：本周 3 个周挑战合成一只 Boss，全清击败后掉落赛季货币。
+// ---------------------------------------------------------------------------
+
+/** 每周 BOSS 掉落（赛季货币）。 */
+export const WEEKLY_BOSS_REWARD = 150
+
+/** 每周 BOSS 状态（纯派生：来自本周挑战进度）。 */
+export interface WeeklyBossView {
+  week: string
+  /** Boss 名（按周确定性生成）。 */
+  name: string
+  icon: string
+  /** 总血量 = 3 个周挑战目标之和。 */
+  hp: number
+  /** 当前伤害 = 已完成目标进度之和。 */
+  damage: number
+  /** 是否可击败（3 个全 done）。 */
+  defeated: boolean
+  /** 本周掉落是否已领取。 */
+  claimed: boolean
+}
+
+/** Boss 名池（按周确定选择）。 */
+const BOSS_NAMES: { icon: string; name: { zh: string; en: string } }[] = [
+  { icon: '🐉', name: { zh: '代码恶龙', en: 'Code Wyrm' } },
+  { icon: '🦾', name: { zh: '锈蚀魔像', en: 'Rust Golem' } },
+  { icon: '👾', name: { zh: '冲突兽', en: 'Merge Beast' } },
+  { icon: '🧟', name: { zh: '遗留僵尸', en: 'Legacy Zombie' } },
+  { icon: '🐙', name: { zh: '千手章鱼', en: 'Kraken of Tasks' } },
+  { icon: '💾', name: { zh: '磁盘守卫', en: 'Disk Guardian' } },
+]
+
+/** 合成本周 Boss（纯函数）。 */
+export function computeWeeklyBoss(save: SaveData, now: number = Date.now()): WeeklyBossView | null {
+  const weekly = ensureWeekly(save, now)
+  if (weekly === undefined) return null
+  const idx = Math.abs(hashStr(weekly.week)) % BOSS_NAMES.length
+  const def = BOSS_NAMES[idx]!
+  let hp = 0
+  let damage = 0
+  let doneCount = 0
+  for (const q of weekly.quests) {
+    hp += q.goal
+    const d = q.done ? q.goal : Math.min(q.progress, q.goal)
+    damage += d
+    if (q.done) doneCount++
+  }
+  return {
+    week: weekly.week,
+    name: def.name.zh,
+    icon: def.icon,
+    hp: Math.max(hp, 1),
+    damage,
+    defeated: doneCount >= weekly.quests.length && weekly.quests.length > 0,
+    claimed: weekly.bossClaimed === true,
+  }
+}
+
+/** 简单字符串散列（Boss 名确定选择用）。 */
+function hashStr(s: string): number {
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0
+  return h
+}
+
+/**
+ * 领取每周 BOSS 掉落：3 个周挑战全完成且本周未领 → +WEEKLY_BOSS_REWARD 赛季货币。
+ */
+export function claimWeeklyBoss(save: SaveData, now: number = Date.now()): { ok: boolean; gained: number; save: SaveData } {
+  const s = structuredClone(save)
+  const weekly = s.weekly
+  if (weekly === undefined || weekly.week !== weekKey(now)) return { ok: false, gained: 0, save: s }
+  if (weekly.bossClaimed === true) return { ok: false, gained: 0, save: s }
+  const doneCount = weekly.quests.filter(q => q.done).length
+  if (doneCount < weekly.quests.length || weekly.quests.length === 0) return { ok: false, gained: 0, save: s }
+  weekly.bossClaimed = true
+  s.counters.bossSlain = (s.counters.bossSlain ?? 0) + 1
+  const shop: ShopState = { ...freshShop(), ...(s.shop ?? {}) }
+  shop.bossEarned = (shop.bossEarned ?? 0) + WEEKLY_BOSS_REWARD
+  s.shop = shop
+  return { ok: true, gained: WEEKLY_BOSS_REWARD, save: s }
+}
+
 /**
  * 每周挑战进度即时同步（纯展示，不发奖）：从计数器重算 progress/done，
  * 让面板/工具不用等下一个回合结算就能看到最新进度。发奖仍由 applyWeekly 执行。
@@ -816,11 +942,11 @@ export function checkCollections(
 /** 每分类成就列表（供收藏检查用；避免循环依赖 achievements.ts）。 */
 const ACHIEVEMENTS_BY_CATEGORY: Record<string, string[]> = {
   journey: ['first_turn', 'turns_10', 'turns_25', 'turns_50', 'turns_100', 'turns_250', 'turns_500', 'comeback', 'comeback_10', 'steel_will'],
-  crafting: ['first_edit', 'edits_100', 'edits_500', 'edits_1000', 'first_cmd', 'first_remote', 'first_subagent', 'subagents_10', 'tool_666', 'cmd_100', 'tools_250'],
-  quest: ['first_todo', 'todos_10', 'todos_50', 'todos_100', 'clean_sweep', 'daily_quest_10', 'daily_quest_30', 'daily_quest_50'],
-  time: ['night_owl', 'early_bird', 'night_owl_10', 'seven_days', 'streak_14', 'streak_30', 'grinder'],
-  legend: ['level_5', 'level_10', 'level_15', 'level_20', 'level_25', 'level_30', 'season_100k'],
-  egg: ['devil_hour', 'self_aware', 'oops', 'thinker', 'jack_of_all', 'keyboard_warrior', 'midnight_bell', 'combo_master', 'lunch_break'],
+  crafting: ['first_edit', 'edits_100', 'edits_500', 'edits_1000', 'first_cmd', 'first_remote', 'first_subagent', 'subagents_10', 'tool_666', 'cmd_100', 'tools_250', 'class_editor'],
+  quest: ['first_todo', 'todos_10', 'todos_50', 'todos_100', 'clean_sweep', 'daily_quest_10', 'daily_quest_30', 'daily_quest_50', 'boss_slayer', 'boss_3'],
+  time: ['night_owl', 'early_bird', 'night_owl_10', 'seven_days', 'streak_14', 'streak_30', 'grinder', 'goal_1'],
+  legend: ['level_5', 'level_10', 'level_15', 'level_20', 'level_25', 'level_30', 'season_100k', 'class_versatile'],
+  egg: ['devil_hour', 'self_aware', 'oops', 'thinker', 'jack_of_all', 'keyboard_warrior', 'midnight_bell', 'combo_master', 'lunch_break', 'egg_boss_dusk'],
 }
 
 /** 分类 id 列表。 */
@@ -916,9 +1042,25 @@ export function addXp(save: SaveData, gain: number, now: number = Date.now(), se
   // 赛季换季检测：跨季度首次活跃自动开启新赛季（赛季 XP / 赛季 tokens 清零重计，累计保留）。
   const season = seasonOverride ?? autoSeasonId(now)
   if (s.player.season !== season) {
+    const prevSeason = s.player.season
     s.player.season = season
     s.player.seasonXp = 0
     s.counters.seasonTokensOut = 0
+    // v1.3.0 赛季结束结算：换季时自动生成上赛季战绩报告 + 一次性纪念奖励（防重放）。
+    const settled = s.player.seasonSettled ?? {}
+    if (prevSeason !== '' && settled[prevSeason] !== true) {
+      settled[prevSeason] = true
+      s.player.seasonSettled = settled
+      const prevRec = s.records?.[prevSeason]
+      s.player.seasonSummary = {
+        season: prevSeason,
+        level: prevRec?.level ?? s.player.level,
+        comboBest: prevRec?.combo ?? s.counters.streakBest ?? 0,
+        seasonXp: prevRec?.seasonXp ?? s.player.seasonXp,
+        achievements: Object.keys(s.achievements ?? {}).length,
+      }
+      gain += 200 // 赛季纪念奖励（计入新赛季 XP）
+    }
     // 新赛季：商店余额重新累计（spent 清零，库存保留？不——赛季货币清零，库存也清零更公平）
     // 但主题/徽章是永久解锁，跨赛季保留。
     s.shop = { ...freshShop(), theme: s.shop?.theme ?? '', themes: s.shop?.themes ?? [], badges: s.shop?.badges ?? [] }
@@ -952,6 +1094,13 @@ export function addXp(save: SaveData, gain: number, now: number = Date.now(), se
     s.player.xpTotal += gain
     s.player.seasonXp += gain
   }
+  // v1.3.0 今日 XP 累计（每日 XP 目标用），跨天归零。
+  const todayXpDay = c.todayXpDay ?? ''
+  if (todayXpDay !== today) {
+    c.todayXp = 0
+    c.todayXpDay = today
+  }
+  if (gain > 0) c.todayXp = (c.todayXp ?? 0) + gain
   const levelBefore = s.player.level
   while (s.player.xp >= xpToNext(s.player.level)) {
     s.player.xp -= xpToNext(s.player.level)

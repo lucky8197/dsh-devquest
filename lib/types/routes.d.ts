@@ -69,6 +69,23 @@ export interface DevQuestRoutesConfig {
         gained: number;
         status: DevQuestStatus;
     }>;
+    /** v1.3.0 设定每日 XP 目标（0=关闭）；返回是否成功与最新状态。 */
+    setDailyGoal: (goal: number) => Promise<{
+        ok: boolean;
+        status: DevQuestStatus;
+    }>;
+    /** v1.3.0 领取每日目标奖励；返回是否成功、奖励 XP 与最新状态。 */
+    claimDailyGoal: () => Promise<{
+        ok: boolean;
+        gained: number;
+        status: DevQuestStatus;
+    }>;
+    /** v1.3.0 领取每周 BOSS 掉落；返回是否成功、奖励货币与最新状态。 */
+    claimWeeklyBoss: () => Promise<{
+        ok: boolean;
+        gained: number;
+        status: DevQuestStatus;
+    }>;
     /** 结果缓存时长（毫秒）。默认 60s。 */
     cacheTtlMs?: number;
 }

@@ -156,6 +156,40 @@ function apiErrorOf(data: { ok?: boolean; error?: string } | null): string | nul
   return data.error !== undefined && data.error !== '' ? data.error : null
 }
 
+/**
+ * v1.3.0 音效：用 WebAudio 合成短提示音（无外部资源）。
+ * kind: 'goal' 成功上升音 / 'boss' 低沉胜利音 / 'levelup' 明亮琶音 / 'achievement' 清脆叮咚。
+ */
+function playSfx(kind: 'goal' | 'boss' | 'levelup' | 'achievement'): void {
+  try {
+    if (typeof AudioContext === 'undefined') return
+    const ctx = new AudioContext()
+    const notes: { f: number; t: number; d: number }[] =
+      kind === 'goal'
+        ? [{ f: 523.25, t: 0, d: 0.12 }, { f: 659.25, t: 0.12, d: 0.12 }, { f: 783.99, t: 0.24, d: 0.2 }]
+        : kind === 'boss'
+          ? [{ f: 220, t: 0, d: 0.25 }, { f: 277.18, t: 0.2, d: 0.3 }, { f: 329.63, t: 0.45, d: 0.4 }]
+          : kind === 'levelup'
+            ? [{ f: 392, t: 0, d: 0.1 }, { f: 523.25, t: 0.1, d: 0.1 }, { f: 659.25, t: 0.2, d: 0.1 }, { f: 783.99, t: 0.3, d: 0.25 }]
+            : [{ f: 880, t: 0, d: 0.08 }, { f: 1174.66, t: 0.09, d: 0.14 }]
+    for (const n of notes) {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = 'sine'
+      osc.frequency.value = n.f
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime + n.t)
+      gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + n.t + 0.02)
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + n.t + n.d)
+      osc.connect(gain).connect(ctx.destination)
+      osc.start(ctx.currentTime + n.t)
+      osc.stop(ctx.currentTime + n.t + n.d + 0.02)
+    }
+    window.setTimeout(() => void ctx.close().catch(() => { /* 忽略 */ }), 1500)
+  } catch {
+    // 音效失败静默
+  }
+}
+
 function updatedLabel(refreshedAt: number | null): string {
   if (refreshedAt === null) return '—'
   const seconds = Math.max(0, Math.round((Date.now() - refreshedAt) / 1000))
@@ -331,9 +365,13 @@ export interface DevQuestSettings {
   compact: boolean
   /** toast 过滤：all=全部；rare=仅稀有及以上；off=关闭。 */
   toastFilter: 'all' | 'rare' | 'off'
+  /** v1.3.0 音效提示（成就/升级/宝箱/BOSS）。 */
+  sound: boolean
+  /** v1.3.0 桌面通知（成就解锁）。 */
+  notify: boolean
 }
 
-const DEFAULT_SETTINGS: DevQuestSettings = { fontSize: 1, compact: false, toastFilter: 'all' }
+const DEFAULT_SETTINGS: DevQuestSettings = { fontSize: 1, compact: false, toastFilter: 'all', sound: true, notify: true }
 
 function loadSettings(): DevQuestSettings {
   try {
@@ -344,6 +382,8 @@ function loadSettings(): DevQuestSettings {
       fontSize: typeof p.fontSize === 'number' && p.fontSize >= 0.85 && p.fontSize <= 1.2 ? p.fontSize : DEFAULT_SETTINGS.fontSize,
       compact: p.compact === true,
       toastFilter: p.toastFilter === 'rare' || p.toastFilter === 'off' ? p.toastFilter : 'all',
+      sound: p.sound !== false,
+      notify: p.notify !== false,
     }
   } catch {
     return { ...DEFAULT_SETTINGS }
@@ -757,6 +797,56 @@ export function DevQuestPanelCard(
     }
   }, [actions, notify, t])
 
+  // v1.3.0 每日目标：设定 / 领取。
+  const setGoalF = useCallback(async (goal: number): Promise<void> => {
+    try {
+      const response = await fetch('/api/devquest/daily-goal/set', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ goal }),
+      })
+      const data = await response.json() as { ok: boolean; error?: string; status: DevQuestStatus }
+      if (data.status !== null && data.status !== undefined) actions.setStatus(data.status)
+      if (data.ok) notify(true, goal > 0 ? t('dq.dailyGoalSet') : t('dq.dailyGoalOff'))
+      else notify(false, apiErrorOf(data) ?? t('dq.opFailed'))
+    } catch {
+      notify(false, t('dq.opFailed'))
+    }
+  }, [actions, notify, t])
+
+  const claimDailyGoalF = useCallback(async (): Promise<void> => {
+    try {
+      const response = await fetch('/api/devquest/daily-goal/claim', { method: 'POST' })
+      const data = await response.json() as { ok: boolean; gained: number; error?: string; status: DevQuestStatus }
+      if (data.status !== null && data.status !== undefined) actions.setStatus(data.status)
+      if (data.ok) {
+        notify(true, t('dq.dailyGoalClaim', { xp: data.gained }))
+        playSfx('goal')
+      } else {
+        notify(false, apiErrorOf(data) ?? t('dq.opFailed'))
+      }
+    } catch {
+      notify(false, t('dq.opFailed'))
+    }
+  }, [actions, notify, t])
+
+  /** v1.3.0 领取每周 BOSS 掉落。 */
+  const claimBossF = useCallback(async (): Promise<void> => {
+    try {
+      const response = await fetch('/api/devquest/weekly-boss/claim', { method: 'POST' })
+      const data = await response.json() as { ok: boolean; gained: number; error?: string; status: DevQuestStatus }
+      if (data.status !== null && data.status !== undefined) actions.setStatus(data.status)
+      if (data.ok) {
+        notify(true, t('dq.bossDefeat', { name: state.status?.weekly?.boss.name ?? '', n: data.gained }))
+        playSfx('boss')
+      } else {
+        notify(false, apiErrorOf(data) ?? t('dq.opFailed'))
+      }
+    } catch {
+      notify(false, t('dq.opFailed'))
+    }
+  }, [actions, notify, state.status, t])
+
   /** 领取赛季通行证档位奖励。 */
   const claimPassTier = useCallback(async (tierId: string): Promise<void> => {
     try {
@@ -1109,6 +1199,46 @@ export function DevQuestPanelCard(
         </div>
       </div>
 
+      {/* v1.3.0 赛季结束结算卡：换季自动生成，展示上赛季战绩 */}
+      {status.seasonSummary !== undefined && (
+        <div style={seasonSummaryCardStyle}>
+          <div style={seasonSummaryHeadStyle}>📜 {t('dq.seasonSummary')} · {t('dq.seasonSummaryTitle', { season: status.seasonSummary.season, level: status.seasonSummary.level })}</div>
+          <div style={seasonSummaryMetaStyle}>
+            {t('dq.seasonSummaryMeta', {
+              combo: status.seasonSummary.comboBest,
+              xp: formatNumber(status.seasonSummary.seasonXp),
+              n: status.seasonSummary.achievements,
+            })}
+          </div>
+          <div style={seasonSummaryRewardStyle}>{t('dq.seasonSummaryReward')}</div>
+        </div>
+      )}
+
+      {/* v1.3.0 每日 XP 目标条：设定目标后显示进度 + 达标领取 */}
+      {status.dailyGoal !== undefined && status.dailyGoal.goal > 0 && (() => {
+        const g = status.dailyGoal!
+        const pct = Math.min(100, Math.round((Math.min(g.todayXp, g.goal) / Math.max(g.goal, 1)) * 100))
+        const reached = g.todayXp >= g.goal
+        return (
+          <div style={dailyGoalCardStyle}>
+            <div style={dailyGoalRowStyle}>
+              <span style={dailyGoalLabelStyle}>🎯 {t('dq.dailyGoal')}</span>
+              <span style={dailyGoalNumStyle}>{t('dq.dailyGoalProgress', { xp: formatNumber(g.todayXp), goal: formatNumber(g.goal) })}</span>
+            </div>
+            <div style={dailyGoalTrackStyle}>
+              <div style={{ ...dailyGoalFillStyle, width: `${pct}%`, ...(reached ? questFillDoneStyle : {}) }} />
+            </div>
+            {g.claimed
+              ? <div style={dailyGoalDoneStyle}>{t('dq.dailyGoalClaimed')}</div>
+              : reached && (
+                <button type="button" onClick={() => void claimDailyGoalF()} style={dailyGoalClaimButtonStyle}>
+                  {t('dq.dailyGoalClaim', { xp: g.rewardXp })}
+                </button>
+              )}
+          </div>
+        )
+      })()}
+
       {/* v1.2.3：全局操作结果条（成功/失败，4s 自动消失） */}
       {panelMsg !== null && (
         <div style={panelMsgStyle(panelMsg.ok)} role="status">
@@ -1215,6 +1345,31 @@ export function DevQuestPanelCard(
                 </div>
               )
             })}
+            {/* v1.3.0 每周 BOSS：血量条 = 3 个周挑战合成，全清击败掉落货币 */}
+            {status.weekly.boss.name !== '' && (
+              <div style={bossCardStyle}>
+                <div style={bossHeadRowStyle}>
+                  <span style={bossNameStyle}>{status.weekly.boss.icon} {status.weekly.boss.name}</span>
+                  <span style={bossHpStyle}>{t('dq.bossHp', { damage: formatNumber(status.weekly.boss.damage), hp: formatNumber(status.weekly.boss.hp) })}</span>
+                </div>
+                <div style={bossTrackStyle}>
+                  <div
+                    style={{
+                      ...bossFillStyle,
+                      width: `${Math.min(100, Math.round((status.weekly.boss.damage / Math.max(status.weekly.boss.hp, 1)) * 100))}%`,
+                      ...(status.weekly.boss.defeated ? questFillDoneStyle : {}),
+                    }}
+                  />
+                </div>
+                {status.weekly.boss.claimed
+                  ? <div style={weeklyBonusClaimedStyle}>🐉 {t('dq.bossClaimed')}</div>
+                  : status.weekly.boss.defeated
+                    ? <button type="button" onClick={() => void claimBossF()} style={weeklyBonusButtonStyle}>
+                      {t('dq.bossDefeat', { name: status.weekly.boss.name, n: status.weekly.boss.reward })}
+                    </button>
+                    : <div style={bossHintStyle}>{t('dq.bossProgress')}</div>}
+              </div>
+            )}
             {status.weekly.bonusReady
               ? <button type="button" onClick={() => void claimWeekly()} disabled={weeklyClaiming} style={weeklyBonusButtonStyle}>
                 🎁 {weeklyClaiming ? '…' : t('dq.weeklyBonus', { xp: 100 })}
@@ -1398,6 +1553,14 @@ export function DevQuestPanelCard(
             {sharing ? '…' : `📊 ${t('dq.shareSeason')}`}
           </button>
         </div>
+        {/* v1.3.0 职业画像：按工具使用习惯识别 */}
+        {status.class !== null && (
+          <div style={classBadgeStyle}>
+            <span style={{ fontSize: 'calc(13px * var(--dq-fsz, 1))' }}>{status.class.icon}</span>
+            <span style={classBadgeNameStyle}>{status.class.name.zh} <em style={itemEnStyle}>{status.class.name.en}</em></span>
+            <span style={classBadgeLabelStyle}>{t('dq.classLabel')}</span>
+          </div>
+        )}
         <div style={titleListStyle}>
           <button
             type="button"
@@ -1766,6 +1929,33 @@ export function DevQuestPanelCard(
             <option value="off">{t('dq.settingsToastOff')}</option>
           </select>
         </div>
+        {/* v1.3.0 每日 XP 目标档位 */}
+        <div style={settingsRowStyle}>
+          <span style={settingsLabelStyle}>🎯 {t('dq.dailyGoal')}</span>
+          <select
+            value={String(status.dailyGoal?.goal ?? 0)}
+            onChange={(e) => void setGoalF(Number(e.target.value))}
+            style={wallSelectStyle}
+          >
+            <option value="0">{t('dq.dailyGoalOff')}</option>
+            {(status.dailyGoal?.options ?? [200, 400, 800, 1500]).map(opt => (
+              <option key={opt} value={String(opt)}>{opt} XP</option>
+            ))}
+          </select>
+        </div>
+        {/* v1.3.0 音效 + 桌面通知开关 */}
+        <div style={settingsRowStyle}>
+          <span style={settingsLabelStyle}>🔊 {t('dq.sound')}</span>
+          <button type="button" onClick={() => updateSettings({ sound: !settings.sound })} style={{ ...settingsToggleStyle, ...(settings.sound ? settingsToggleOnStyle : {}) }}>
+            {settings.sound ? t('dq.on') : t('dq.off')}
+          </button>
+        </div>
+        <div style={settingsRowStyle}>
+          <span style={settingsLabelStyle}>🔔 {t('dq.notify')}</span>
+          <button type="button" onClick={() => updateSettings({ notify: !settings.notify })} style={{ ...settingsToggleStyle, ...(settings.notify ? settingsToggleOnStyle : {}) }}>
+            {settings.notify ? t('dq.on') : t('dq.off')}
+          </button>
+        </div>
       </SectionCard>
     </div>
   </section>
@@ -1822,8 +2012,24 @@ function DevQuestToast(
   const { toast, status, actions, t } = props
   useEffect(() => {
     const timer = setTimeout(() => actions.dismissToast(toast.id), 6000)
+    // v1.3.0 音效 + 桌面通知：成就解锁（升机由结算 toast 触发）。
+    if (toast.kind === 'achievement') {
+      const settings = loadSettings()
+      if (settings.sound) playSfx('achievement')
+      if (settings.notify && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        try {
+          const def = status.achievements.find(a => a.id === toast.achievementId)
+          new Notification('DevQuest', { body: def !== undefined ? `🏆 ${def.name.zh} +${def.xp} XP` : '成就解锁！' })
+        } catch {
+          // 忽略
+        }
+      }
+    } else if (toast.kind === 'settlement' && toast.settlement?.leveledUp === true) {
+      const settings = loadSettings()
+      if (settings.sound) playSfx('levelup')
+    }
     return () => clearTimeout(timer)
-  }, [toast.id, actions])
+  }, [toast.id, toast.kind, toast.achievementId, toast.settlement, actions, status.achievements])
 
   if (toast.kind === 'settlement' && toast.settlement !== undefined) {
     const s = toast.settlement
@@ -2688,6 +2894,91 @@ const panelMsgStyle = (ok: boolean): CSSProperties => ({
   marginBottom: 'var(--dq-section-mb, 12px)',
   wordBreak: 'break-all',
 })
+
+// ---------------------------------------------------------------------------
+// v1.3.0 每日 XP 目标 / 每周 BOSS / 职业徽章 / 赛季结算卡
+// ---------------------------------------------------------------------------
+
+const dailyGoalCardStyle: CSSProperties = {
+  background: 'color-mix(in srgb, var(--dsw-alias-bg-layer-2, #1d2735) 55%, transparent)',
+  border: `1px solid ${TONE.border}`,
+  borderRadius: 10,
+  padding: '8px 10px',
+  marginBottom: 'var(--dq-section-mb, 12px)',
+}
+
+const dailyGoalRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }
+
+const dailyGoalLabelStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', fontWeight: 600, color: TONE.text }
+
+const dailyGoalNumStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.gold, fontVariantNumeric: 'tabular-nums' }
+
+const dailyGoalTrackStyle: CSSProperties = { height: 5, borderRadius: 3, background: TONE.row, overflow: 'hidden' }
+
+const dailyGoalFillStyle: CSSProperties = { height: '100%', borderRadius: 3, background: 'linear-gradient(90deg, var(--dsw-alias-state-warn-primary, #f6c652), var(--dsw-alias-state-success-primary, #78dda0))' }
+
+const dailyGoalDoneStyle: CSSProperties = { marginTop: 4, fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.green }
+
+const dailyGoalClaimButtonStyle: CSSProperties = {
+  marginTop: 6,
+  fontSize: 'calc(10px * var(--dq-fsz, 1))',
+  fontWeight: 600,
+  color: 'var(--dsw-alias-label-primary, #1a2230)',
+  background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 22%, transparent)',
+  border: '1px solid color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 50%, transparent)',
+  borderRadius: 6,
+  padding: '4px 10px',
+  cursor: 'pointer',
+}
+
+const bossCardStyle: CSSProperties = {
+  marginTop: 8,
+  background: 'color-mix(in srgb, var(--dsw-alias-state-error-primary, #ff8592) 8%, transparent)',
+  border: `1px solid ${TONE.border}`,
+  borderRadius: 8,
+  padding: '7px 9px',
+}
+
+const bossHeadRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }
+
+const bossNameStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', fontWeight: 700, color: TONE.red }
+
+const bossHpStyle: CSSProperties = { fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.muted, fontVariantNumeric: 'tabular-nums' }
+
+const bossTrackStyle: CSSProperties = { height: 6, borderRadius: 3, background: TONE.row, overflow: 'hidden' }
+
+const bossFillStyle: CSSProperties = { height: '100%', borderRadius: 3, background: 'linear-gradient(90deg, var(--dsw-alias-state-error-primary, #ff8592), var(--dsw-alias-state-warn-primary, #f6c652))' }
+
+const bossHintStyle: CSSProperties = { marginTop: 4, fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.quiet }
+
+const classBadgeStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  background: 'color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 10%, transparent)',
+  border: '1px solid color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 35%, transparent)',
+  borderRadius: 8,
+  padding: '5px 9px',
+  marginBottom: 6,
+}
+
+const classBadgeNameStyle: CSSProperties = { flex: 1, fontSize: 'calc(11px * var(--dq-fsz, 1))', fontWeight: 600, color: TONE.text }
+
+const classBadgeLabelStyle: CSSProperties = { fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.accent, textTransform: 'uppercase', letterSpacing: 0.3 }
+
+const seasonSummaryCardStyle: CSSProperties = {
+  background: 'linear-gradient(135deg, color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 14%, transparent), color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 10%, transparent))',
+  border: '1px solid color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 40%, transparent)',
+  borderRadius: 10,
+  padding: '8px 10px',
+  marginBottom: 'var(--dq-section-mb, 12px)',
+}
+
+const seasonSummaryHeadStyle: CSSProperties = { fontSize: 'calc(11px * var(--dq-fsz, 1))', fontWeight: 700, color: TONE.gold }
+
+const seasonSummaryMetaStyle: CSSProperties = { marginTop: 3, fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.text }
+
+const seasonSummaryRewardStyle: CSSProperties = { marginTop: 3, fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.green }
 
 /** 新手任务链。 */
 const tutorialRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 7, padding: '3px 0' }

@@ -95,7 +95,7 @@ export declare function claimDailyChest(save: SaveData, now?: number, seasonOver
 };
 /** 构造最小商店状态。 */
 export declare function freshShop(): ShopState;
-/** 商店余额（本赛季可支配 XP）。 */
+/** 商店余额（本赛季可支配 XP；含 v1.3.0 每周 BOSS 掉落）。 */
 export declare function shopBalance(save: SaveData): number;
 /**
  * 购买商店商品（纯函数，返回副本）。
@@ -131,6 +131,26 @@ export declare function activateTheme(save: SaveData, themeId: string): {
 /** 使用 1 次任务重掷：重新抽取今日任务（返回副本；库存不足返回 false）。 */
 export declare function useReroll(save: SaveData, now?: number): {
     ok: boolean;
+    save: SaveData;
+};
+/** 每日目标可设定的档位（XP）。 */
+export declare const DAILY_GOAL_OPTIONS: readonly [200, 400, 800, 1500];
+/** 每日目标达成奖励 XP。 */
+export declare const DAILY_GOAL_REWARD = 50;
+/** 今日已获 XP（跨天自动归零）。 */
+export declare function todayXpOf(save: SaveData, now?: number): number;
+/** 设定每日 XP 目标（0=关闭）。 */
+export declare function setDailyGoal(save: SaveData, goal: number, now?: number): {
+    ok: boolean;
+    save: SaveData;
+};
+/**
+ * 领取每日目标奖励：今日 XP 达到目标且当日未领 → +50 XP（每天一次）。
+ * 返回是否成功与领取的 XP。
+ */
+export declare function claimDailyGoal(save: SaveData, now?: number, seasonOverride?: string): {
+    ok: boolean;
+    gained: number;
     save: SaveData;
 };
 /** 检查新手链：返回新完成的 step id 列表（已完成的跳过），并结算奖励 XP。 */
@@ -224,6 +244,33 @@ export declare function rollWeeklyQuests(now: number): WeeklyQuestState;
 export declare function ensureWeekly(save: SaveData, now: number): WeeklyQuestState;
 /** 推进每周挑战进度并自动结算，返回本轮奖励 XP（与每日任务同机制）。 */
 export declare function applyWeekly(save: SaveData, now: number): number;
+/** 每周 BOSS 掉落（赛季货币）。 */
+export declare const WEEKLY_BOSS_REWARD = 150;
+/** 每周 BOSS 状态（纯派生：来自本周挑战进度）。 */
+export interface WeeklyBossView {
+    week: string;
+    /** Boss 名（按周确定性生成）。 */
+    name: string;
+    icon: string;
+    /** 总血量 = 3 个周挑战目标之和。 */
+    hp: number;
+    /** 当前伤害 = 已完成目标进度之和。 */
+    damage: number;
+    /** 是否可击败（3 个全 done）。 */
+    defeated: boolean;
+    /** 本周掉落是否已领取。 */
+    claimed: boolean;
+}
+/** 合成本周 Boss（纯函数）。 */
+export declare function computeWeeklyBoss(save: SaveData, now?: number): WeeklyBossView | null;
+/**
+ * 领取每周 BOSS 掉落：3 个周挑战全完成且本周未领 → +WEEKLY_BOSS_REWARD 赛季货币。
+ */
+export declare function claimWeeklyBoss(save: SaveData, now?: number): {
+    ok: boolean;
+    gained: number;
+    save: SaveData;
+};
 /**
  * 每周挑战进度即时同步（纯展示，不发奖）：从计数器重算 progress/done，
  * 让面板/工具不用等下一个回合结算就能看到最新进度。发奖仍由 applyWeekly 执行。
