@@ -276,7 +276,8 @@ function SectionCard(props: {
         <span style={{ ...sectionCardArrowStyle, ...(collapsed ? sectionCardTitleCollapsedStyle : {}) }}>{collapsed ? '▸' : '▾'}</span>
       </span>
     </button>
-    {!collapsed && <div style={sectionCardBodyStyle}>{children}</div>}
+    {/* 用 display:none 而非条件渲染：DOM 结构稳定，避免折叠部分分区时 flex 布局异常 */}
+    <div style={{ ...sectionCardBodyStyle, ...(collapsed ? sectionCardBodyHiddenStyle : {}) }}>{children}</div>
   </section>
 }
 
@@ -1490,6 +1491,12 @@ const sectionCardBodyStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 6,
+  flexShrink: 0,
+}
+
+/** 折叠态内容区：完全隐藏（不占空间）。 */
+const sectionCardBodyHiddenStyle: CSSProperties = {
+  display: 'none',
 }
 
 const heroStyle: CSSProperties = { display: 'flex', gap: 12, alignItems: 'center' }
