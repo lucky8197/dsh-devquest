@@ -1517,8 +1517,8 @@ const seasonStyle: CSSProperties = { fontSize: 10, color: TONE.quiet }
 const xpTrackStyle: CSSProperties = {
   height: 7,
   borderRadius: 4,
-  // 轨道用「row 底 + 边框」：浅色主题下不再是纯白条，边框保证可见。
-  background: 'color-mix(in srgb, var(--dsw-alias-bg-layer-2, #1d2735) 65%, transparent)',
+  // 轨道用中性灰底 + 边框：深浅主题都清晰可见（浅色主题不再是白/浅灰条）。
+  background: 'rgba(120, 130, 150, 0.28)',
   border: `1px solid ${TONE.border}`,
   overflow: 'hidden',
   marginTop: 8,
@@ -1557,7 +1557,7 @@ const questLabelStyle: CSSProperties = { fontSize: 11, color: TONE.text }
 
 const questRewardStyle: CSSProperties = { fontSize: 10, fontWeight: 600, color: TONE.gold }
 
-const questTrackStyle: CSSProperties = { height: 6, borderRadius: 3, background: 'color-mix(in srgb, var(--dsw-alias-bg-layer-2, #1d2735) 65%, transparent)', border: `1px solid ${TONE.border}`, overflow: 'hidden' }
+const questTrackStyle: CSSProperties = { height: 6, borderRadius: 3, background: 'rgba(120, 130, 150, 0.28)', border: `1px solid ${TONE.border}`, overflow: 'hidden' }
 
 const questFillStyle: CSSProperties = {
   height: '100%',
@@ -1661,7 +1661,7 @@ const wallProgressTrackStyle: CSSProperties = {
   width: '80%',
   height: 2,
   borderRadius: 1,
-  background: 'color-mix(in srgb, var(--dsw-alias-label-tertiary, #718096) 30%, transparent)',
+  background: 'rgba(120, 130, 150, 0.35)',
   overflow: 'hidden',
   marginTop: 1,
 }
@@ -1696,7 +1696,7 @@ const milestoneNumStyle: CSSProperties = { fontSize: 9, color: TONE.muted, fontV
 const milestoneTrackStyle: CSSProperties = {
   height: 3,
   borderRadius: 2,
-  background: 'color-mix(in srgb, var(--dsw-alias-label-tertiary, #718096) 22%, transparent)',
+  background: 'rgba(120, 130, 150, 0.28)',
   border: `1px solid ${TONE.border}`,
   overflow: 'hidden',
   marginTop: 3,
@@ -1713,7 +1713,7 @@ const tooltipProgressLabelStyle: CSSProperties = { fontSize: 9, color: TONE.quie
 
 const tooltipProgressNumStyle: CSSProperties = { fontSize: 9, color: TONE.muted, fontVariantNumeric: 'tabular-nums' }
 
-const tooltipProgressTrackStyle: CSSProperties = { height: 3, borderRadius: 2, background: 'color-mix(in srgb, var(--dsw-alias-label-tertiary, #718096) 22%, transparent)', border: `1px solid ${TONE.border}`, overflow: 'hidden' }
+const tooltipProgressTrackStyle: CSSProperties = { height: 3, borderRadius: 2, background: 'rgba(120, 130, 150, 0.28)', border: `1px solid ${TONE.border}`, overflow: 'hidden' }
 
 const tooltipProgressFillStyle: CSSProperties = { height: '100%', borderRadius: 2, background: TONE.accent }
 
@@ -1760,7 +1760,7 @@ const sprintRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', g
 
 const sprintLabelStyle: CSSProperties = { fontSize: 9, color: TONE.quiet, whiteSpace: 'nowrap' }
 
-const sprintTrackStyle: CSSProperties = { flex: 1, height: 4, borderRadius: 2, background: 'color-mix(in srgb, var(--dsw-alias-label-tertiary, #718096) 22%, transparent)', border: `1px solid ${TONE.border}`, overflow: 'hidden' }
+const sprintTrackStyle: CSSProperties = { flex: 1, height: 4, borderRadius: 2, background: 'rgba(120, 130, 150, 0.28)', border: `1px solid ${TONE.border}`, overflow: 'hidden' }
 
 const sprintFillStyle: CSSProperties = { height: '100%', borderRadius: 2, background: 'linear-gradient(90deg, var(--dsw-alias-state-warn-primary, #f6c652), var(--dsw-alias-brand-primary, #8ec5ff))' }
 
@@ -1975,7 +1975,7 @@ const weeklyQuestLabelStyle: CSSProperties = { fontSize: 10, color: TONE.text }
 
 const weeklyQuestRewardStyle: CSSProperties = { fontSize: 9, fontWeight: 600, color: TONE.gold }
 
-const weeklyQuestTrackStyle: CSSProperties = { height: 4, borderRadius: 2, background: 'color-mix(in srgb, var(--dsw-alias-bg-layer-2, #1d2735) 65%, transparent)', border: `1px solid ${TONE.border}`, overflow: 'hidden' }
+const weeklyQuestTrackStyle: CSSProperties = { height: 4, borderRadius: 2, background: 'rgba(120, 130, 150, 0.28)', border: `1px solid ${TONE.border}`, overflow: 'hidden' }
 
 const weeklyQuestFillStyle: CSSProperties = { height: '100%', borderRadius: 2, background: 'linear-gradient(90deg, var(--dsw-alias-brand-primary, #8ec5ff), var(--dsw-alias-state-success-primary, #78dda0))' }
 
