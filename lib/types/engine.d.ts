@@ -195,6 +195,11 @@ export declare function rollWeeklyQuests(now: number): WeeklyQuestState;
 export declare function ensureWeekly(save: SaveData, now: number): WeeklyQuestState;
 /** 推进每周挑战进度并自动结算，返回本轮奖励 XP（与每日任务同机制）。 */
 export declare function applyWeekly(save: SaveData, now: number): number;
+/**
+ * 每周挑战进度即时同步（纯展示，不发奖）：从计数器重算 progress/done，
+ * 让面板/工具不用等下一个回合结算就能看到最新进度。发奖仍由 applyWeekly 执行。
+ */
+export declare function refreshWeeklyProgress(save: SaveData, now: number): WeeklyQuestState;
 /** 领取每周全清奖励（3 个全完成可领一次 +100 XP）。 */
 export declare function claimWeeklyBonus(save: SaveData, now?: number, seasonOverride?: string): {
     ok: boolean;

@@ -8,7 +8,7 @@ import { ACHIEVEMENTS, achievementById, ACHIEVEMENT_RARITY, rarityOf } from '../
 import {
   activateTheme, addXp, applyDaily, applyTurn, applyTurnDetailed, applyWeekly, autoSeasonId, buildRecordsView, buyShopItem, checkAchievements, checkCollections, checkTitles,
   checkTutorial, claimDailyChest, claimLucky, claimWeeklyBonus, DAILY_CHEST_REWARD, DAILY_QUEST_POOL, dailyQuestsDone, dayKey, ensureDaily, ensureWeekly,
-  freshSave, freshShop, HISTORY_KEEP, mergeSaves, migrateSave, nextTitle, refreshDailyProgress, rollDailyQuests, rollWeeklyQuests, SETTLEMENT_KEEP, setActiveTitle, SHOP_ITEMS,
+  freshSave, freshShop, HISTORY_KEEP, mergeSaves, migrateSave, nextTitle, refreshDailyProgress, refreshWeeklyProgress, rollDailyQuests, rollWeeklyQuests, SETTLEMENT_KEEP, setActiveTitle, SHOP_ITEMS,
   shopBalance, titleFor, TITLE_POOL, trimHistory, trimRecords, TUTORIAL_STEPS, updateRecords, useReroll, weekKey, WEEKLY_BONUS_XP, WEEKLY_QUEST_POOL, xpToLevel, xpToNext,
 } from '../src/engine.ts'
 import type { Action, SaveData } from '../src/types.ts'
@@ -1107,6 +1107,26 @@ test('每周挑战：applyWeekly 推进进度并结算奖励', () => {
   const gain = applyWeekly(save, NOW)
   assert.ok(gain >= def.reward)
   assert.equal(save.weekly!.quests[0]!.done, true)
+})
+
+test('refreshWeeklyProgress：进度即时同步（不发奖），后续结算仍发奖', () => {
+  let save = fresh()
+  save.weekly = { week: weekKey(NOW), quests: [] }
+  const def = WEEKLY_QUEST_POOL[0]!
+  save.weekly = {
+    week: weekKey(NOW),
+    quests: [{ id: def.id, label: def.label, goal: def.goal, reward: def.reward, progress: 0, done: false }],
+  }
+  save.counters.turnsCompleted = def.goal
+  // 同步视图：progress/done 立即反映计数器，但不发奖
+  refreshWeeklyProgress(save, NOW)
+  assert.equal(save.weekly!.quests[0]!.progress, def.goal)
+  assert.equal(save.weekly!.quests[0]!.done, true)
+  assert.equal(save.weekly!.quests[0]!.claimedAt, undefined)
+  // 后续结算补发奖励（不因 done 已置 true 而跳过）
+  const gain = applyWeekly(save, NOW)
+  assert.ok(gain >= def.reward)
+  assert.notEqual(save.weekly!.quests[0]!.claimedAt, undefined)
 })
 
 test('每周全清奖励：3 个全完成可领一次 +100 XP', () => {

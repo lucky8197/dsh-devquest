@@ -11,6 +11,12 @@ declare const zh: {
     readonly 'dq.recent': "最近成就";
     readonly 'dq.wall': "成就墙";
     readonly 'dq.wallCount': "{n}/{m}";
+    readonly 'dq.wallSearch': "搜索成就…";
+    readonly 'dq.wallNoMatch': "没有匹配的成就";
+    readonly 'dq.wallRarityAll': "全部稀有度";
+    readonly 'dq.wallStatusAll': "全部状态";
+    readonly 'dq.wallStatusUnlocked': "已解锁";
+    readonly 'dq.wallStatusLocked': "未解锁";
     readonly 'dq.refresh': "刷新";
     readonly 'dq.loading': "加载中…";
     readonly 'dq.error': "加载失败";
@@ -49,6 +55,8 @@ declare const zh: {
     readonly 'dq.tutorialTitle': "专属称号 · {title}";
     readonly 'dq.tutorialStepDone': "{n}/{m} 步";
     readonly 'dq.version': "插件版本号";
+    readonly 'dq.expandAll': "全部展开";
+    readonly 'dq.collapseAll': "全部折叠";
     readonly 'dq.levelSince': "本等级已 {days} 天";
     readonly 'dq.seasonSprint': "赛季冲刺";
     readonly 'dq.seasonDaysLeft': "剩 {days} 天";
