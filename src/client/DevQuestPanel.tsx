@@ -926,6 +926,9 @@ export function DevQuestPanelCard(
       <SectionCard
         id="titles"
         title={`🏷️ ${t('dq.titles')}`}
+        right={status.titles?.current !== null
+          ? <span style={titleHeadCurrentStyle}>{status.titles?.current?.icon ?? '🎖️'} {status.titles?.current?.name.zh}</span>
+          : <span style={titleHeadCurrentStyle}>{t('dq.titleFollowLevel')} · {status.title.zh}</span>}
         collapsed={isCollapsed('titles')}
         onToggle={() => toggleSection('titles')}
       >
@@ -2095,6 +2098,21 @@ const weeklyBonusClaimedStyle: CSSProperties = { marginTop: 4, fontSize: 10, col
 const titleCurrentRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8 }
 
 const titleCurrentNameStyle: CSSProperties = { flex: 1, fontSize: 12, color: TONE.text, fontWeight: 600 }
+
+/** 称号区标题栏右侧：当前展示称号（折叠时也能看到具体称号）。 */
+const titleHeadCurrentStyle: CSSProperties = {
+  fontSize: 10,
+  fontWeight: 600,
+  color: 'var(--dsw-alias-label-primary, #1a2230)',
+  background: 'color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 18%, transparent)',
+  border: '1px solid color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 45%, transparent)',
+  borderRadius: 99,
+  padding: '2px 8px',
+  whiteSpace: 'nowrap',
+  maxWidth: 130,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+}
 
 const shareButtonStyle: CSSProperties = {
   padding: '4px 10px',
