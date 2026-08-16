@@ -6,7 +6,7 @@
  * 数据源：GET /api/devquest/status（v0.3 起为全局玩家档，与 cwd/session 无关）。
  * 主题：跟随 DSH CSS 变量（--dsw-alias-*）。
  */
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactElement, type ReactNode } from 'react'
 import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
@@ -248,18 +248,42 @@ function clampPanelPos(left: number, top: number, width: number, height: number)
   }
 }
 
+/**
+ * 通用分区卡片：带边框的背景块，标题栏可点击折叠/展开。
+ * collapsed 由父组件统一管理（section id → boolean）。
+ */
+function SectionCard(props: {
+  id: string
+  title: string
+  /** 标题右侧附加信息（日期/计数等）。 */
+  right?: ReactNode
+  collapsed: boolean
+  onToggle: () => void
+  children: ReactNode
+}): ReactElement {
+  const { id, title, right, collapsed, onToggle, children } = props
+  return <section style={sectionCardStyle} data-section={id}>
+    <button type="button" onClick={onToggle} style={sectionCardHeadStyle} aria-expanded={!collapsed}>
+      <span style={sectionCardTitleStyle}>{title}</span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        {right}
+        <span style={sectionCardArrowStyle}>{collapsed ? '▸' : '▾'}</span>
+      </span>
+    </button>
+    {!collapsed && <div style={sectionCardBodyStyle}>{children}</div>}
+  </section>
+}
+
 /** 面板卡片（overlay 内容，可拖拽定位）。refresh 由常驻 overlay 传入（页面加载即开始轮询）。 */
 export function DevQuestPanelCard(
   props: Pick<DevQuestFooterActionProps, 'useStore' | 'actions' | 't'> & { refresh: () => void },
 ): ReactElement {
   const { useStore, actions, t, refresh } = props
   const state: DevQuestUiState = useStore(snapshot => snapshot)
-  const [wallOpen, setWallOpen] = useState(false)
   const [category, setCategory] = useState<(typeof CATEGORY_KEYS)[number]>('journey')
   const [hover, setHover] = useState<{ a: DevQuestStatus['achievements'][number]; x: number; y: number } | null>(null)
   const [claiming, setClaiming] = useState(false)
   const [shopOpen, setShopOpen] = useState(false)
-  const [reportOpen, setReportOpen] = useState(false)
   const [buying, setBuying] = useState<string | null>(null)
   const [confirmBuyId, setConfirmBuyId] = useState<string | null>(null)
   const [shopMsg, setShopMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -267,10 +291,12 @@ export function DevQuestPanelCard(
   const [luckyMsg, setLuckyMsg] = useState<string | null>(null)
   const [claimingLucky, setClaimingLucky] = useState(false)
   const [importing, setImporting] = useState(false)
-  const [titlesOpen, setTitlesOpen] = useState(false)
   const [weeklyClaiming, setWeeklyClaiming] = useState(false)
   const [sharing, setSharing] = useState(false)
-  const [statsOpen, setStatsOpen] = useState(false)
+  // 统一折叠状态：section id → 是否折叠（true=隐藏内容）。默认全部展开。
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+  const toggleSection = (id: string): void => setCollapsed(cur => ({ ...cur, [id]: !(cur[id] ?? false) }))
+  const isCollapsed = (id: string): boolean => collapsed[id] === true
   // 面板位置：null = 默认右上角；拖拽后保存到 localStorage。
   const [pos, setPos] = useState<{ left: number; top: number } | null>(loadPanelPos)
   const [dragging, setDragging] = useState(false)
@@ -701,12 +727,14 @@ export function DevQuestPanelCard(
       </div>
       {luckyMsg !== null && <div style={luckyMsgStyle}>{luckyMsg}</div>}
 
-      {/* 每日任务 */}
-      <div style={sectionStyle}>
-        <div style={sectionHeadStyle}>
-          <span style={sectionTitleStyle}>📅 {t('dq.daily')}</span>
-          <span style={updatedStyle}>{status.daily?.date ?? ''}</span>
-        </div>
+      {/* 每日任务 + 每周挑战 + 商店 */}
+      <SectionCard
+        id="daily"
+        title={`📅 ${t('dq.daily')}`}
+        right={<span style={updatedStyle}>{status.daily?.date ?? ''}</span>}
+        collapsed={isCollapsed('daily')}
+        onToggle={() => toggleSection('daily')}
+      >
         {(status.daily?.quests ?? []).map(q => {
           const pct = Math.min(100, Math.round((Math.min(q.progress, q.goal) / Math.max(q.goal, 1)) * 100))
           return (
@@ -805,14 +833,16 @@ export function DevQuestPanelCard(
             )}
           </div>
         )}
-      </div>
+      </SectionCard>
 
       {/* 新手任务链 */}
-      <div style={sectionStyle}>
-        <div style={sectionHeadStyle}>
-          <span style={sectionTitleStyle}>🎓 {t('dq.tutorial')}</span>
-          <span style={updatedStyle}>{status.tutorial?.done ? '✅' : t('dq.tutorialStepDone', { n: status.tutorial?.steps.filter(s => s.done).length ?? 0, m: status.tutorial?.steps.length ?? 5 })}</span>
-        </div>
+      <SectionCard
+        id="tutorial"
+        title={`🎓 ${t('dq.tutorial')}`}
+        right={<span style={updatedStyle}>{status.tutorial?.done ? '✅' : t('dq.tutorialStepDone', { n: status.tutorial?.steps.filter(s => s.done).length ?? 0, m: status.tutorial?.steps.length ?? 5 })}</span>}
+        collapsed={isCollapsed('tutorial')}
+        onToggle={() => toggleSection('tutorial')}
+      >
         {status.tutorial?.steps.map(step => (
           <div key={step.id} style={tutorialRowStyle}>
             <span style={{ fontSize: 13, opacity: step.done ? 1 : 0.55 }}>{step.done ? '✅' : step.icon}</span>
@@ -823,16 +853,15 @@ export function DevQuestPanelCard(
         {status.tutorial?.done === true && (
           <div style={tutorialTitleStyle}>🏅 {t('dq.tutorialTitle', { title: status.tutorial.title.zh })}</div>
         )}
-      </div>
+      </SectionCard>
 
       {/* 多称号：条件解锁称号可切换展示 */}
-      <div style={sectionStyle}>
-        <div style={sectionHeadStyle}>
-          <span style={sectionTitleStyle}>🏷️ {t('dq.titles')}</span>
-          <button type="button" onClick={() => setTitlesOpen(v => !v)} style={linkButtonStyle}>
-            {titlesOpen ? '▾' : '▸'}
-          </button>
-        </div>
+      <SectionCard
+        id="titles"
+        title={`🏷️ ${t('dq.titles')}`}
+        collapsed={isCollapsed('titles')}
+        onToggle={() => toggleSection('titles')}
+      >
         {/* 当前展示称号 */}
         <div style={titleCurrentRowStyle}>
           <span style={{ fontSize: 15 }}>{status.titles?.current?.icon ?? '🎖️'}</span>
@@ -845,46 +874,46 @@ export function DevQuestPanelCard(
             {sharing ? '…' : `📤 ${t('dq.share')}`}
           </button>
         </div>
-        {titlesOpen && (
-          <div style={titleListStyle}>
+        <div style={titleListStyle}>
+          <button
+            type="button"
+            onClick={() => void switchTitle('')}
+            style={{ ...titleItemStyle, ...(status.titles?.current === null ? titleItemActiveStyle : {}) }}
+          >
+            <span>🎖️</span>
+            <span style={titleItemNameStyle}>{t('dq.titleFollowLevel')} · {status.title.zh}</span>
+            {status.titles?.current === null && <span style={titleItemActiveMarkStyle}>{t('dq.titleActive')}</span>}
+          </button>
+          {(status.titles?.items ?? []).map(ti => (
             <button
+              key={ti.id}
               type="button"
-              onClick={() => void switchTitle('')}
-              style={{ ...titleItemStyle, ...(status.titles?.current === null ? titleItemActiveStyle : {}) }}
+              onClick={() => { if (ti.unlocked) void switchTitle(ti.id) }}
+              disabled={!ti.unlocked}
+              style={{
+                ...titleItemStyle,
+                ...(!ti.unlocked ? titleItemLockedStyle : {}),
+                ...(status.titles?.current?.id === ti.id ? titleItemActiveStyle : {}),
+              }}
             >
-              <span>🎖️</span>
-              <span style={titleItemNameStyle}>{t('dq.titleFollowLevel')} · {status.title.zh}</span>
-              {status.titles?.current === null && <span style={titleItemActiveMarkStyle}>{t('dq.titleActive')}</span>}
+              <span>{ti.unlocked ? ti.icon : '🔒'}</span>
+              <span style={titleItemNameStyle}>{ti.name.zh} <em style={itemEnStyle}>{ti.name.en}</em></span>
+              {!ti.unlocked && <span style={titleItemLockedMarkStyle}>{t('dq.titleLocked')}</span>}
+              {ti.unlocked && status.titles?.current?.id === ti.id && (
+                <span style={titleItemActiveMarkStyle}>{t('dq.titleActive')}</span>
+              )}
             </button>
-            {(status.titles?.items ?? []).map(ti => (
-              <button
-                key={ti.id}
-                type="button"
-                onClick={() => { if (ti.unlocked) void switchTitle(ti.id) }}
-                disabled={!ti.unlocked}
-                style={{
-                  ...titleItemStyle,
-                  ...(!ti.unlocked ? titleItemLockedStyle : {}),
-                  ...(status.titles?.current?.id === ti.id ? titleItemActiveStyle : {}),
-                }}
-              >
-                <span>{ti.unlocked ? ti.icon : '🔒'}</span>
-                <span style={titleItemNameStyle}>{ti.name.zh} <em style={itemEnStyle}>{ti.name.en}</em></span>
-                {!ti.unlocked && <span style={titleItemLockedMarkStyle}>{t('dq.titleLocked')}</span>}
-                {ti.unlocked && status.titles?.current?.id === ti.id && (
-                  <span style={titleItemActiveMarkStyle}>{t('dq.titleActive')}</span>
-                )}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* 分类收藏 */}
-      <div style={sectionStyle}>
-        <div style={sectionHeadStyle}>
-          <span style={sectionTitleStyle}>📚 {t('dq.collections')}</span>
+          ))}
         </div>
+      </SectionCard>
+
+      {/* 分类收藏 + 存档管理 */}
+      <SectionCard
+        id="collections"
+        title={`📚 ${t('dq.collections')}`}
+        collapsed={isCollapsed('collections')}
+        onToggle={() => toggleSection('collections')}
+      >
         {(status.collections?.items ?? []).map(coll => (
           <div key={coll.category} style={collRowStyle}>
             <span style={{ fontSize: 13, opacity: coll.completed ? 1 : 0.6 }}>{coll.completed ? '🏅' : categoryIcon(coll.category)}</span>
@@ -897,11 +926,9 @@ export function DevQuestPanelCard(
             {!coll.completed && <span style={collRewardStyle}>{t('dq.collectionReward', { xp: coll.rewardXp })}</span>}
           </div>
         ))}
-      </div>
-
-      {/* 存档管理：导出 / 导入 */}
-      <div style={saveBarStyle}>
-        <button type="button" onClick={() => void exportSave()} style={saveButtonStyle}>⬇️ {t('dq.export')}</button>
+        {/* 存档管理：导出 / 导入 */}
+        <div style={saveBarStyle}>
+          <button type="button" onClick={() => void exportSave()} style={saveButtonStyle}>⬇️ {t('dq.export')}</button>
         <label style={saveButtonStyle}>
           {importing ? '…' : `⬆️ ${t('dq.import')}`}
           <input
@@ -916,13 +943,16 @@ export function DevQuestPanelCard(
           />
         </label>
       </div>
+      </SectionCard>
 
       {/* 最近成就 */}
-      <div style={sectionStyle}>
-        <div style={sectionHeadStyle}>
-          <span style={sectionTitleStyle}>{t('dq.recent')}</span>
-          <span style={updatedStyle}>{t('dq.updated')} {updatedLabel(state.refreshedAt)}</span>
-        </div>
+      <SectionCard
+        id="recent"
+        title={t('dq.recent')}
+        right={<span style={updatedStyle}>{t('dq.updated')} {updatedLabel(state.refreshedAt)}</span>}
+        collapsed={isCollapsed('recent')}
+        onToggle={() => toggleSection('recent')}
+      >
         {recent.length === 0
           ? <span style={emptyStyle}>{t('dq.empty')}</span>
           : <ul style={listStyle}>
@@ -936,16 +966,16 @@ export function DevQuestPanelCard(
               </li>
             ))}
           </ul>}
-      </div>
+      </SectionCard>
 
       {/* 成就墙 */}
-      <div style={sectionStyle}>
-        <div style={sectionHeadStyle}>
-          <span style={sectionTitleStyle}>{t('dq.wall')} <span style={wallCountStyle}>{t('dq.wallCount', { n: unlocked.length, m: status.achievements.length })}</span></span>
-          <button type="button" onClick={() => setWallOpen(v => !v)} style={linkButtonStyle}>
-            {wallOpen ? '▾' : '▸'}
-          </button>
-        </div>
+      <SectionCard
+        id="wall"
+        title={t('dq.wall')}
+        right={<span style={wallCountStyle}>{t('dq.wallCount', { n: unlocked.length, m: status.achievements.length })}</span>}
+        collapsed={isCollapsed('wall')}
+        onToggle={() => toggleSection('wall')}
+      >
         {milestone !== undefined && (
           <div style={milestoneStyle}>
             <span style={milestoneIconStyle}>{milestone.a.icon}</span>
@@ -960,98 +990,95 @@ export function DevQuestPanelCard(
             </div>
           </div>
         )}
-        {wallOpen && <>
-          <div style={tabsStyle}>
-            {CATEGORY_KEYS.map(key => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setCategory(key)}
-                style={{ ...tabStyle, ...(category === key ? tabActiveStyle : {}) }}
-              >
-                {t(`dq.cat.${key}`)}
-              </button>
-            ))}
-          </div>
-          <div style={wallGridStyle}>
-            {wallItems.map(a => {
-              const locked = !a.unlocked
-              const visible = a.unlocked || !a.hidden
-              const p = a.progress
-              // G. 隐藏成就渐进揭示：未解锁但进度 ≥50% 时显示「?」轮廓（不泄露具体内容）。
-              const revealHint = locked && a.hidden && p !== undefined && p.goal > 0 && p.current / p.goal >= 0.5
-              return <span
-                key={a.id}
-                onMouseEnter={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect()
-                  const x = Math.max(8, Math.min(rect.left + rect.width / 2 - 110, window.innerWidth - 228))
-                  const below = rect.bottom + 8
-                  const y = below + 120 > window.innerHeight ? Math.max(8, rect.top - 120) : below
-                  setHover({ a, x, y })
-                }}
-                onMouseLeave={() => setHover(null)}
-                style={{
-                  position: 'relative',
-                  ...wallCellStyle,
-                  ...(locked
-                    ? (a.hidden && !revealHint ? wallCellHiddenLockedStyle : wallCellLockedStyle)
-                    : { ...wallCellUnlockedStyle, ...rarityCellStyle(a.rarity) }),
-                }}
-              >
-                {a.unlocked && <span style={wallCheckStyle}>✓</span>}
-                <span style={{ fontSize: 17, lineHeight: 1.2 }}>{visible ? a.icon : (revealHint ? '❔' : '🔒')}</span>
-                {!a.hidden && (
-                  <span style={{ ...wallXpStyle, ...(a.unlocked ? wallXpUnlockedStyle : {}) }}>+{a.xp}</span>
-                )}
-                {/* 未解锁且可计数的成就：格子底部 2px 进度条 */}
-                {locked && p !== undefined && p.goal > 0 && (
-                  <span style={wallProgressTrackStyle}>
-                    <span style={{ ...wallProgressFillStyle, width: `${Math.min(100, Math.round((p.current / p.goal) * 100))}%` }} />
-                  </span>
-                )}
-              </span>
-            })}
-          </div>
-          {hover !== null && <AchievementTooltip hover={hover} t={t} />}
-        </>}
-      </div>
+        <div style={tabsStyle}>
+          {CATEGORY_KEYS.map(key => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setCategory(key)}
+              style={{ ...tabStyle, ...(category === key ? tabActiveStyle : {}) }}
+            >
+              {t(`dq.cat.${key}`)}
+            </button>
+          ))}
+        </div>
+        <div style={wallGridStyle}>
+          {wallItems.map(a => {
+            const locked = !a.unlocked
+            const visible = a.unlocked || !a.hidden
+            const p = a.progress
+            // G. 隐藏成就渐进揭示：未解锁但进度 ≥50% 时显示「?」轮廓（不泄露具体内容）。
+            const revealHint = locked && a.hidden && p !== undefined && p.goal > 0 && p.current / p.goal >= 0.5
+            return <span
+              key={a.id}
+              onMouseEnter={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect()
+                const x = Math.max(8, Math.min(rect.left + rect.width / 2 - 110, window.innerWidth - 228))
+                const below = rect.bottom + 8
+                const y = below + 120 > window.innerHeight ? Math.max(8, rect.top - 120) : below
+                setHover({ a, x, y })
+              }}
+              onMouseLeave={() => setHover(null)}
+              style={{
+                position: 'relative',
+                ...wallCellStyle,
+                ...(locked
+                  ? (a.hidden && !revealHint ? wallCellHiddenLockedStyle : wallCellLockedStyle)
+                  : { ...wallCellUnlockedStyle, ...rarityCellStyle(a.rarity) }),
+              }}
+            >
+              {a.unlocked && <span style={wallCheckStyle}>✓</span>}
+              <span style={{ fontSize: 17, lineHeight: 1.2 }}>{visible ? a.icon : (revealHint ? '❔' : '🔒')}</span>
+              {!a.hidden && (
+                <span style={{ ...wallXpStyle, ...(a.unlocked ? wallXpUnlockedStyle : {}) }}>+{a.xp}</span>
+              )}
+              {/* 未解锁且可计数的成就：格子底部 2px 进度条 */}
+              {locked && p !== undefined && p.goal > 0 && (
+                <span style={wallProgressTrackStyle}>
+                  <span style={{ ...wallProgressFillStyle, width: `${Math.min(100, Math.round((p.current / p.goal) * 100))}%` }} />
+                </span>
+              )}
+            </span>
+          })}
+        </div>
+        {hover !== null && <AchievementTooltip hover={hover} t={t} />}
+      </SectionCard>
 
       {/* 成长周报：最近 7 天 XP 柱状图 */}
-      <div style={sectionStyle}>
-        <div style={sectionHeadStyle}>
-          <span style={sectionTitleStyle}>📈 {t('dq.report')}</span>
-          <button type="button" onClick={() => setReportOpen(v => !v)} style={linkButtonStyle}>
-            {reportOpen ? '▾' : '▸'}
-          </button>
-        </div>
-        {reportOpen && (
-          <div style={reportStyle}>
-            <div style={reportBarsStyle}>
-              {(status.history ?? []).slice(-7).map(h => {
-                const max = Math.max(...(status.history ?? []).slice(-7).map(x => x.xp), 1)
-                const pct = Math.max(4, Math.round((h.xp / max) * 100))
-                return (
-                  <div key={h.date} style={reportBarColStyle} title={`${h.date} · ${t('dq.reportXp', { xp: h.xp })} · ${h.turns} 回合`}>
-                    <div style={reportBarWrapStyle}>
-                      <div style={{ ...reportBarStyle, height: `${pct}%` }} />
-                    </div>
-                    <span style={reportBarTurnStyle}>{h.turns > 0 ? h.turns : ''}</span>
-                    <span style={reportBarDateStyle}>{h.date.slice(5)}</span>
+      <SectionCard
+        id="report"
+        title={`📈 ${t('dq.report')}`}
+        collapsed={isCollapsed('report')}
+        onToggle={() => toggleSection('report')}
+      >
+        <div style={reportStyle}>
+          <div style={reportBarsStyle}>
+            {(status.history ?? []).slice(-7).map(h => {
+              const max = Math.max(...(status.history ?? []).slice(-7).map(x => x.xp), 1)
+              const pct = Math.max(4, Math.round((h.xp / max) * 100))
+              return (
+                <div key={h.date} style={reportBarColStyle} title={`${h.date} · ${t('dq.reportXp', { xp: h.xp })} · ${h.turns} 回合`}>
+                  <div style={reportBarWrapStyle}>
+                    <div style={{ ...reportBarStyle, height: `${pct}%` }} />
                   </div>
-                )
-              })}
-            </div>
-            <div style={reportLegendStyle}>{t('dq.report7d')}</div>
+                  <span style={reportBarTurnStyle}>{h.turns > 0 ? h.turns : ''}</span>
+                  <span style={reportBarDateStyle}>{h.date.slice(5)}</span>
+                </div>
+              )
+            })}
           </div>
-        )}
-      </div>
+          <div style={reportLegendStyle}>{t('dq.report7d')}</div>
+        </div>
+      </SectionCard>
 
       {/* 活跃日历：近 30 天热力图 */}
-      <div style={sectionStyle}>
-        <div style={sectionHeadStyle}>
-          <span style={sectionTitleStyle}>🗓️ {t('dq.calendar')}</span>
-          <span style={updatedStyle}>{t('dq.calendarDays')}</span>
-        </div>
+      <SectionCard
+        id="calendar"
+        title={`🗓️ ${t('dq.calendar')}`}
+        right={<span style={updatedStyle}>{t('dq.calendarDays')}</span>}
+        collapsed={isCollapsed('calendar')}
+        onToggle={() => toggleSection('calendar')}
+      >
         <div style={calendarGridStyle}>
           {(status.history ?? []).slice(-30).map(h => {
             const intensity = h.xp > 0 ? Math.min(4, 1 + Math.floor(h.xp / 100)) : 0
@@ -1063,53 +1090,50 @@ export function DevQuestPanelCard(
           })}
         </div>
         <div style={reportLegendStyle}>少 ▓▓▓▓ 多</div>
-      </div>
+      </SectionCard>
 
       {/* 统计 + 荣誉墙 */}
-      <div style={sectionStyle}>
-        <div style={sectionHeadStyle}>
-          <span style={sectionTitleStyle}>📊 {t('dq.stats')}</span>
-          <button type="button" onClick={() => setStatsOpen(v => !v)} style={linkButtonStyle}>
-            {statsOpen ? '▾' : '▸'}
-          </button>
-        </div>
-        {statsOpen && (
-          <div style={statsWrapStyle}>
-            {/* 核心纪录 */}
-            <div style={statsRowStyle}>
-              <span style={statsChipStyle}>🏆 {t('dq.statsBestCombo')}: {Math.max(c.consecutiveSuccess, ...(status.records ?? []).map(r => r.combo))}</span>
-              <span style={statsChipStyle}>⬆️ {t('dq.statsBestLevel')}: {Math.max(status.level, ...(status.records ?? []).map(r => r.level))}</span>
-            </div>
-            {/* 工具 TOP5 */}
-            <div style={statsSubTitleStyle}>{t('dq.statsTopTools')}</div>
-            <div style={toolRankStyle}>
-              {Object.entries(c.toolCallsByTool)
-                .sort((a, b) => b[1] - a[1])
-                .slice(0, 5)
-                .map(([tool, n], i) => (
-                  <div key={tool} style={toolRankRowStyle}>
-                    <span style={toolRankNumStyle}>{i + 1}</span>
-                    <span style={toolRankNameStyle}>{tool}</span>
-                    <span style={toolRankCountStyle}>{n}</span>
-                  </div>
-                ))}
-            </div>
-            {/* 荣誉墙：历史赛季纪录 */}
-            {(status.records ?? []).length > 0 && (
-              <>
-                <div style={statsSubTitleStyle}>🏛️ {t('dq.records')}</div>
-                <div style={recordRowStyle}>
-                  {(status.records ?? []).map(r => (
-                    <span key={r.season} style={recordChipStyle} title={t('dq.recordsCombo', { combo: r.combo })}>
-                      {t('dq.recordsSeason', { season: r.season })} · Lv.{r.level}
-                    </span>
-                  ))}
-                </div>
-              </>
-            )}
+      <SectionCard
+        id="stats"
+        title={`📊 ${t('dq.stats')}`}
+        collapsed={isCollapsed('stats')}
+        onToggle={() => toggleSection('stats')}
+      >
+        <div style={statsWrapStyle}>
+          {/* 核心纪录 */}
+          <div style={statsRowStyle}>
+            <span style={statsChipStyle}>🏆 {t('dq.statsBestCombo')}: {Math.max(c.consecutiveSuccess, ...(status.records ?? []).map(r => r.combo))}</span>
+            <span style={statsChipStyle}>⬆️ {t('dq.statsBestLevel')}: {Math.max(status.level, ...(status.records ?? []).map(r => r.level))}</span>
           </div>
-        )}
-      </div>
+          {/* 工具 TOP5 */}
+          <div style={statsSubTitleStyle}>{t('dq.statsTopTools')}</div>
+          <div style={toolRankStyle}>
+            {Object.entries(c.toolCallsByTool)
+              .sort((a, b) => b[1] - a[1])
+              .slice(0, 5)
+              .map(([tool, n], i) => (
+                <div key={tool} style={toolRankRowStyle}>
+                  <span style={toolRankNumStyle}>{i + 1}</span>
+                  <span style={toolRankNameStyle}>{tool}</span>
+                  <span style={toolRankCountStyle}>{n}</span>
+                </div>
+              ))}
+          </div>
+          {/* 荣誉墙：历史赛季纪录 */}
+          {(status.records ?? []).length > 0 && (
+            <>
+              <div style={statsSubTitleStyle}>🏛️ {t('dq.records')}</div>
+              <div style={recordRowStyle}>
+                {(status.records ?? []).map(r => (
+                  <span key={r.season} style={recordChipStyle} title={t('dq.recordsCombo', { combo: r.combo })}>
+                    {t('dq.recordsSeason', { season: r.season })} · Lv.{r.level}
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </SectionCard>
     </div>
   </section>
 }
@@ -1401,6 +1425,55 @@ const cardBodyStyle: CSSProperties = {
   gap: 14,
 }
 
+/** 通用分区卡片：独立背景块 + 边框 + 可折叠头部。 */
+const sectionCardStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  borderRadius: 10,
+  background: 'color-mix(in srgb, var(--dsw-alias-bg-layer-2, #1d2735) 55%, transparent)',
+  border: `1px solid ${TONE.border}`,
+  overflow: 'hidden',
+}
+
+/** 分区标题栏：可点击折叠。 */
+const sectionCardHeadStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 8,
+  width: '100%',
+  padding: '7px 10px',
+  border: 'none',
+  borderBottom: `1px solid ${TONE.border}`,
+  background: 'transparent',
+  color: 'inherit',
+  cursor: 'pointer',
+  textAlign: 'left',
+}
+
+const sectionCardTitleStyle: CSSProperties = {
+  fontSize: 11,
+  fontWeight: 700,
+  color: TONE.text,
+  letterSpacing: 0.3,
+}
+
+/** 折叠箭头。 */
+const sectionCardArrowStyle: CSSProperties = {
+  fontSize: 10,
+  color: TONE.quiet,
+  display: 'inline-flex',
+  alignItems: 'center',
+}
+
+/** 分区内容区。 */
+const sectionCardBodyStyle: CSSProperties = {
+  padding: '8px 10px 10px',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 6,
+}
+
 const heroStyle: CSSProperties = { display: 'flex', gap: 12, alignItems: 'center' }
 
 const levelBadgeStyle: CSSProperties = {
@@ -1474,12 +1547,6 @@ const questFillStyle: CSSProperties = {
 }
 
 const questFillDoneStyle: CSSProperties = { background: `linear-gradient(90deg, ${TONE.gold}, ${TONE.green})` }
-
-const sectionStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6 }
-
-const sectionHeadStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between' }
-
-const sectionTitleStyle: CSSProperties = { fontSize: 11, fontWeight: 600, color: TONE.muted, textTransform: 'uppercase', letterSpacing: 0.4 }
 
 const wallCountStyle: CSSProperties = { color: TONE.quiet, fontWeight: 400 }
 
