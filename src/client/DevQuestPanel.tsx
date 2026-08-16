@@ -262,8 +262,14 @@ function SectionCard(props: {
   children: ReactNode
 }): ReactElement {
   const { id, title, right, collapsed, onToggle, children } = props
-  return <section style={sectionCardStyle} data-section={id}>
-    <button type="button" onClick={onToggle} style={sectionCardHeadStyle} aria-expanded={!collapsed}>
+  return <section style={sectionCardStyle} data-section={id} data-collapsed={collapsed ? 'true' : 'false'}>
+    <button
+      type="button"
+      onClick={onToggle}
+      style={{ ...sectionCardHeadStyle, ...(collapsed ? sectionCardHeadCollapsedStyle : {}) }}
+      aria-expanded={!collapsed}
+      title={collapsed ? '展开' : '折叠'}
+    >
       <span style={sectionCardTitleStyle}>{title}</span>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
         {right}
@@ -1451,10 +1457,17 @@ const sectionCardHeadStyle: CSSProperties = {
   textAlign: 'left',
 }
 
+/** 折叠态标题栏：背景色块 + 保留文字，不再是「白条」。 */
+const sectionCardHeadCollapsedStyle: CSSProperties = {
+  borderBottom: 'none',
+  background: 'color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 12%, transparent)',
+}
+
 const sectionCardTitleStyle: CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
-  color: TONE.text,
+  // fallback 用深色：浅色主题下即使变量缺失文字也可见。
+  color: 'var(--dsw-alias-label-primary, #1a2230)',
   letterSpacing: 0.3,
 }
 
@@ -1499,7 +1512,9 @@ const seasonStyle: CSSProperties = { fontSize: 10, color: TONE.quiet }
 const xpTrackStyle: CSSProperties = {
   height: 7,
   borderRadius: 4,
-  background: TONE.row,
+  // 轨道用「row 底 + 边框」：浅色主题下不再是纯白条，边框保证可见。
+  background: 'color-mix(in srgb, var(--dsw-alias-bg-layer-2, #1d2735) 65%, transparent)',
+  border: `1px solid ${TONE.border}`,
   overflow: 'hidden',
   marginTop: 8,
 }
@@ -1537,7 +1552,7 @@ const questLabelStyle: CSSProperties = { fontSize: 11, color: TONE.text }
 
 const questRewardStyle: CSSProperties = { fontSize: 10, fontWeight: 600, color: TONE.gold }
 
-const questTrackStyle: CSSProperties = { height: 6, borderRadius: 3, background: TONE.row, overflow: 'hidden' }
+const questTrackStyle: CSSProperties = { height: 6, borderRadius: 3, background: 'color-mix(in srgb, var(--dsw-alias-bg-layer-2, #1d2735) 65%, transparent)', border: `1px solid ${TONE.border}`, overflow: 'hidden' }
 
 const questFillStyle: CSSProperties = {
   height: '100%',
@@ -1676,7 +1691,8 @@ const milestoneNumStyle: CSSProperties = { fontSize: 9, color: TONE.muted, fontV
 const milestoneTrackStyle: CSSProperties = {
   height: 3,
   borderRadius: 2,
-  background: 'color-mix(in srgb, var(--dsw-alias-label-tertiary, #718096) 30%, transparent)',
+  background: 'color-mix(in srgb, var(--dsw-alias-label-tertiary, #718096) 22%, transparent)',
+  border: `1px solid ${TONE.border}`,
   overflow: 'hidden',
   marginTop: 3,
 }
@@ -1692,7 +1708,7 @@ const tooltipProgressLabelStyle: CSSProperties = { fontSize: 9, color: TONE.quie
 
 const tooltipProgressNumStyle: CSSProperties = { fontSize: 9, color: TONE.muted, fontVariantNumeric: 'tabular-nums' }
 
-const tooltipProgressTrackStyle: CSSProperties = { height: 3, borderRadius: 2, background: 'color-mix(in srgb, var(--dsw-alias-label-tertiary, #718096) 30%, transparent)', overflow: 'hidden' }
+const tooltipProgressTrackStyle: CSSProperties = { height: 3, borderRadius: 2, background: 'color-mix(in srgb, var(--dsw-alias-label-tertiary, #718096) 22%, transparent)', border: `1px solid ${TONE.border}`, overflow: 'hidden' }
 
 const tooltipProgressFillStyle: CSSProperties = { height: '100%', borderRadius: 2, background: TONE.accent }
 
@@ -1739,7 +1755,7 @@ const sprintRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', g
 
 const sprintLabelStyle: CSSProperties = { fontSize: 9, color: TONE.quiet, whiteSpace: 'nowrap' }
 
-const sprintTrackStyle: CSSProperties = { flex: 1, height: 3, borderRadius: 2, background: 'color-mix(in srgb, var(--dsw-alias-label-tertiary, #718096) 30%, transparent)', overflow: 'hidden' }
+const sprintTrackStyle: CSSProperties = { flex: 1, height: 4, borderRadius: 2, background: 'color-mix(in srgb, var(--dsw-alias-label-tertiary, #718096) 22%, transparent)', border: `1px solid ${TONE.border}`, overflow: 'hidden' }
 
 const sprintFillStyle: CSSProperties = { height: '100%', borderRadius: 2, background: 'linear-gradient(90deg, var(--dsw-alias-state-warn-primary, #f6c652), var(--dsw-alias-brand-primary, #8ec5ff))' }
 
@@ -1954,7 +1970,7 @@ const weeklyQuestLabelStyle: CSSProperties = { fontSize: 10, color: TONE.text }
 
 const weeklyQuestRewardStyle: CSSProperties = { fontSize: 9, fontWeight: 600, color: TONE.gold }
 
-const weeklyQuestTrackStyle: CSSProperties = { height: 4, borderRadius: 2, background: TONE.row, overflow: 'hidden' }
+const weeklyQuestTrackStyle: CSSProperties = { height: 4, borderRadius: 2, background: 'color-mix(in srgb, var(--dsw-alias-bg-layer-2, #1d2735) 65%, transparent)', border: `1px solid ${TONE.border}`, overflow: 'hidden' }
 
 const weeklyQuestFillStyle: CSSProperties = { height: '100%', borderRadius: 2, background: 'linear-gradient(90deg, var(--dsw-alias-brand-primary, #8ec5ff), var(--dsw-alias-state-success-primary, #78dda0))' }
 
