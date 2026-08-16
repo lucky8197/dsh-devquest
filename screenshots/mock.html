@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -23,7 +23,7 @@
   body {
     background: var(--canvas);
     font-family: "Segoe UI", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
-    width: 1280px; height: 800px; position: relative; overflow: hidden;
+    width: 1280px; height: 1210px; position: relative; overflow: hidden;
   }
 
   /* ===== 侧边栏 rail ===== */
@@ -101,6 +101,44 @@
   .sec-head { display: flex; align-items: center; justify-content: space-between; }
   .sec-title { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
   .sec-date { font-size: 10px; color: var(--quiet); }
+
+  /* 赛季冲刺条 */
+  .sprint { display: flex; align-items: center; gap: 6px; margin-top: 5px; }
+  .sprint-label { font-size: 9px; color: var(--quiet); white-space: nowrap; }
+  .sprint-track { flex: 1; height: 3px; border-radius: 2px; background: color-mix(in srgb, var(--quiet) 30%, transparent); overflow: hidden; }
+  .sprint-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--gold), var(--accent)); width: 38%; }
+  .sprint-days { font-size: 9px; color: var(--muted); white-space: nowrap; }
+  .level-since { display: block; font-size: 9px; color: var(--quiet); margin-top: 1px; }
+  .title-badge { font-size: 13px; line-height: 1; margin-left: -2px; }
+
+  /* 商店 */
+  .shop-bar { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+  .shop-balance { font-size: 10px; color: var(--gold); font-weight: 600; }
+  .shop-stock { font-size: 9px; color: var(--muted); }
+  .shop-toggle { margin-left: auto; border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 11px; }
+  .shop-grid { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  .shop-item { padding: 7px 9px; border-radius: 9px; background: var(--row); border: 1px solid var(--border); }
+  .shop-item-head { display: flex; align-items: center; gap: 6px; }
+  .shop-item-name { flex: 1; font-size: 11px; color: var(--text); font-weight: 600; }
+  .shop-item-price { font-size: 10px; color: var(--gold); font-weight: 700; }
+  .shop-item-desc { font-size: 10px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+  .shop-buy { margin-top: 5px; padding: 3px 10px; border: none; border-radius: 7px; background: var(--accent); color: #0b1220; font-size: 10px; font-weight: 700; }
+  .shop-owned { margin-top: 5px; font-size: 10px; color: var(--green); }
+
+  /* 新手任务链 */
+  .tut-row { display: flex; align-items: center; gap: 7px; padding: 3px 0; }
+  .tut-name { flex: 1; font-size: 11px; color: var(--text); }
+  .tut-name.pending { color: var(--muted); }
+  .tut-xp { font-size: 9px; color: var(--gold); }
+  .tut-title { margin-top: 4px; font-size: 11px; color: var(--gold); font-weight: 700; }
+
+  /* 成长周报 */
+  .report-bars { display: flex; align-items: flex-end; gap: 4px; height: 52px; margin-top: 4px; }
+  .report-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
+  .report-wrap { flex: 1; width: 100%; display: flex; align-items: flex-end; justify-content: center; }
+  .report-bar { width: 70%; border-radius: 3px; background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 45%, transparent)); }
+  .report-date { font-size: 8px; color: var(--quiet); }
+  .report-legend { margin-top: 4px; font-size: 9px; color: var(--quiet); text-align: center; }
 
   .quest { display: flex; flex-direction: column; gap: 4px; }
   .quest-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -217,8 +255,15 @@
         </div>
         <div class="hero-info">
           <div class="title-row">
-            <span class="title-txt" style="color:var(--gold);text-shadow:0 0 12px rgba(246,198,82,.5)">传说 Legend</span>
+            <span class="title-txt" style="color:var(--gold);text-shadow:0 0 12px rgba(246,198,82,.5)">传说</span>
+            <span class="title-badge">👑</span>
             <span class="season">赛季 2026-S3</span>
+          </div>
+          <span class="level-since">本等级已 3 天</span>
+          <div class="sprint">
+            <span class="sprint-label">🗓️ 冲刺 38k/100k</span>
+            <div class="sprint-track"><div class="sprint-fill"></div></div>
+            <span class="sprint-days">剩 46 天</span>
           </div>
           <div class="xp-track"><div class="xp-fill"></div></div>
           <div class="xp-row">
@@ -250,6 +295,41 @@
           <div class="quest-top"><span class="quest-label">✅ 查看 1 次进度</span><span class="quest-reward">+20 XP</span></div>
           <div class="quest-track"><div class="quest-fill done" style="width:100%"></div></div>
         </div>
+        <div class="shop-bar">
+          <span class="shop-balance">💰 赛季货币 520</span>
+          <span class="shop-stock">🛡️ 保险 ×2</span>
+          <button class="shop-toggle">🛒 商店 ▾</button>
+        </div>
+        <div class="shop-grid">
+          <div class="shop-item">
+            <div class="shop-item-head"><span style="font-size:15px">🛡️</span><span class="shop-item-name">连击保险</span><span class="shop-item-price">150</span></div>
+            <div class="shop-item-desc">失误回合自动消耗一个，连击不清零</div>
+            <button class="shop-buy">购买</button>
+          </div>
+          <div class="shop-item">
+            <div class="shop-item-head"><span style="font-size:15px">👑</span><span class="shop-item-name">王冠徽章</span><span class="shop-item-price">250</span></div>
+            <div class="shop-item-desc">称号旁展示 👑 王冠徽章</div>
+            <div class="shop-owned">✓ 已拥有</div>
+          </div>
+          <div class="shop-item">
+            <div class="shop-item-head"><span style="font-size:15px">🔥</span><span class="shop-item-name">熔火主题</span><span class="shop-item-price">300</span></div>
+            <div class="shop-item-desc">面板切换为熔火橙配色</div>
+            <button class="shop-buy">购买</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="sec-head">
+          <span class="sec-title">🎓 新手任务</span>
+          <span class="sec-date">5/5 ✅</span>
+        </div>
+        <div class="tut-row"><span style="font-size:13px">✅</span><span class="tut-name">完成首个回合</span><span class="tut-xp">+20</span></div>
+        <div class="tut-row"><span style="font-size:13px">✅</span><span class="tut-name">第一次编辑</span><span class="tut-xp">+20</span></div>
+        <div class="tut-row"><span style="font-size:13px">✅</span><span class="tut-name">完成首个待办</span><span class="tut-xp">+20</span></div>
+        <div class="tut-row"><span style="font-size:13px">✅</span><span class="tut-name">运行第一条命令</span><span class="tut-xp">+20</span></div>
+        <div class="tut-row"><span style="font-size:13px">✅</span><span class="tut-name">查看一次进度</span><span class="tut-xp">+20</span></div>
+        <div class="tut-title">🏅 见习冒险者</div>
       </div>
 
       <div class="section">
@@ -282,12 +362,29 @@
           <div class="cell unlocked">🛡️<span class="check">✓</span><span class="cell-xp">+400</span></div>
           <div class="cell locked">🚶<span class="cell-xp">+50</span></div>
           <div class="cell locked">🎖️<span class="cell-xp">+100</span></div>
-          <div class="cell hidden-locked">🔒</div>
+          <div class="cell hidden-locked">❔</div>
           <div class="cell hidden-locked">🔒</div>
           <div class="cell hidden-locked">🔒</div>
           <div class="cell locked">🏅<span class="cell-xp">+250</span></div>
           <div class="cell locked">🏆<span class="cell-xp">+500</span></div>
         </div>
+      </div>
+
+      <div class="section">
+        <div class="sec-head">
+          <span class="sec-title">📈 成长周报</span>
+          <button class="wall-toggle">▸</button>
+        </div>
+        <div class="report-bars">
+          <div class="report-col"><div class="report-wrap"><div class="report-bar" style="height:40%"></div></div><span class="report-date">08-09</span></div>
+          <div class="report-col"><div class="report-wrap"><div class="report-bar" style="height:22%"></div></div><span class="report-date">08-10</span></div>
+          <div class="report-col"><div class="report-wrap"><div class="report-bar" style="height:55%"></div></div><span class="report-date">08-11</span></div>
+          <div class="report-col"><div class="report-wrap"><div class="report-bar" style="height:34%"></div></div><span class="report-date">08-12</span></div>
+          <div class="report-col"><div class="report-wrap"><div class="report-bar" style="height:72%"></div></div><span class="report-date">08-13</span></div>
+          <div class="report-col"><div class="report-wrap"><div class="report-bar" style="height:48%"></div></div><span class="report-date">08-14</span></div>
+          <div class="report-col"><div class="report-wrap"><div class="report-bar" style="height:100%"></div></div><span class="report-date">08-15</span></div>
+        </div>
+        <div class="report-legend">最近 7 天 XP</div>
       </div>
 
     </div>
