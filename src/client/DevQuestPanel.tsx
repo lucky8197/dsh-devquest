@@ -296,6 +296,37 @@ function loadPanelPos(): { left: number; top: number } | null {
   }
 }
 
+// ---------------------------------------------------------------------------
+// 分区折叠状态：持久化到 localStorage，重开面板记住上次折叠/展开。
+// ---------------------------------------------------------------------------
+
+const PANEL_COLLAPSED_KEY = 'dsh.devquest.collapsed'
+
+/** 读取已保存的分区折叠状态（section id → true=折叠）。损坏/不存在时返回空（全部展开）。 */
+function loadCollapsed(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(PANEL_COLLAPSED_KEY)
+    if (raw === null) return {}
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    const out: Record<string, boolean> = {}
+    for (const [id, v] of Object.entries(parsed)) {
+      if (v === true) out[id] = true
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
+/** 保存分区折叠状态。 */
+function saveCollapsed(collapsed: Record<string, boolean>): void {
+  try {
+    localStorage.setItem(PANEL_COLLAPSED_KEY, JSON.stringify(collapsed))
+  } catch {
+    // 隐私模式等场景忽略持久化失败
+  }
+}
+
 /** 限制面板位置：四周至少保留 MIN_VISIBLE 可见，拖不丢。 */
 function clampPanelPos(left: number, top: number, width: number, height: number): { left: number; top: number } {
   const minLeft = Math.min(MIN_VISIBLE - width, 0)
@@ -360,9 +391,16 @@ export function DevQuestPanelCard(
   const [importing, setImporting] = useState(false)
   const [weeklyClaiming, setWeeklyClaiming] = useState(false)
   const [sharing, setSharing] = useState(false)
-  // 统一折叠状态：section id → 是否折叠（true=隐藏内容）。默认全部展开。
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
-  const toggleSection = (id: string): void => setCollapsed(cur => ({ ...cur, [id]: !(cur[id] ?? false) }))
+  // 统一折叠状态：section id → 是否折叠（true=隐藏内容）。
+  // 从 localStorage 恢复上次状态（重开面板不再默认全部展开）。
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(loadCollapsed)
+  const toggleSection = (id: string): void => {
+    setCollapsed(cur => {
+      const next = { ...cur, [id]: !(cur[id] ?? false) }
+      saveCollapsed(next)
+      return next
+    })
+  }
   const isCollapsed = (id: string): boolean => collapsed[id] === true
   // 面板位置：null = 默认右上角；拖拽后保存到 localStorage。
   const [pos, setPos] = useState<{ left: number; top: number } | null>(loadPanelPos)
