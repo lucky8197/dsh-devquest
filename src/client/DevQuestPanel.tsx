@@ -350,6 +350,10 @@ export function DevQuestPanelCard(
   const { useStore, actions, t, refresh } = props
   const state: DevQuestUiState = useStore(snapshot => snapshot)
   const [category, setCategory] = useState<(typeof CATEGORY_KEYS)[number]>('journey')
+  // 成就墙筛选：名称搜索 + 稀有度 + 解锁状态
+  const [wallSearch, setWallSearch] = useState('')
+  const [wallRarity, setWallRarity] = useState<'all' | 'common' | 'rare' | 'epic' | 'legendary'>('all')
+  const [wallStatus, setWallStatus] = useState<'all' | 'unlocked' | 'locked'>('all')
   const [hover, setHover] = useState<{ a: DevQuestStatus['achievements'][number]; x: number; y: number } | null>(null)
   const [claiming, setClaiming] = useState(false)
   const [buying, setBuying] = useState<string | null>(null)
@@ -372,6 +376,22 @@ export function DevQuestPanelCard(
     })
   }
   const isCollapsed = (id: string): boolean => collapsed[id] === true
+  /** 全部面板分区 id（一键折叠/展开用）。 */
+  const ALL_SECTION_IDS = ['daily', 'shop', 'skins', 'tutorial', 'titles', 'collections', 'recent', 'wall', 'report', 'calendar', 'stats']
+  /** 全部展开。 */
+  const expandAll = (): void => {
+    const next: Record<string, boolean> = {}
+    for (const id of ALL_SECTION_IDS) next[id] = false
+    setCollapsed(next)
+    saveCollapsed(next)
+  }
+  /** 全部折叠。 */
+  const collapseAll = (): void => {
+    const next: Record<string, boolean> = {}
+    for (const id of ALL_SECTION_IDS) next[id] = true
+    setCollapsed(next)
+    saveCollapsed(next)
+  }
   // 面板位置：null = 默认右上角；拖拽后保存到 localStorage。
   const [pos, setPos] = useState<{ left: number; top: number } | null>(loadPanelPos)
   const [dragging, setDragging] = useState(false)
@@ -671,7 +691,7 @@ export function DevQuestPanelCard(
       ctx.fillStyle = '#9daabd'
       ctx.font = '500 17px "Segoe UI", sans-serif'
       ctx.fillText(`回合 ${c.turnsCompleted}   ·   工具 ${c.toolCalls}   ·   待办 ${c.todosCompleted}`, 36, 240)
-      ctx.fillText(`赛季 ${s.season} · ${s.seasonXp} XP   ·   成就 ${s.achievements.filter(a => a.unlocked).length}/44`, 36, 270)
+      ctx.fillText(`赛季 ${s.season} · ${s.seasonXp} XP   ·   成就 ${s.achievements.filter(a => a.unlocked).length}/${s.achievements.length}`, 36, 270)
       // 已解锁成就图标（前 12 个）
       const unlockedIcons = s.achievements.filter(a => a.unlocked).slice(0, 12).map(a => a.icon)
       ctx.font = '26px "Segoe UI Emoji", "Apple Color Emoji", sans-serif'
@@ -724,7 +744,19 @@ export function DevQuestPanelCard(
 
   const unlocked = status.achievements.filter(a => a.unlocked)
   const recent = [...unlocked].sort((a, b) => (b.acquiredAt ?? 0) - (a.acquiredAt ?? 0)).slice(0, 4)
-  const wallItems = status.achievements.filter(a => a.category === category)
+  // 成就墙筛选：分类 + 名称搜索 + 稀有度 + 解锁状态
+  const wallItems = status.achievements
+    .filter(a => a.category === category)
+    .filter(a => {
+      if (wallSearch.trim() !== '') {
+        const q = wallSearch.trim().toLowerCase()
+        if (!a.name.zh.toLowerCase().includes(q) && !a.name.en.toLowerCase().includes(q) && !a.id.toLowerCase().includes(q)) return false
+      }
+      if (wallRarity !== 'all' && a.rarity !== wallRarity) return false
+      if (wallStatus === 'unlocked' && !a.unlocked) return false
+      if (wallStatus === 'locked' && a.unlocked) return false
+      return true
+    })
   const c = status.counters
   const percent = Math.round(levelPercent(status) * 100)
 
@@ -749,6 +781,8 @@ export function DevQuestPanelCard(
       {status.version !== undefined && status.version !== '' && (
         <span style={versionLabelStyle} title={t('dq.version')}>{status.version}</span>
       )}
+      <button type="button" onClick={expandAll} aria-label={t('dq.expandAll')} title={t('dq.expandAll')} style={iconButtonStyle}>⤢</button>
+      <button type="button" onClick={collapseAll} aria-label={t('dq.collapseAll')} title={t('dq.collapseAll')} style={iconButtonStyle}>⤡</button>
       <button type="button" onClick={() => actions.setOpen(false)} aria-label={t('dq.close')} style={iconButtonStyle}><CloseIcon /></button>
     </header>
 
@@ -1164,6 +1198,36 @@ export function DevQuestPanelCard(
             </div>
           </div>
         )}
+        {/* 成就墙筛选：搜索 + 稀有度 + 状态 */}
+        <div style={wallFilterRowStyle}>
+          <input
+            type="text"
+            value={wallSearch}
+            onChange={(e) => setWallSearch(e.target.value)}
+            placeholder={t('dq.wallSearch')}
+            style={wallSearchInputStyle}
+          />
+          <select
+            value={wallRarity}
+            onChange={(e) => setWallRarity(e.target.value as typeof wallRarity)}
+            style={wallSelectStyle}
+          >
+            <option value="all">{t('dq.wallRarityAll')}</option>
+            <option value="common">{t('dq.rarity.common')}</option>
+            <option value="rare">{t('dq.rarity.rare')}</option>
+            <option value="epic">{t('dq.rarity.epic')}</option>
+            <option value="legendary">{t('dq.rarity.legendary')}</option>
+          </select>
+          <select
+            value={wallStatus}
+            onChange={(e) => setWallStatus(e.target.value as typeof wallStatus)}
+            style={wallSelectStyle}
+          >
+            <option value="all">{t('dq.wallStatusAll')}</option>
+            <option value="unlocked">{t('dq.wallStatusUnlocked')}</option>
+            <option value="locked">{t('dq.wallStatusLocked')}</option>
+          </select>
+        </div>
         <div style={tabsStyle}>
           {CATEGORY_KEYS.map(key => (
             <button
@@ -1176,6 +1240,7 @@ export function DevQuestPanelCard(
             </button>
           ))}
         </div>
+        {wallItems.length === 0 && <div style={emptyStyle}>{t('dq.wallNoMatch')}</div>}
         <div style={wallGridStyle}>
           {wallItems.map(a => {
             const locked = !a.unlocked
@@ -1772,6 +1837,31 @@ const itemTimeStyle: CSSProperties = { fontSize: 10, color: TONE.quiet }
 const linkButtonStyle: CSSProperties = { border: 'none', background: 'transparent', color: TONE.muted, cursor: 'pointer', fontSize: 11, padding: '0 4px' }
 
 const tabsStyle: CSSProperties = { display: 'flex', gap: 4, flexWrap: 'wrap' }
+
+/** 成就墙筛选行：搜索框 + 稀有度/状态下拉。 */
+const wallFilterRowStyle: CSSProperties = { display: 'flex', gap: 5, marginBottom: 6, alignItems: 'center' }
+
+const wallSearchInputStyle: CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  border: `1px solid ${TONE.borderStrong}`,
+  borderRadius: 6,
+  padding: '3px 7px',
+  fontSize: 10,
+  color: TONE.text,
+  background: 'transparent',
+  outline: 'none',
+}
+
+const wallSelectStyle: CSSProperties = {
+  border: `1px solid ${TONE.borderStrong}`,
+  borderRadius: 6,
+  padding: '2px 4px',
+  fontSize: 10,
+  color: TONE.text,
+  background: 'transparent',
+  cursor: 'pointer',
+}
 
 const tabStyle: CSSProperties = {
   border: 'none',

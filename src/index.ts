@@ -34,7 +34,7 @@ const PLUGIN_VERSION = pluginVersion()
 import { ACHIEVEMENTS, achievementById, rarityOf } from './achievements.ts'
 import {
   activateTheme, applyTurnDetailed, buildRecordsView, buyShopItem, CATEGORY_IDS, checkAchievements, checkCollections, checkTitles, checkTutorial, claimDailyChest, claimLucky,
-  claimWeeklyBonus, COLLECTION_REWARDS, dailyQuestsDone, dayKey, ensureDaily, ensureWeekly, HISTORY_KEEP, migrateSave, nextTitle, refreshDailyProgress,
+  claimWeeklyBonus, COLLECTION_REWARDS, dailyQuestsDone, dayKey, ensureDaily, ensureWeekly, HISTORY_KEEP, migrateSave, nextTitle, refreshDailyProgress, refreshWeeklyProgress,
   SETTLEMENT_KEEP, setActiveTitle, SHOP_ITEMS, shopBalance, titleFor, TITLE_POOL, TUTORIAL_STEPS, TUTORIAL_TITLE, useReroll, xpToLevel, xpToNext,
 } from './engine.ts'
 import { watchEvents, type SessionAggregate } from './listener.ts'
@@ -199,7 +199,7 @@ export function apply(ctx: Context, config: Config = {}): void {
 
   /** 组装每周挑战视图。 */
   function buildWeekly(save: SaveData, now: number): DevQuestStatus['weekly'] {
-    const weekly = ensureWeekly(save, now)
+    const weekly = refreshWeeklyProgress(save, now)
     return {
       week: weekly.week,
       quests: weekly.quests.map(q => ({ id: q.id, label: q.label, goal: q.goal, reward: q.reward, progress: q.progress, done: q.done })),

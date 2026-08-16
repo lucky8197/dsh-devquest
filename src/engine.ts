@@ -598,7 +598,8 @@ export function applyWeekly(save: SaveData, now: number): number {
   const weekly = ensureWeekly(save, now)
   let gain = 0
   for (const q of weekly.quests) {
-    if (q.done) continue
+    // 以 claimedAt 为「已发奖」标记：面板进度同步只改 done，不影响发奖。
+    if (q.claimedAt !== undefined) continue
     const def = WEEKLY_QUEST_POOL.find(d => d.id === q.id)
     if (def === undefined) continue
     q.progress = Math.min(def.progress(save.counters), q.goal)
@@ -609,6 +610,21 @@ export function applyWeekly(save: SaveData, now: number): number {
     }
   }
   return gain
+}
+
+/**
+ * 每周挑战进度即时同步（纯展示，不发奖）：从计数器重算 progress/done，
+ * 让面板/工具不用等下一个回合结算就能看到最新进度。发奖仍由 applyWeekly 执行。
+ */
+export function refreshWeeklyProgress(save: SaveData, now: number): WeeklyQuestState {
+  const weekly = ensureWeekly(save, now)
+  for (const q of weekly.quests) {
+    const def = WEEKLY_QUEST_POOL.find(d => d.id === q.id)
+    if (def === undefined) continue
+    q.progress = Math.min(def.progress(save.counters), q.goal)
+    if (q.progress >= q.goal) q.done = true
+  }
+  return weekly
 }
 
 /** 领取每周全清奖励（3 个全完成可领一次 +100 XP）。 */
