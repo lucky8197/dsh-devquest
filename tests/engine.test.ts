@@ -866,7 +866,10 @@ test('商店：商品表完备（4 类商品齐备）', () => {
   assert.ok(kinds.has('reroll'))
   assert.ok(kinds.has('theme'))
   assert.ok(kinds.has('badge'))
-  assert.ok(SHOP_ITEMS.length >= 8)
+  assert.ok(SHOP_ITEMS.length >= 12)
+  // v0.11.0：7 款主题皮肤
+  const themeCount = SHOP_ITEMS.filter(i => i.kind === 'theme').length
+  assert.equal(themeCount, 7)
 })
 
 test('连击保险：失误回合消耗一个，连击不清零', () => {
