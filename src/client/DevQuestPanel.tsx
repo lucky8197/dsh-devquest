@@ -60,6 +60,9 @@ const SKIN_PALETTES: Record<string, { brand: string; warn: string; success: stri
   'theme-ocean': { brand: '#1f9e8f', warn: '#2f8fb3', success: '#1f9e8f', overlay: '#f1faf8', layer2: '#e2f3ef' },
   'theme-sakura': { brand: '#e2637f', warn: '#d98aa0', success: '#e2637f', overlay: '#fef5f7', layer2: '#fdeaf0' },
   'theme-royal': { brand: '#8a5cf0', warn: '#a06cd5', success: '#8a5cf0', overlay: '#f7f4fd', layer2: '#eee7fb' },
+  'theme-gold': { brand: '#c9a227', warn: '#b8860b', success: '#c9a227', overlay: '#fdfaf1', layer2: '#f8f1de' },
+  'theme-peach': { brand: '#f08a6b', warn: '#e88a7a', success: '#f08a6b', overlay: '#fef7f3', layer2: '#fdeee6' },
+  'theme-neon': { brand: '#6b5cf0', warn: '#b05ce0', success: '#6b5cf0', overlay: '#f6f4fe', layer2: '#ece8fc' },
 }
 
 /**
@@ -300,6 +303,54 @@ function saveCollapsed(collapsed: Record<string, boolean>): void {
   }
 }
 
+// ---------------------------------------------------------------------------
+// v1.2.0 面板设置：字号 / 紧凑模式 / toast 过滤（localStorage 持久化）
+// ---------------------------------------------------------------------------
+
+const PANEL_SETTINGS_KEY = 'dsh.devquest.settings'
+
+export interface DevQuestSettings {
+  /** 面板字号缩放（0.85 - 1.2）。 */
+  fontSize: number
+  /** 紧凑模式：缩小间距/字号。 */
+  compact: boolean
+  /** toast 过滤：all=全部；rare=仅稀有及以上；off=关闭。 */
+  toastFilter: 'all' | 'rare' | 'off'
+}
+
+const DEFAULT_SETTINGS: DevQuestSettings = { fontSize: 1, compact: false, toastFilter: 'all' }
+
+function loadSettings(): DevQuestSettings {
+  try {
+    const raw = localStorage.getItem(PANEL_SETTINGS_KEY)
+    if (raw === null) return { ...DEFAULT_SETTINGS }
+    const p = JSON.parse(raw) as Partial<DevQuestSettings>
+    return {
+      fontSize: typeof p.fontSize === 'number' && p.fontSize >= 0.85 && p.fontSize <= 1.2 ? p.fontSize : DEFAULT_SETTINGS.fontSize,
+      compact: p.compact === true,
+      toastFilter: p.toastFilter === 'rare' || p.toastFilter === 'off' ? p.toastFilter : 'all',
+    }
+  } catch {
+    return { ...DEFAULT_SETTINGS }
+  }
+}
+
+function saveSettings(s: DevQuestSettings): void {
+  try {
+    localStorage.setItem(PANEL_SETTINGS_KEY, JSON.stringify(s))
+  } catch {
+    // 忽略
+  }
+}
+
+/** 稀有度权重（toast 过滤用）。 */
+const RARITY_WEIGHT = { common: 0, rare: 1, epic: 2, legendary: 3 } as const
+
+/** 稀有度 → 权重。 */
+function rarityWeight(r: string): number {
+  return RARITY_WEIGHT[r as keyof typeof RARITY_WEIGHT] ?? 0
+}
+
 /** 限制面板位置：四周至少保留 MIN_VISIBLE 可见，拖不丢。 */
 function clampPanelPos(left: number, top: number, width: number, height: number): { left: number; top: number } {
   const minLeft = Math.min(MIN_VISIBLE - width, 0)
@@ -370,6 +421,15 @@ export function DevQuestPanelCard(
   const [sharing, setSharing] = useState(false)
   // v1.1 未完成任务提醒：当天 20:00 后提醒一次（localStorage 记日期防重复）。
   const [questReminderMsg, setQuestReminderMsg] = useState<string | null>(null)
+  // v1.2.0 面板设置：字号 / 紧凑 / toast 过滤（localStorage 持久化）。
+  const [settings, setSettings] = useState<DevQuestSettings>(loadSettings)
+  const updateSettings = (patch: Partial<DevQuestSettings>): void => {
+    setSettings(cur => {
+      const next = { ...cur, ...patch }
+      saveSettings(next)
+      return next
+    })
+  }
   // 统一折叠状态：section id → 是否折叠（true=隐藏内容）。
   // 从 localStorage 恢复上次状态（重开面板不再默认全部展开）。
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(loadCollapsed)
@@ -382,7 +442,7 @@ export function DevQuestPanelCard(
   }
   const isCollapsed = (id: string): boolean => collapsed[id] === true
   /** 全部面板分区 id（一键折叠/展开用）。 */
-  const ALL_SECTION_IDS = ['ritual', 'daily', 'weekly', 'shop', 'skins', 'tutorial', 'titles', 'collections', 'pokedex', 'recent', 'wall', 'report', 'calendar', 'stats']
+  const ALL_SECTION_IDS = ['ritual', 'daily', 'weekly', 'shop', 'skins', 'tutorial', 'titles', 'collections', 'pokedex', 'recent', 'wall', 'report', 'calendar', 'stats', 'settings']
   /** 全部展开。 */
   const expandAll = (): void => {
     const next: Record<string, boolean> = {}
@@ -775,6 +835,68 @@ export function DevQuestPanelCard(
     }
   }, [sharing, state.status, t])
 
+  /** 生成赛季报告分享卡片（canvas → PNG 下载）。 */
+  const shareSeason = useCallback(async (): Promise<void> => {
+    if (sharing || state.status === null) return
+    setSharing(true)
+    try {
+      const s = state.status
+      const c = s.counters
+      const canvas = document.createElement('canvas')
+      canvas.width = 640
+      canvas.height = 460
+      const ctx = canvas.getContext('2d')
+      if (ctx === null) throw new Error('no-canvas')
+      // 深色渐变背景
+      const grad = ctx.createLinearGradient(0, 0, 640, 460)
+      grad.addColorStop(0, '#101722')
+      grad.addColorStop(1, '#1d2735')
+      ctx.fillStyle = grad
+      ctx.fillRect(0, 0, 640, 460)
+      ctx.strokeStyle = 'rgba(246,198,82,0.5)'
+      ctx.lineWidth = 2
+      ctx.strokeRect(12, 12, 616, 436)
+      // 标题
+      ctx.fillStyle = '#8ec5ff'
+      ctx.font = '700 22px "Segoe UI", sans-serif'
+      ctx.fillText('⚔️ DevQuest · 赛季报告', 36, 56)
+      ctx.fillStyle = '#9daabd'
+      ctx.font = '500 16px "Segoe UI", sans-serif'
+      ctx.fillText(`赛季 ${s.season} · Lv.${s.level} ${s.title.zh}`, 36, 84)
+      // 核心数据
+      ctx.fillStyle = '#f2f6fc'
+      ctx.font = '600 18px "Segoe UI", sans-serif'
+      ctx.fillText(`本赛季 XP: ${s.seasonXp}`, 36, 130)
+      ctx.fillText(`最高连击: ${Math.max(c.consecutiveSuccess, ...(s.records ?? []).map(r => r.combo))}`, 36, 162)
+      ctx.fillText(`连续活跃: ${s.streak?.best ?? c.streakDays} 天`, 36, 194)
+      ctx.fillText(`成就: ${s.achievements.filter(a => a.unlocked).length}/${s.achievements.length}`, 36, 226)
+      // 工具 TOP5
+      ctx.fillStyle = '#f6c652'
+      ctx.font = '600 15px "Segoe UI", sans-serif'
+      ctx.fillText('工具 TOP5', 36, 268)
+      ctx.fillStyle = '#9daabd'
+      ctx.font = '500 15px "Segoe UI", sans-serif'
+      const top = Object.entries(c.toolCallsByTool).sort((a, b) => b[1] - a[1]).slice(0, 5)
+      for (let i = 0; i < top.length; i++) {
+        ctx.fillText(`${i + 1}. ${top[i]![0]}  ${top[i]![1]}`, 36, 292 + i * 26)
+      }
+      // 底部水印
+      ctx.fillStyle = '#718096'
+      ctx.font = '400 13px "Segoe UI", sans-serif'
+      ctx.fillText('DevQuest — 把开发变成 RPG', 36, 440)
+      // 下载
+      const a = document.createElement('a')
+      a.href = canvas.toDataURL('image/png')
+      a.download = `devquest-season-${s.season}.png`
+      a.click()
+      setShopMsg({ ok: true, text: t('dq.shareDone') })
+    } catch {
+      setShopMsg({ ok: false, text: t('dq.shareFailed') })
+    } finally {
+      setSharing(false)
+    }
+  }, [sharing, state.status, t])
+
   const status = state.status
   // 位置：拖拽后 left/top；未拖过则默认右上角。
   const positionStyle: CSSProperties = pos !== null
@@ -828,7 +950,13 @@ export function DevQuestPanelCard(
 
   return <section
     ref={cardRef}
-    style={{ ...cardStyle, ...positionStyle, ...(dragging ? cardDraggingStyle : {}), ...themeVars(status.shop?.theme ?? '') }}
+    style={{
+      ...cardStyle,
+      ...positionStyle,
+      ...(dragging ? cardDraggingStyle : {}),
+      ...themeVars(status.shop?.theme ?? ''),
+      fontSize: settings.fontSize * (settings.compact ? 0.9 : 1),
+    }}
     data-devquest
     onPointerDown={onCardPointerDown}
     onPointerMove={onCardPointerMove}
@@ -1208,6 +1336,9 @@ export function DevQuestPanelCard(
           <button type="button" onClick={() => void shareCard()} disabled={sharing} style={shareButtonStyle}>
             {sharing ? '…' : `📤 ${t('dq.share')}`}
           </button>
+          <button type="button" onClick={() => void shareSeason()} disabled={sharing} style={shareButtonStyle}>
+            {sharing ? '…' : `📊 ${t('dq.shareSeason')}`}
+          </button>
         </div>
         <div style={titleListStyle}>
           <button
@@ -1284,7 +1415,7 @@ export function DevQuestPanelCard(
       <SectionCard
         id="pokedex"
         title={`📖 ${t('dq.pokedex')}`}
-        right={<span style={updatedStyle}>{t('dq.pokedexOverall', { pct: Math.round(((unlocked.length / Math.max(status.achievements.length, 1)) + ((status.shop?.themes ?? []).length / 7) + ((status.titles?.items ?? []).filter(t => t.unlocked).length / Math.max(status.titles?.items?.length ?? 1, 1))) / 3 * 100) })}%</span>}
+        right={<span style={updatedStyle}>{t('dq.pokedexOverall', { pct: Math.round(((unlocked.length / Math.max(status.achievements.length, 1)) + ((status.shop?.themes ?? []).length / Math.max(status.shop?.items.filter(i => i.kind === 'theme').length, 1)) + ((status.titles?.items ?? []).filter(t => t.unlocked).length / Math.max(status.titles?.items?.length ?? 1, 1))) / 3 * 100) })}%</span>}
         collapsed={isCollapsed('pokedex')}
         onToggle={() => toggleSection('pokedex')}
       >
@@ -1301,9 +1432,9 @@ export function DevQuestPanelCard(
             <span style={pokedexIconStyle}>🎨</span>
             <span style={pokedexNameStyle}>{t('dq.pokedexSkin')}</span>
             <div style={pokedexTrackStyle}>
-              <div style={{ ...pokedexFillStyle, width: `${Math.round((status.shop?.themes ?? []).length / 7 * 100)}%` }} />
+              <div style={{ ...pokedexFillStyle, width: `${Math.round((status.shop?.themes ?? []).length / Math.max(status.shop?.items.filter(i => i.kind === 'theme').length, 1) * 100)}%` }} />
             </div>
-            <span style={pokedexNumStyle}>{(status.shop?.themes ?? []).length}/7</span>
+            <span style={pokedexNumStyle}>{(status.shop?.themes ?? []).length}/{status.shop?.items.filter(i => i.kind === 'theme').length ?? 0}</span>
           </div>
           <div style={pokedexItemStyle}>
             <span style={pokedexIconStyle}>🏷️</span>
@@ -1543,6 +1674,41 @@ export function DevQuestPanelCard(
           )}
         </div>
       </SectionCard>
+
+      {/* 设置：字号 / 紧凑模式 / toast 过滤 */}
+      <SectionCard
+        id="settings"
+        title={`⚙️ ${t('dq.settings')}`}
+        collapsed={isCollapsed('settings')}
+        onToggle={() => toggleSection('settings')}
+      >
+        <div style={settingsRowStyle}>
+          <span style={settingsLabelStyle}>{t('dq.settingsFont')}</span>
+          <div style={settingsControlStyle}>
+            <button type="button" onClick={() => updateSettings({ fontSize: Math.max(0.85, Math.round((settings.fontSize - 0.1) * 100) / 100) })} style={settingsBtnStyle}>−</button>
+            <span style={settingsValueStyle}>{Math.round(settings.fontSize * 100)}%</span>
+            <button type="button" onClick={() => updateSettings({ fontSize: Math.min(1.2, Math.round((settings.fontSize + 0.1) * 100) / 100) })} style={settingsBtnStyle}>+</button>
+          </div>
+        </div>
+        <div style={settingsRowStyle}>
+          <span style={settingsLabelStyle}>{t('dq.settingsCompact')}</span>
+          <button type="button" onClick={() => updateSettings({ compact: !settings.compact })} style={{ ...settingsToggleStyle, ...(settings.compact ? settingsToggleOnStyle : {}) }}>
+            {settings.compact ? t('dq.on') : t('dq.off')}
+          </button>
+        </div>
+        <div style={settingsRowStyle}>
+          <span style={settingsLabelStyle}>{t('dq.settingsToast')}</span>
+          <select
+            value={settings.toastFilter}
+            onChange={(e) => updateSettings({ toastFilter: e.target.value as DevQuestSettings['toastFilter'] })}
+            style={wallSelectStyle}
+          >
+            <option value="all">{t('dq.settingsToastAll')}</option>
+            <option value="rare">{t('dq.settingsToastRare')}</option>
+            <option value="off">{t('dq.settingsToastOff')}</option>
+          </select>
+        </div>
+      </SectionCard>
     </div>
   </section>
 }
@@ -1756,9 +1922,19 @@ export function DevQuestOverlay(props: DevQuestOverlayProps): ReactElement {
     )}
     {state.toasts.length > 0 && state.status !== null && (
       <div style={toastStackStyle}>
-        {state.toasts.map(toast => (
-          <DevQuestToast key={toast.id} toast={toast} status={state.status!} actions={actions} t={t} />
-        ))}
+        {(() => {
+          // v1.2.0 toast 过滤：按设置过滤（rare=仅稀有及以上；off=全关）。localStorage 即时读取。
+          const filter = loadSettings().toastFilter
+          const visible = filter === 'off' ? [] : state.toasts.filter(toast => {
+            if (filter === 'all') return true
+            if (toast.kind !== 'achievement') return true // 回合结算 toast 不受稀有度过滤
+            const def = state.status?.achievements.find(a => a.id === toast.achievementId)
+            return def !== undefined && rarityWeight(def.rarity) >= rarityWeight('rare')
+          })
+          return visible.map(toast => (
+            <DevQuestToast key={toast.id} toast={toast} status={state.status!} actions={actions} t={t} />
+          ))
+        })()}
       </div>
     )}
     {celebration !== null && (
@@ -2273,6 +2449,45 @@ const pokedexFillStyle: CSSProperties = {
 }
 
 const pokedexNumStyle: CSSProperties = { fontSize: 9, color: TONE.quiet, width: 34, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }
+
+/** v1.2.0 设置区。 */
+const settingsRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '3px 0' }
+
+const settingsLabelStyle: CSSProperties = { fontSize: 10, color: TONE.text }
+
+const settingsControlStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 6 }
+
+const settingsValueStyle: CSSProperties = { fontSize: 10, color: TONE.gold, minWidth: 36, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }
+
+const settingsBtnStyle: CSSProperties = {
+  width: 22,
+  height: 22,
+  border: `1px solid ${TONE.borderStrong}`,
+  borderRadius: 6,
+  background: 'transparent',
+  color: TONE.text,
+  fontSize: 12,
+  cursor: 'pointer',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+}
+
+const settingsToggleStyle: CSSProperties = {
+  border: `1px solid ${TONE.borderStrong}`,
+  borderRadius: 6,
+  padding: '2px 10px',
+  fontSize: 10,
+  color: TONE.quiet,
+  background: 'transparent',
+  cursor: 'pointer',
+}
+
+const settingsToggleOnStyle: CSSProperties = {
+  color: 'var(--dsw-alias-label-primary, #1a2230)',
+  background: 'color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 30%, transparent)',
+  borderColor: 'color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 55%, transparent)',
+}
 
 const passTrackStyle: CSSProperties = { display: 'flex', gap: 3, flex: 1 }
 

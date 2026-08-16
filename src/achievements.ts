@@ -529,6 +529,60 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     check: s => s.counters.consecutiveSuccess >= 40,
     progress: countProgress(s => s.counters.consecutiveSuccess, 40),
   },
+  // v1.2.0 新成就
+  {
+    id: 'turns_500',
+    category: 'journey',
+    name: { zh: '五百回合', en: 'Quincentenary' },
+    description: { zh: '累计完成 500 个回合', en: 'Complete 500 turns in total' },
+    icon: '⚔️',
+    xp: 800,
+    check: s => s.counters.turnsCompleted >= 500,
+    progress: countProgress(s => s.counters.turnsCompleted, 500),
+  },
+  {
+    id: 'edits_1000',
+    category: 'crafting',
+    name: { zh: '千锤百炼', en: 'Thousand Hammers' },
+    description: { zh: '累计 1000 次编辑/写入', en: '1000 edits or writes in total' },
+    icon: '🔨',
+    xp: 800,
+    check: s => s.counters.craftTools >= 1000,
+    progress: countProgress(s => s.counters.craftTools, 1000),
+  },
+  {
+    id: 'daily_quest_50',
+    category: 'quest',
+    name: { zh: '任务宗师', en: 'Quest Grandmaster' },
+    description: { zh: '累计完成 50 个每日任务', en: 'Complete 50 daily quests in total' },
+    icon: '🏅',
+    xp: 600,
+    check: s => s.counters.dailyQuestsDone >= 50,
+    progress: countProgress(s => s.counters.dailyQuestsDone, 50),
+  },
+  {
+    id: 'streak_14',
+    category: 'time',
+    name: { zh: '双周之约', en: 'Fortnight' },
+    description: { zh: '连续 14 天活跃', en: 'Stay active 14 days in a row' },
+    icon: '📅',
+    xp: 400,
+    check: s => s.counters.streakDays >= 14,
+    progress: countProgress(s => s.counters.streakDays, 14),
+  },
+  {
+    id: 'lunch_break',
+    category: 'egg',
+    name: { zh: '午间小憩', en: 'Lunch Break' },
+    description: { zh: '12:00-13:00 之间完成回合', en: 'Complete a turn between 12:00 and 13:00' },
+    icon: '🍚',
+    xp: 150,
+    hidden: true,
+    check: (s, now) => {
+      const h = hourOf(now)
+      return h >= 12 && h < 13 && s.counters.turnsCompleted >= 1
+    },
+  },
 ]
 
 /** 按 id 查成就（未命中返回 undefined）。 */
@@ -592,6 +646,12 @@ export const ACHIEVEMENT_RARITY: Record<string, 'common' | 'rare' | 'epic' | 'le
   keyboard_warrior: 'epic',
   midnight_bell: 'epic',
   combo_master: 'epic',
+  // v1.2.0
+  turns_500: 'legendary',
+  edits_1000: 'legendary',
+  daily_quest_50: 'legendary',
+  streak_14: 'epic',
+  lunch_break: 'rare',
 }
 
 /** 取成就稀有度（缺省 common）。 */

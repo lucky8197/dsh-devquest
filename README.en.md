@@ -5,7 +5,7 @@
 > DevQuest is a DSH plugin: every turn, tool call, todo and token output in your agent is converted into XP by fixed rules. XP raises your level, levels unlock titles, and achievements track how far you've come. Install it and do nothing else — normal work scores automatically.
 
 <p align="center">
-  <strong>📅 Daily Quests + Chest</strong> · <strong>🗓️ Weekly Challenges</strong> · <strong>🎁 Daily Lucky Draw</strong> · <strong>🛒 Season Shop</strong> · <strong>🎨 Theme Skins</strong> · <strong>🏆 47 Achievements + Rarity</strong> · <strong>🏷️ Multiple Titles</strong> · <strong>📊 Stats + Hall of Fame</strong>
+  <strong>📅 Daily Quests + Chest</strong> · <strong>🗓️ Weekly Challenges</strong> · <strong>🎁 Daily Lucky Draw</strong> · <strong>🛒 Season Shop</strong> · <strong>🎨 Theme Skins</strong> · <strong>🏆 52 Achievements + Rarity</strong> · <strong>🏷️ Multiple Titles</strong> · <strong>📊 Stats + Hall of Fame</strong>
 </p>
 
 <p align="center">
@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen" alt="0 runtime dependencies">
   <a href="https://github.com/lucky8197/dsh-devquest/actions/workflows/test.yml"><img src="https://github.com/lucky8197/dsh-devquest/actions/workflows/test.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/tests-92%20%E2%9C%93-brightgreen" alt="92 tests passing">
-  <img src="https://img.shields.io/badge/achievements-47-gold" alt="47 achievements">
+  <img src="https://img.shields.io/badge/achievements-52-gold" alt="52 achievements">
 </p>
 
 ---
@@ -90,7 +90,7 @@ Levels at multiples of 5 (Lv.5/10/15…) trigger a full-screen golden confetti c
 
 ### 📅 Daily Quests
 
-**3 random quests per day** (deterministic by date, 21-quest pool, same for everyone):
+**3 random quests per day** (deterministic by date, 24-quest pool, same for everyone):
 
 - 🗡️ Finish 5/15/30 turns · 🧰 Call 20/50/100 tools
 - ✏️ 10/20 edits · ⌨️ 10/20 commands · 📋 5/10 todos · 📝 50k/150k tokens
@@ -125,7 +125,7 @@ Level titles follow your level; conditional titles unlock through real effort �
 | 🗡️ Sword Smith | 500 edits/writes |
 | 🏇 Centurion | 100 turns completed |
 | 🌙 Month Warden | 30 consecutive active days |
-| 👑 All-Rounder | Unlock all 47 achievements |
+| 👑 All-Rounder | Unlock all 52 achievements |
 
 ### 📤 Share Card
 
@@ -159,7 +159,7 @@ Lv.20+     Legend
 
 **One player, one save** (`~/.dsh/devquest/player.json`): shared across all sessions/projects. Legacy per-project saves auto-merge on upgrade; event watermark dedup prevents double-counting on replay.
 
-### 🏆 47 Achievements · Six Categories
+### 🏆 52 Achievements · Six Categories
 
 **Journey** First Steps → Centurion → 250 turns → Iron Will → Never Give Up
 **Crafting** First Edit → Hundred Edits → SSH First → Sword Smith → Subagent Commander
@@ -171,7 +171,7 @@ Lv.20+     Legend
 
 - Quantifiable achievements show progress bars; the wall keeps a「Next milestone」guide
 - Rarity tiers color + glow the unlock toast and wall cells (common/rare/epic/legendary)
-- **Collections**: complete a category for a one-time XP bonus (Journey 9→+300, Crafting 10→+400, Quest 7→+300, Time 6→+400, Legend 7→+800, Egg 8→+500)
+- **Collections**: complete a category for a one-time XP bonus (Journey 10→+300, Crafting 11→+400, Quest 8→+300, Time 7→+400, Legend 7→+800, Egg 9→+500)
 
 ## 🖥️ Screenshot
 

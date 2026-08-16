@@ -5,7 +5,7 @@
 > DevQuest 是一个 DSH 插件：你在 agent 里做的回合、工具调用、待办、输出 tokens，都会按规则换算成 XP。XP 推等级，等级出称号，成就记录你走到哪一步。装好之后不用做任何额外操作，正常干活就会自动计分。
 
 <p align="center">
-  <strong>📅 每日任务+宝箱</strong> · <strong>🗓️ 每周挑战</strong> · <strong>🎁 每日幸运抽奖</strong> · <strong>🛒 赛季商店</strong> · <strong>🎨 主题皮肤</strong> · <strong>🏆 47 枚成就+稀有度</strong> · <strong>🏷️ 多称号</strong> · <strong>📊 统计+荣誉墙</strong>
+  <strong>📅 每日任务+宝箱</strong> · <strong>🗓️ 每周挑战</strong> · <strong>🎁 每日幸运抽奖</strong> · <strong>🛒 赛季商店</strong> · <strong>🎨 主题皮肤</strong> · <strong>🏆 52 枚成就+稀有度</strong> · <strong>🏷️ 多称号</strong> · <strong>📊 统计+荣誉墙</strong>
 </p>
 
 <p align="center">
@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen" alt="0 runtime dependencies">
   <a href="https://github.com/lucky8197/dsh-devquest/actions/workflows/test.yml"><img src="https://github.com/lucky8197/dsh-devquest/actions/workflows/test.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/tests-92%20%E2%9C%93-brightgreen" alt="92 tests passing">
-  <img src="https://img.shields.io/badge/achievements-47-gold" alt="47 achievements">
+  <img src="https://img.shields.io/badge/achievements-52-gold" alt="52 achievements">
 </p>
 
 <p align="center">
@@ -79,6 +79,9 @@
 | 🌊 深海 | 300 | 深海青碧配色 |
 | 🌸 樱花 | 300 | 樱花粉配色 |
 | 💜 紫晶 | 300 | 紫晶紫罗兰配色 |
+| ✨ 鎏金 | 300 | 鎏金黄配色 |
+| 🍑 蜜桃 | 300 | 蜜桃粉橙配色 |
+| 🌌 霓虹 | 300 | 霓虹蓝紫配色 |
 
 已购皮肤在分区里显示「使用中 / 使用」：点「使用」一键切换，不用重新购买；未购的直接显示价格购买。
 
@@ -137,7 +140,7 @@
 
 ### 📅 每日任务
 
-每天 **3 个随机任务**（按日期确定性抽取，同一天所有玩家看到的都一样，21 种任务池）：
+每天 **3 个随机任务**（按日期确定性抽取，同一天所有玩家看到的都一样，24 种任务池）：
 
 - 🗡️ 完成 5 / 15 / 30 个回合
 - 🧰 调用 20 / 50 / 100 次工具
@@ -198,7 +201,7 @@
 | 🗡️ 铸剑大师 | 累计 500 次编辑/写入 |
 | 🏇 百回战将 | 累计完成 100 个回合 |
 | 🌙 月之守护 | 连续 30 天活跃 |
-| 👑 全成就之主 | 解锁全部 47 枚成就 |
+| 👑 全成就之主 | 解锁全部 52 枚成就 |
 
 ```
 🏷️ 称号
@@ -220,7 +223,7 @@
 │  Lv.21   铸剑大师                       │
 │  ▓▓▓▓▓▓▓▓▓▓░░░░░░  1200/9624 XP       │
 │  回合 42 · 工具 666 · 待办 15           │
-│  赛季 2026-S3 · 850 XP · 成就 30/47    │
+│  赛季 2026-S3 · 850 XP · 成就 30/52    │
 │  🚶🎖️🏅🏆💪🛡️🗿⚒️✏️⌨️🧠📜           │
 │  DevQuest — 把开发变成 RPG              │
 └────────────────────────────────────────┘
@@ -267,7 +270,7 @@ Lv.20+     传说
 - 旧版按项目隔离的存档会在升级时**自动合并**进全局档
 - 事件水位去重，重启重放不会重复计分
 
-### 🏆 47 枚成就 · 六大门类
+### 🏆 52 枚成就 · 六大门类
 
 **旅程** 初出茅庐 → 百回合大师 → 两百五十回合 → 钢铁意志（连续 25 回合零失误）→ 百折不挠（10 次失败后爬起）
 
@@ -296,7 +299,7 @@ Lv.20+     传说
 
 **稀有度：成就也分三六九等** 🎨
 
-47 枚成就按达成难度分级，解锁 toast 与成就墙按稀有度**着色 + 光晕**：
+52 枚成就按达成难度分级，解锁 toast 与成就墙按稀有度**着色 + 光晕**：
 
 ```
 普通   常见、上手即有          （初出茅庐 / 首次编辑）
@@ -311,12 +314,12 @@ Lv.20+     传说
 
 | 分类 | 成就数 | 集齐奖励 |
 |---|---|---|
-| 旅程 | 9 | +300 XP |
-| 锻造 | 10 | +400 XP |
-| 使命 | 7 | +300 XP |
-| 时光 | 6 | +400 XP |
+| 旅程 | 10 | +300 XP |
+| 锻造 | 11 | +400 XP |
+| 使命 | 8 | +300 XP |
+| 时光 | 7 | +400 XP |
 | 传奇 | 7 | +800 XP |
-| 彩蛋 | 8 | +500 XP |
+| 彩蛋 | 9 | +500 XP |
 
 面板「分类收藏」区实时显示每分类进度（如 `7/9`），集齐变 🏅 金色高亮。
 
@@ -367,7 +370,7 @@ Lv.20+     传说
 │  🎯 最近的里程碑 · 五十回合 35/50  │
 │  ▓▓▓▓▓▓▓▓░░░░░░░░   70%          │
 │  ✨ 钢铁意志 Iron Will             │
-│  [成就墙 30/47 ▸]                 │ ← 稀有度光晕、隐藏成就 ❔
+│  [成就墙 30/52 ▸]                 │ ← 稀有度光晕、隐藏成就 ❔
 │  📈 成长周报 ▸                    │ ← 柱状图带回合数
 │  🗓️ 活跃日历 ▓▓░▓▓▓▓░░▓▓▓ ▓▓▓░   │ ← 30 天热力图
 │  📊 统计 ▸                        │ ← 最高连击/工具TOP5
@@ -407,7 +410,7 @@ dsh plugin --profile web add "github:lucky8197/dsh-devquest#main"
 
 ```
 devquest_status        # 等级 / XP / 连击 / 今日任务
-devquest_achievements  # 47 枚成就全清单与解锁状态
+devquest_achievements  # 52 枚成就全清单与解锁状态
 devquest_shop          # 赛季商店：查余额/商品，buy=<商品id> 直接购买
 devquest_daily         # 今日任务+本周挑战简报（纯文本，可配 de_channel 推送到 IM）
 devquest_reset         # 重置存档（危险，需 confirm=true）
