@@ -33,6 +33,10 @@ export interface DevQuestRoutesConfig {
   setTheme: (themeId: string) => Promise<{ ok: boolean; status: DevQuestStatus }>
   /** 领取每周全清奖励；返回是否成功、奖励 XP 与最新状态。 */
   claimWeeklyBonus: () => Promise<{ ok: boolean; gained: number; status: DevQuestStatus }>
+  /** 使用任务跳过卡；返回是否成功与最新状态。 */
+  useQuestSkip: () => Promise<{ ok: boolean; status: DevQuestStatus }>
+  /** 领取赛季通行证档位奖励；返回是否成功、奖励 XP 与最新状态。 */
+  claimPass: (tierId: string) => Promise<{ ok: boolean; gained: number; status: DevQuestStatus }>
   /** 结果缓存时长（毫秒）。默认 60s。 */
   cacheTtlMs?: number
 }
@@ -292,6 +296,54 @@ export function makeDevQuestRoutes(config: DevQuestRoutesConfig): WebRoute[] {
           error: error instanceof Error ? error.message : String(error),
         }),
       )
+    },
+  }, {
+    kind: 'exact',
+    path: `${STATUS_API_PREFIX}/shop/quest-skip`,
+    handler: (req: IncomingMessage, res: ServerResponse): void => {
+      if (req.method !== 'POST') {
+        json(res, 405, { ok: false, error: 'method-not-allowed' })
+        return
+      }
+      config.useQuestSkip().then(
+        (result) => {
+          invalidateCache()
+          json(res, 200, { ok: result.ok, status: result.status })
+        },
+        (error: unknown) => json(res, 500, {
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      )
+    },
+  }, {
+    kind: 'exact',
+    path: `${STATUS_API_PREFIX}/pass/claim`,
+    handler: (req: IncomingMessage, res: ServerResponse): void => {
+      if (req.method !== 'POST') {
+        json(res, 405, { ok: false, error: 'method-not-allowed' })
+        return
+      }
+      readBody(req).then(body => {
+        let tierId = ''
+        try {
+          const parsed = JSON.parse(body) as { tierId?: unknown }
+          if (typeof parsed.tierId === 'string') tierId = parsed.tierId
+        } catch {
+          tierId = ''
+        }
+        if (tierId === '') {
+          json(res, 400, { ok: false, error: 'invalid-tier-id' })
+          return undefined
+        }
+        return config.claimPass(tierId).then((result) => {
+          invalidateCache()
+          json(res, 200, { ok: result.ok, gained: result.gained, status: result.status })
+        })
+      }).then(undefined, (error: unknown) => json(res, 500, {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      }))
     },
   }]
 }

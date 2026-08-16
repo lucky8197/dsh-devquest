@@ -272,6 +272,9 @@ function loadPanelPos(): { left: number; top: number } | null {
 
 const PANEL_COLLAPSED_KEY = 'dsh.devquest.collapsed'
 
+/** v1.1 未完成任务提醒：每日去重 key（记录已提醒的日期）。 */
+const REMINDER_KEY = 'dsh.devquest.questReminder'
+
 /** 读取已保存的分区折叠状态（section id → true=折叠）。损坏/不存在时返回空（全部展开）。 */
 function loadCollapsed(): Record<string, boolean> {
   try {
@@ -365,6 +368,8 @@ export function DevQuestPanelCard(
   const [importing, setImporting] = useState(false)
   const [weeklyClaiming, setWeeklyClaiming] = useState(false)
   const [sharing, setSharing] = useState(false)
+  // v1.1 未完成任务提醒：当天 20:00 后提醒一次（localStorage 记日期防重复）。
+  const [questReminderMsg, setQuestReminderMsg] = useState<string | null>(null)
   // 统一折叠状态：section id → 是否折叠（true=隐藏内容）。
   // 从 localStorage 恢复上次状态（重开面板不再默认全部展开）。
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(loadCollapsed)
@@ -377,7 +382,7 @@ export function DevQuestPanelCard(
   }
   const isCollapsed = (id: string): boolean => collapsed[id] === true
   /** 全部面板分区 id（一键折叠/展开用）。 */
-  const ALL_SECTION_IDS = ['daily', 'weekly', 'shop', 'skins', 'tutorial', 'titles', 'collections', 'recent', 'wall', 'report', 'calendar', 'stats']
+  const ALL_SECTION_IDS = ['ritual', 'daily', 'weekly', 'shop', 'skins', 'tutorial', 'titles', 'collections', 'pokedex', 'recent', 'wall', 'report', 'calendar', 'stats']
   /** 全部展开。 */
   const expandAll = (): void => {
     const next: Record<string, boolean> = {}
@@ -477,6 +482,33 @@ export function DevQuestPanelCard(
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [state.open, actions])
+
+  // v1.1 未完成任务提醒：当天 20:00 后、任务未全清时提醒一次（localStorage 防每日重复）。
+  useEffect(() => {
+    const status = state.status
+    if (status === null) return
+    const now = new Date()
+    if (now.getHours() < 20) return
+    const today = dayKeyLocal()
+    try {
+      if (localStorage.getItem(REMINDER_KEY) === today) return
+    } catch {
+      return
+    }
+    const quests = status.daily?.quests ?? []
+    const pending = quests.filter(q => !q.done).length
+    if (pending === 0) return
+    try {
+      localStorage.setItem(REMINDER_KEY, today)
+    } catch {
+      // 隐私模式忽略
+    }
+    const text = t('dq.reminder', { n: pending })
+    setQuestReminderMsg(text)
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      try { new Notification('DevQuest', { body: text }) } catch { /* 忽略 */ }
+    }
+  }, [state.status, t])
 
   /** 领取每日全清宝箱：POST 后刷新本地状态。 */
   const claimChest = useCallback(async (): Promise<void> => {
@@ -624,6 +656,34 @@ export function DevQuestPanelCard(
       const data = await response.json() as { ok: boolean; status: DevQuestStatus }
       if (data.status !== null && data.status !== undefined) actions.setStatus(data.status)
       if (data.ok) setShopMsg({ ok: true, text: t('dq.themeUsed') })
+    } catch {
+      // 静默失败
+    }
+  }, [actions, t])
+
+  /** 领取赛季通行证档位奖励。 */
+  const claimPassTier = useCallback(async (tierId: string): Promise<void> => {
+    try {
+      const response = await fetch('/api/devquest/pass/claim', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ tierId }),
+      })
+      const data = await response.json() as { ok: boolean; gained: number; status: DevQuestStatus }
+      if (data.status !== null && data.status !== undefined) actions.setStatus(data.status)
+      if (data.ok) setShopMsg({ ok: true, text: t('dq.passClaimed', { xp: data.gained }) })
+    } catch {
+      // 静默失败
+    }
+  }, [actions, t])
+
+  /** 使用任务跳过卡。 */
+  const useQuestSkipCard = useCallback(async (): Promise<void> => {
+    try {
+      const response = await fetch('/api/devquest/shop/quest-skip', { method: 'POST' })
+      const data = await response.json() as { ok: boolean; status: DevQuestStatus }
+      if (data.status !== null && data.status !== undefined) actions.setStatus(data.status)
+      if (data.ok) setShopMsg({ ok: true, text: t('dq.skipUsed') })
     } catch {
       // 静默失败
     }
@@ -818,6 +878,38 @@ export function DevQuestPanelCard(
             </div>
             <span style={sprintDaysStyle}>{t('dq.seasonDaysLeft', { days: seasonDaysLeft(status.season) })}</span>
           </div>
+          {/* v1.1 连续活跃 + 赛季通行证 */}
+          <div style={streakRowStyle}>
+            <span style={streakBadgeStyle} title={t('dq.streakBest', { best: status.streak?.best ?? 0 })}>
+              🔥 {t('dq.streak', { n: status.streak?.days ?? 0 })}
+            </span>
+            {status.streak?.nextTierXp !== null && status.streak !== undefined && (
+              <span style={streakNextStyle}>{t('dq.streakNext', { xp: status.streak.nextTierXp ?? 0 })}</span>
+            )}
+            <span style={boostStockStyle}>
+              {(status.shop?.xpBoostTurns ?? 0) > 0 && `⚡×${status.shop?.xpBoostTurns ?? 0}`}
+              {(status.shop?.questSkips ?? 0) > 0 && ` ⏭️×${status.shop?.questSkips ?? 0}`}
+            </span>
+          </div>
+          {/* 赛季通行证：里程碑进度条 + 可领取档位 */}
+          <div style={passRowStyle}>
+            <span style={sprintLabelStyle}>{t('dq.pass')}</span>
+            <div style={passTrackStyle}>
+              {status.pass?.tiers.map(tier => {
+                const pct = Math.min(100, Math.round((status.pass?.seasonXp ?? 0) / tier.seasonXp * 100))
+                return (
+                  <span
+                    key={tier.id}
+                    style={passTierStyle(tier.reached, tier.claimed)}
+                    title={`${tier.seasonXp} XP · +${tier.xp} XP${tier.claimed ? ' ✓' : tier.reached ? '（可领取）' : ''}`}
+                    onClick={tier.reached && !tier.claimed ? () => void claimPassTier(tier.id) : undefined}
+                  >
+                    {tier.claimed ? '✓' : tier.reached ? '🎁' : ''}
+                  </span>
+                )
+              })}
+            </div>
+          </div>
           <div style={xpTrackStyle}>
             <div style={{ ...xpFillStyle, width: `${percent}%` }} />
           </div>
@@ -836,6 +928,31 @@ export function DevQuestPanelCard(
           </div>
         </div>
       </div>
+
+      {/* 每日开工仪式：问候 + 昨日总结 + 今日目标 */}
+      <SectionCard
+        id="ritual"
+        title={`🌅 ${t('dq.ritual')}`}
+        collapsed={isCollapsed('ritual')}
+        onToggle={() => toggleSection('ritual')}
+      >
+        <div style={ritualStyle}>
+          <div style={ritualGreetingStyle}>{t('dq.ritualGreeting', { level: status.level })}</div>
+          {questReminderMsg !== null && <div style={ritualReminderStyle}>⏰ {questReminderMsg}</div>}
+          {(() => {
+            const todayKey = dayKeyLocal()
+            const yesterday = (status.history ?? []).filter(h => h.date !== todayKey).slice(-1)[0]
+            return yesterday !== undefined
+              ? <div style={ritualSummaryStyle}>{t('dq.ritualYesterday', { xp: yesterday.xp, turns: yesterday.turns })}</div>
+              : <div style={ritualSummaryStyle}>{t('dq.ritualFirst')}</div>
+          })()}
+          <div style={ritualGoalsStyle}>
+            {status.daily?.quests.map(q => (
+              <span key={q.id} style={ritualGoalStyle}>{q.done ? '✅' : '⬜'} {q.label.zh}</span>
+            ))}
+          </div>
+        </div>
+      </SectionCard>
 
       {/* 下一称号预览 + 每日幸运抽奖 */}
       <div style={nextTitleRowStyle}>
@@ -969,6 +1086,11 @@ export function DevQuestPanelCard(
           {(status.shop?.rerolls ?? 0) > 0 && (
             <button type="button" onClick={() => void rerollQuests()} disabled={rerolling} style={rerollButtonStyle}>
               🔀 {rerolling ? '…' : t('dq.shopReroll')}
+            </button>
+          )}
+          {(status.shop?.questSkips ?? 0) > 0 && (
+            <button type="button" onClick={() => void useQuestSkipCard()} style={rerollButtonStyle}>
+              ⏭️ {t('dq.shopSkip')}（×{status.shop!.questSkips}）
             </button>
           )}
         </div>
@@ -1156,6 +1278,42 @@ export function DevQuestPanelCard(
           />
         </label>
       </div>
+      </SectionCard>
+
+      {/* 收藏图鉴总览：成就 / 皮肤 / 称号 完成度 */}
+      <SectionCard
+        id="pokedex"
+        title={`📖 ${t('dq.pokedex')}`}
+        right={<span style={updatedStyle}>{t('dq.pokedexOverall', { pct: Math.round(((unlocked.length / Math.max(status.achievements.length, 1)) + ((status.shop?.themes ?? []).length / 7) + ((status.titles?.items ?? []).filter(t => t.unlocked).length / Math.max(status.titles?.items?.length ?? 1, 1))) / 3 * 100) })}%</span>}
+        collapsed={isCollapsed('pokedex')}
+        onToggle={() => toggleSection('pokedex')}
+      >
+        <div style={pokedexGridStyle}>
+          <div style={pokedexItemStyle}>
+            <span style={pokedexIconStyle}>🏆</span>
+            <span style={pokedexNameStyle}>{t('dq.pokedexAch')}</span>
+            <div style={pokedexTrackStyle}>
+              <div style={{ ...pokedexFillStyle, width: `${Math.round(unlocked.length / Math.max(status.achievements.length, 1) * 100)}%` }} />
+            </div>
+            <span style={pokedexNumStyle}>{unlocked.length}/{status.achievements.length}</span>
+          </div>
+          <div style={pokedexItemStyle}>
+            <span style={pokedexIconStyle}>🎨</span>
+            <span style={pokedexNameStyle}>{t('dq.pokedexSkin')}</span>
+            <div style={pokedexTrackStyle}>
+              <div style={{ ...pokedexFillStyle, width: `${Math.round((status.shop?.themes ?? []).length / 7 * 100)}%` }} />
+            </div>
+            <span style={pokedexNumStyle}>{(status.shop?.themes ?? []).length}/7</span>
+          </div>
+          <div style={pokedexItemStyle}>
+            <span style={pokedexIconStyle}>🏷️</span>
+            <span style={pokedexNameStyle}>{t('dq.pokedexTitle')}</span>
+            <div style={pokedexTrackStyle}>
+              <div style={{ ...pokedexFillStyle, width: `${Math.round((status.titles?.items ?? []).filter(t => t.unlocked).length / Math.max(status.titles?.items?.length ?? 1, 1) * 100)}%` }} />
+            </div>
+            <span style={pokedexNumStyle}>{(status.titles?.items ?? []).filter(t => t.unlocked).length}/{status.titles?.items?.length ?? 0}</span>
+          </div>
+        </div>
       </SectionCard>
 
       {/* 最近成就 */}
@@ -2040,6 +2198,102 @@ const sprintTrackStyle: CSSProperties = { flex: 1, height: 4, borderRadius: 2, b
 const sprintFillStyle: CSSProperties = { height: '100%', borderRadius: 2, background: 'linear-gradient(90deg, var(--dsw-alias-state-warn-primary, #f6c652), var(--dsw-alias-brand-primary, #8ec5ff))' }
 
 const sprintDaysStyle: CSSProperties = { fontSize: 9, color: TONE.muted, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }
+
+/** v1.1 连续活跃行。 */
+const streakRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }
+
+const streakBadgeStyle: CSSProperties = {
+  fontSize: 9,
+  fontWeight: 600,
+  color: 'var(--dsw-alias-label-primary, #1a2230)',
+  background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 22%, transparent)',
+  border: '1px solid color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 50%, transparent)',
+  borderRadius: 99,
+  padding: '2px 7px',
+  whiteSpace: 'nowrap',
+}
+
+const streakNextStyle: CSSProperties = { fontSize: 9, color: TONE.quiet }
+
+const boostStockStyle: CSSProperties = { marginLeft: 'auto', fontSize: 9, color: TONE.gold, whiteSpace: 'nowrap' }
+
+/** v1.1 赛季通行证行。 */
+const passRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }
+
+/** v1.1 每日开工仪式。 */
+const ritualStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 5 }
+
+const ritualGreetingStyle: CSSProperties = { fontSize: 12, fontWeight: 700, color: 'var(--dsw-alias-label-primary, #1a2230)' }
+
+const ritualSummaryStyle: CSSProperties = { fontSize: 10, color: TONE.muted }
+
+const ritualReminderStyle: CSSProperties = {
+  fontSize: 10,
+  fontWeight: 600,
+  color: 'var(--dsw-alias-label-primary, #1a2230)',
+  background: 'color-mix(in srgb, var(--dsw-alias-state-error-primary, #ff8592) 16%, transparent)',
+  border: '1px solid color-mix(in srgb, var(--dsw-alias-state-error-primary, #ff8592) 45%, transparent)',
+  borderRadius: 7,
+  padding: '4px 8px',
+}
+
+const ritualGoalsStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 4 }
+
+const ritualGoalStyle: CSSProperties = {
+  fontSize: 9,
+  color: TONE.text,
+  background: TONE.row,
+  borderRadius: 99,
+  padding: '2px 7px',
+  whiteSpace: 'nowrap',
+}
+
+/** v1.1 收藏图鉴总览。 */
+const pokedexGridStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6 }
+
+const pokedexItemStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 7 }
+
+const pokedexIconStyle: CSSProperties = { fontSize: 14, width: 18, textAlign: 'center' }
+
+const pokedexNameStyle: CSSProperties = { fontSize: 10, color: TONE.text, width: 52, flexShrink: 0 }
+
+const pokedexTrackStyle: CSSProperties = {
+  flex: 1,
+  height: 7,
+  borderRadius: 4,
+  background: 'rgba(120,130,150,0.28)',
+  border: `1px solid ${TONE.border}`,
+  overflow: 'hidden',
+}
+
+const pokedexFillStyle: CSSProperties = {
+  height: '100%',
+  borderRadius: 3,
+  background: 'linear-gradient(90deg, var(--dsw-alias-state-warn-primary, #f6c652), var(--dsw-alias-brand-primary, #8ec5ff))',
+}
+
+const pokedexNumStyle: CSSProperties = { fontSize: 9, color: TONE.quiet, width: 34, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }
+
+const passTrackStyle: CSSProperties = { display: 'flex', gap: 3, flex: 1 }
+
+const passTierStyle = (reached: boolean, claimed: boolean): CSSProperties => ({
+  flex: 1,
+  height: 14,
+  borderRadius: 4,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: 8,
+  lineHeight: 1,
+  cursor: reached && !claimed ? 'pointer' : 'default',
+  background: claimed
+    ? 'color-mix(in srgb, var(--dsw-alias-state-success-primary, #78dda0) 45%, transparent)'
+    : reached
+      ? 'color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 60%, transparent)'
+      : 'color-mix(in srgb, var(--dsw-alias-bg-layer-2, #1d2735) 65%, transparent)',
+  border: `1px solid ${TONE.border}`,
+  color: claimed || reached ? '#1a2230' : TONE.quiet,
+})
 
 /** 商店分区：库存行（保险/重掷）。 */
 const shopBarStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, paddingBottom: 2 }

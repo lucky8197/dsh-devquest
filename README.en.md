@@ -14,7 +14,7 @@
   <a href="https://www.npmjs.com/package/dsh-devquest"><img src="https://img.shields.io/npm/v/dsh-devquest" alt="npm version"></a>
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen" alt="0 runtime dependencies">
   <a href="https://github.com/lucky8197/dsh-devquest/actions/workflows/test.yml"><img src="https://github.com/lucky8197/dsh-devquest/actions/workflows/test.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-87%20%E2%9C%93-brightgreen" alt="87 tests passing">
+  <img src="https://img.shields.io/badge/tests-92%20%E2%9C%93-brightgreen" alt="92 tests passing">
   <img src="https://img.shields.io/badge/achievements-47-gold" alt="47 achievements">
 </p>
 

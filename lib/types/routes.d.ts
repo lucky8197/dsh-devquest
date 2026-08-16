@@ -58,6 +58,17 @@ export interface DevQuestRoutesConfig {
         gained: number;
         status: DevQuestStatus;
     }>;
+    /** 使用任务跳过卡；返回是否成功与最新状态。 */
+    useQuestSkip: () => Promise<{
+        ok: boolean;
+        status: DevQuestStatus;
+    }>;
+    /** 领取赛季通行证档位奖励；返回是否成功、奖励 XP 与最新状态。 */
+    claimPass: (tierId: string) => Promise<{
+        ok: boolean;
+        gained: number;
+        status: DevQuestStatus;
+    }>;
     /** 结果缓存时长（毫秒）。默认 60s。 */
     cacheTtlMs?: number;
 }

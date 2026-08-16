@@ -7,9 +7,9 @@ import assert from 'node:assert/strict'
 import { ACHIEVEMENTS, achievementById, ACHIEVEMENT_RARITY, rarityOf } from '../src/achievements.ts'
 import {
   activateTheme, addXp, applyDaily, applyTurn, applyTurnDetailed, applyWeekly, autoSeasonId, buildRecordsView, buyShopItem, checkAchievements, checkCollections, checkTitles,
-  checkTutorial, claimDailyChest, claimLucky, claimWeeklyBonus, DAILY_CHEST_REWARD, DAILY_QUEST_POOL, dailyQuestsDone, dayKey, ensureDaily, ensureWeekly,
-  freshSave, freshShop, HISTORY_KEEP, mergeSaves, migrateSave, nextTitle, refreshDailyProgress, refreshWeeklyProgress, rollDailyQuests, rollWeeklyQuests, SETTLEMENT_KEEP, setActiveTitle, SHOP_ITEMS,
-  shopBalance, titleFor, TITLE_POOL, trimHistory, trimRecords, TUTORIAL_STEPS, updateRecords, useReroll, weekKey, WEEKLY_BONUS_XP, WEEKLY_QUEST_POOL, xpToLevel, xpToNext,
+  checkTutorial, claimDailyChest, claimLucky, claimPassTier, claimWeeklyBonus, DAILY_CHEST_REWARD, DAILY_QUEST_POOL, dailyQuestsDone, dayKey, ensureDaily, ensureWeekly,
+  freshSave, freshShop, HISTORY_KEEP, mergeSaves, migrateSave, nextTitle, refreshDailyProgress, refreshWeeklyProgress, rollDailyQuests, rollWeeklyQuests, SEASON_PASS_TIERS, SETTLEMENT_KEEP, setActiveTitle, SHOP_ITEMS,
+  shopBalance, STREAK_REWARDS, titleFor, TITLE_POOL, trimHistory, trimRecords, TUTORIAL_STEPS, updateRecords, useQuestSkip, useReroll, weekKey, WEEKLY_BONUS_XP, WEEKLY_QUEST_POOL, xpToLevel, xpToNext,
 } from '../src/engine.ts'
 import type { Action, SaveData } from '../src/types.ts'
 
@@ -1258,4 +1258,90 @@ test('成就总数：44 → 47（新增 3 枚彩蛋）', () => {
   assert.ok(eggIds.includes('keyboard_warrior'))
   assert.ok(eggIds.includes('midnight_bell'))
   assert.ok(eggIds.includes('combo_master'))
+})
+
+// ---------------------------------------------------------------------------
+// v1.1 粘性功能：连续活跃阶梯 / 回归奖励 / 赛季通行证 / 任务跳过 / 经验加成
+// ---------------------------------------------------------------------------
+
+test('v1.1 连续活跃阶梯：达到 3/7/14/30 天且刷新历史最高 → 一次性奖励', () => {
+  let save = fresh()
+  const base = new Date(2026, 7, 1, 10, 0, 0).getTime()
+  // 连续活跃 3 天：每天调用一次 addXp（跨天）
+  for (let i = 0; i < 3; i++) {
+    save = addXp(save, 10, base + i * 86_400_000)
+  }
+  assert.equal(save.counters.streakDays, 3)
+  assert.equal(save.counters.streakBest, 3)
+  // 第 3 天达标奖励 50 XP（10*3 基础 + 50 阶梯）
+  const before = save.player.xpTotal
+  assert.equal(before, 30 + STREAK_REWARDS[3]!.xp)
+  // 再连续到第 4 天：不再发阶梯奖（streakBest 已到 3，未跨新档）
+  save = addXp(save, 10, base + 3 * 86_400_000)
+  assert.equal(save.player.xpTotal, before + 10)
+  // 断签后重连到 3 天：不重复发奖（streakBest=3 已达成过）
+  save = addXp(save, 10, base + 10 * 86_400_000) // 断签，streak 重置 1
+  assert.equal(save.counters.streakDays, 1)
+  save = addXp(save, 10, base + 11 * 86_400_000)
+  save = addXp(save, 10, base + 12 * 86_400_000)
+  assert.equal(save.counters.streakDays, 3)
+  // 断签 7 天回归触发回归奖励 170（100+7*10），3 天基础 30；无重复阶梯奖
+  assert.equal(save.player.xpTotal, before + 10 + 170 + 30)
+})
+
+test('v1.1 回归奖励：离线 ≥3 天回归 → 一次性 XP', () => {
+  let save = fresh()
+  const d1 = new Date(2026, 7, 1, 10, 0, 0).getTime()
+  save = addXp(save, 10, d1) // 活跃 1 天
+  // 离线 5 天回归
+  const d6 = new Date(2026, 7, 6, 10, 0, 0).getTime()
+  save = addXp(save, 10, d6)
+  // 回归奖励 100 + gapDays*10（gap=5 → 150），加基础 10 = 160
+  assert.equal(save.player.xpTotal, 10 + 10 + (100 + 5 * 10))
+})
+
+test('v1.1 赛季通行证：达标可领取，重复领取拒绝', () => {
+  let save = fresh()
+  save.player.seasonXp = 6_000
+  const tier = SEASON_PASS_TIERS[0]! // pass-5k
+  const r1 = claimPassTier(save, tier.id, NOW)
+  assert.equal(r1.ok, true)
+  assert.equal(r1.gained, tier.xp)
+  assert.equal(r1.save.shop!.passClaimed!.includes(tier.id), true)
+  // 重复领取拒绝
+  const r2 = claimPassTier(r1.save, tier.id, NOW)
+  assert.equal(r2.ok, false)
+  // 未达标档位拒绝
+  const r3 = claimPassTier(r1.save, SEASON_PASS_TIERS[2]!.id, NOW) // pass-20k
+  assert.equal(r3.ok, false)
+})
+
+test('v1.1 任务跳过卡：完成一个未做任务（无奖励），库存不足拒绝', () => {
+  let save = fresh()
+  save.shop = { ...freshShop(), questSkips: 1 }
+  // 手动构造一个未完成任务
+  const def = DAILY_QUEST_POOL[0]!
+  save.daily = { date: dayKey(NOW), quests: [{ id: def.id, label: def.label, goal: def.goal, reward: def.reward, progress: 0, done: false }] }
+  const r = useQuestSkip(save, NOW)
+  assert.equal(r.ok, true)
+  assert.equal(r.save.daily.quests[0]!.done, true)
+  assert.equal(r.save.daily.quests[0]!.claimedAt, undefined) // 无奖励
+  assert.equal(r.save.shop!.questSkips, 0)
+  // 库存不足拒绝
+  const r2 = useQuestSkip(r.save, NOW)
+  assert.equal(r2.ok, false)
+})
+
+test('v1.1 经验加成卡：购买 +10 回合，回合结算 XP×1.5 并递减', () => {
+  let save = fresh()
+  save.player.seasonXp = 1000
+  const b = buyShopItem(save, 'boost-1', NOW)
+  assert.equal(b.ok, true)
+  assert.equal(b.save.shop!.xpBoostTurns, 10)
+  // 一回合工具调用（无 todo/tokens 干扰）
+  const before = b.save.player.xpTotal
+  const turned = applyTurnDetailed(b.save, [{ kind: 'turn-completed', turn: 1 }, { kind: 'tool-call', tool: 'edit' }], NOW)
+  // 基础 turn 10 + tool 2 = 12 → ×1.5 = 18；boost 回合 -1
+  assert.equal(turned.save.player.xpTotal - before, 18)
+  assert.equal(turned.save.shop!.xpBoostTurns, 9)
 })

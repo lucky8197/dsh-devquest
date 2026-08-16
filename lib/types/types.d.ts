@@ -53,6 +53,8 @@ export interface Counters {
     activeDays: number;
     /** 连续活跃天数（seven_days 用）。 */
     streakDays: number;
+    /** 历史最高连续活跃天数（v1.1：连续奖励阶梯用，达到新档位才发奖）。 */
+    streakBest?: number;
     lastActiveDay: string;
     lastActivityAt: number;
     /** 当日 completed 数（grinder 用），跨天清零。 */
@@ -165,11 +167,17 @@ export interface ShopState {
     themes: string[];
     /** 已购称号徽章（id 列表）。 */
     badges: string[];
+    /** 经验加成剩余回合数（v1.1：商店经验卡，回合结算时 +50% XP）。 */
+    xpBoostTurns?: number;
+    /** 任务跳过卡库存（v1.1：直接完成一个未做的每日任务）。 */
+    questSkips?: number;
+    /** 赛季通行证已领取档位 id 列表（v1.1，赛季内累积）。 */
+    passClaimed?: string[];
 }
 /** 商店商品定义。 */
 export interface ShopItemDef {
     id: string;
-    kind: 'shield' | 'reroll' | 'theme' | 'badge';
+    kind: 'shield' | 'reroll' | 'theme' | 'badge' | 'boost' | 'skip';
     name: {
         zh: string;
         en: string;
@@ -343,6 +351,24 @@ export interface DevQuestStatus {
         badges: string[];
         shields: number;
         rerolls: number;
+        xpBoostTurns: number;
+        questSkips: number;
+    };
+    /** v1.1 粘性数据：连续活跃 / 赛季通行证。 */
+    streak: {
+        days: number;
+        best: number;
+        nextTierXp: number | null;
+    };
+    pass: {
+        seasonXp: number;
+        tiers: {
+            id: string;
+            seasonXp: number;
+            xp: number;
+            claimed: boolean;
+            reached: boolean;
+        }[];
     };
     /** 新手任务链视图。 */
     tutorial: {

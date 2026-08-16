@@ -58,6 +58,18 @@ export declare const DAILY_QUEST_POOL: DailyQuestDef[];
 export declare const DAILY_QUEST_COUNT = 3;
 /** 每日全清宝箱奖励 XP（当天 3 个任务全部完成后可领取一次）。 */
 export declare const DAILY_CHEST_REWARD = 50;
+/** 连续活跃奖励阶梯：连续天数 → 奖励 XP（达到新历史最高时一次性发放）。 */
+export declare const STREAK_REWARDS: Record<number, {
+    xp: number;
+}>;
+/** 赛季通行证：本赛季 XP 里程碑 → 奖励 XP（赛季内一次性领取）。 */
+export declare const SEASON_PASS_TIERS: {
+    id: string;
+    seasonXp: number;
+    xp: number;
+}[];
+/** 当天 0 点（本地时区）epoch ms。 */
+export declare function dayStartMs(now: number): number;
 /** 按日期滚动今日任务（同一天结果确定，不重复抽取同一任务；salt 用于重掷）。 */
 export declare function rollDailyQuests(now: number, salt?: string): DailyQuestState;
 /** 日期过期时重滚（幂等：当天不重抽）。会就地更新 save.daily。 */
@@ -92,6 +104,23 @@ export declare function shopBalance(save: SaveData): number;
 export declare function buyShopItem(save: SaveData, itemId: string, now?: number, seasonOverride?: string): {
     ok: boolean;
     reason?: string;
+    save: SaveData;
+};
+/**
+ * 使用 1 张任务跳过卡：直接完成一个未做的每日任务（无奖励，计入全清宝箱）。
+ * 库存不足 / 全部已完成 → { ok: false }。
+ */
+export declare function useQuestSkip(save: SaveData, now?: number): {
+    ok: boolean;
+    save: SaveData;
+};
+/**
+ * 领取赛季通行证档位奖励（达到赛季 XP 里程碑后一次性领取）。
+ * 已领取 / 未达标 → { ok: false }。
+ */
+export declare function claimPassTier(save: SaveData, tierId: string, now?: number, seasonOverride?: string): {
+    ok: boolean;
+    gained: number;
     save: SaveData;
 };
 /** 切换已拥有主题（id 空=默认主题；未拥有则拒绝；当前激活也视为可切换）。 */

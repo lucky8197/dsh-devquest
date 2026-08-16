@@ -14,7 +14,7 @@
   <a href="https://www.npmjs.com/package/dsh-devquest"><img src="https://img.shields.io/npm/v/dsh-devquest" alt="npm version"></a>
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen" alt="0 runtime dependencies">
   <a href="https://github.com/lucky8197/dsh-devquest/actions/workflows/test.yml"><img src="https://github.com/lucky8197/dsh-devquest/actions/workflows/test.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-87%20%E2%9C%93-brightgreen" alt="87 tests passing">
+  <img src="https://img.shields.io/badge/tests-92%20%E2%9C%93-brightgreen" alt="92 tests passing">
   <img src="https://img.shields.io/badge/achievements-47-gold" alt="47 achievements">
 </p>
 
@@ -36,6 +36,14 @@
 | 📝 输出 tokens | 每 10k +1 XP |
 | 💥 犯错的回合 | +2 XP（安慰奖） |
 | 💪 犯错后爬起来 | 「东山再起」成就 +100 XP |
+
+### 🎯 每天想回来的理由
+
+- **🔥 连续活跃奖励**：连续 3/7/14/30 天，首次达成各档一次性 XP（断签重连不重复）
+- **🎟️ 赛季通行证**：本赛季 XP 达 5k/10k/20k/50k 里程碑领取奖励，面板有进度条
+- **🏠 回归奖励**：离线 ≥3 天回来，一次性 XP（100 + 离线天数×10）
+- **🌅 今日开工**：每天打开面板，问候 + 昨日总结 + 今日目标
+- **⏰ 未完成提醒**：晚上 8 点后任务没做完，提醒你回来补
 
 ### 🎓 新手任务链
 

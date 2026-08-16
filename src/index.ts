@@ -34,8 +34,8 @@ const PLUGIN_VERSION = pluginVersion()
 import { ACHIEVEMENTS, achievementById, rarityOf } from './achievements.ts'
 import {
   activateTheme, applyTurnDetailed, buildRecordsView, buyShopItem, CATEGORY_IDS, checkAchievements, checkCollections, checkTitles, checkTutorial, claimDailyChest, claimLucky,
-  claimWeeklyBonus, COLLECTION_REWARDS, dailyQuestsDone, dayKey, ensureDaily, ensureWeekly, HISTORY_KEEP, migrateSave, nextTitle, refreshDailyProgress, refreshWeeklyProgress,
-  SETTLEMENT_KEEP, setActiveTitle, SHOP_ITEMS, shopBalance, titleFor, TITLE_POOL, TUTORIAL_STEPS, TUTORIAL_TITLE, useReroll, xpToLevel, xpToNext,
+  claimPassTier, claimWeeklyBonus, COLLECTION_REWARDS, dailyQuestsDone, dayKey, ensureDaily, ensureWeekly, HISTORY_KEEP, migrateSave, nextTitle, refreshDailyProgress, refreshWeeklyProgress,
+  SEASON_PASS_TIERS, SETTLEMENT_KEEP, setActiveTitle, SHOP_ITEMS, shopBalance, STREAK_REWARDS, titleFor, TITLE_POOL, TUTORIAL_STEPS, TUTORIAL_TITLE, useQuestSkip, useReroll, xpToLevel, xpToNext,
 } from './engine.ts'
 import { watchEvents, type SessionAggregate } from './listener.ts'
 import { loadSave, persistSave, deleteSave, scopeKey, type StoreConfig } from './store.ts'
@@ -140,6 +140,28 @@ export function apply(ctx: Context, config: Config = {}): void {
         badges: save.shop?.badges ?? [],
         shields: save.shop?.shields ?? 0,
         rerolls: save.shop?.rerolls ?? 0,
+        xpBoostTurns: save.shop?.xpBoostTurns ?? 0,
+        questSkips: save.shop?.questSkips ?? 0,
+      },
+      // v1.1 连续活跃：当前天数 / 历史最高 / 下一奖励档位
+      streak: (() => {
+        const days = save.counters.streakDays
+        const best = save.counters.streakBest ?? days
+        const next = STREAK_REWARDS[days] === undefined
+          ? Object.entries(STREAK_REWARDS).map(([k, v]) => ({ d: Number(k), xp: v.xp })).find(t => t.d > days) ?? null
+          : null
+        return { days, best, nextTierXp: next !== null ? next.xp : null }
+      })(),
+      // v1.1 赛季通行证：赛季 XP 里程碑 + 领取状态
+      pass: {
+        seasonXp: save.player.seasonXp,
+        tiers: SEASON_PASS_TIERS.map(t => ({
+          id: t.id,
+          seasonXp: t.seasonXp,
+          xp: t.xp,
+          claimed: (save.shop?.passClaimed ?? []).includes(t.id),
+          reached: save.player.seasonXp >= t.seasonXp,
+        })),
       },
       tutorial: {
         steps: TUTORIAL_STEPS.map(step => {
@@ -484,6 +506,31 @@ export function apply(ctx: Context, config: Config = {}): void {
     },
     setTitle: async (titleId: string) => mutateSave(save => setActiveTitle(save, titleId), result => ({ ok: result.ok })),
     setTheme: async (themeId: string) => mutateSave(save => activateTheme(save, themeId), result => ({ ok: result.ok })),
+    useQuestSkip: async () => mutateSave(save => useQuestSkip(save, Date.now()), result => ({ ok: result.ok })),
+    claimPass: async (tierId: string): Promise<{ ok: boolean; gained: number; status: DevQuestStatus }> => {
+      const key = scopeKey()
+      let result: { ok: boolean; gained: number } = { ok: false, gained: 0 }
+      let fresh: SaveData | undefined
+      await new Promise<void>((resolve, reject) => {
+        enqueue(key, async () => {
+          try {
+            const save = await getSave(key)
+            const claimed = claimPassTier(save, tierId, Date.now(), seasonOverride)
+            result = { ok: claimed.ok, gained: claimed.gained }
+            fresh = claimed.save
+            if (claimed.ok) {
+              saveCache.set(key, claimed.save)
+              await persistSave(ctx, storeConfig, claimed.save)
+            }
+          } catch (error) {
+            reject(error)
+            return
+          }
+          resolve()
+        })
+      })
+      return { ...result, status: buildStatus(fresh ?? (await getSave(key))) }
+    },
     claimWeeklyBonus: async (): Promise<{ ok: boolean; gained: number; status: DevQuestStatus }> => {
       const key = scopeKey()
       let result: { ok: boolean; gained: number } = { ok: false, gained: 0 }
