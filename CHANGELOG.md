@@ -18,7 +18,23 @@
 
 版本与 git tag 一一对应（`v0.4.0` ↔ tag `v0.4.0`），tag 推送到 GitHub Releases。
 
+## 发布流程 checklist（每个版本发布时按序执行）
+
+1. bump `package.json` version + 本文件条目 + git tag `v{x.y.z}` 三者同步
+2. `pnpm typecheck` + `node --test` 全绿 + `pnpm build`（构建产物 `lib/` 提交）
+3. README 截图 / 功能清单同步（MINOR/MAJOR 必做）
+4. 提交 + push `origin main` + 推 tag（git 协议不通时用 API Trees 推送）
+5. 创建 GitHub Release（含 changelog 摘要）
+6. **`npm publish`**（`prepublishOnly` 自动跑 typecheck + test + build 全过才发；需 npm token：`bypass_2fa: true` + `package/write`）
+7. 同步 staging（`C:\Users\Lucky\dsh-plugin-src\dsh-devquest`，robocopy /MIR /XD .git node_modules）
+8. 验证：`npm view dsh-devquest version` = 新版本；面板重启后显示新版本号
+
 ---
+
+## [1.0.4] - 2026-08-16
+
+### Added
+- **npm 元数据完善**：package.json 补充 `repository`（GitHub 仓库）、`homepage`、`bugs` 字段——npm 包页面与 GitHub 仓库互相跳转
 
 ## [1.0.3] - 2026-08-16
 
