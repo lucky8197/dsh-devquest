@@ -88,6 +88,11 @@ export declare function buyShopItem(save: SaveData, itemId: string, now?: number
     reason?: string;
     save: SaveData;
 };
+/** 切换已拥有主题（id 空=默认主题；未拥有则拒绝）。 */
+export declare function activateTheme(save: SaveData, themeId: string): {
+    ok: boolean;
+    save: SaveData;
+};
 /** 使用 1 次任务重掷：重新抽取今日任务（返回副本；库存不足返回 false）。 */
 export declare function useReroll(save: SaveData, now?: number): {
     ok: boolean;

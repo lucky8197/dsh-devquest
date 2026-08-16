@@ -19,7 +19,7 @@ import type {} from '@deepseek-ai/dsh-host-webserver'
 import type { Session } from '@deepseek-ai/dsh-session'
 import { ACHIEVEMENTS, achievementById, rarityOf } from './achievements.ts'
 import {
-  applyTurnDetailed, buildRecordsView, buyShopItem, CATEGORY_IDS, checkAchievements, checkCollections, checkTitles, checkTutorial, claimDailyChest, claimLucky,
+  activateTheme, applyTurnDetailed, buildRecordsView, buyShopItem, CATEGORY_IDS, checkAchievements, checkCollections, checkTitles, checkTutorial, claimDailyChest, claimLucky,
   claimWeeklyBonus, COLLECTION_REWARDS, dailyQuestsDone, dayKey, ensureDaily, ensureWeekly, HISTORY_KEEP, migrateSave, nextTitle,
   SETTLEMENT_KEEP, setActiveTitle, SHOP_ITEMS, shopBalance, titleFor, TITLE_POOL, TUTORIAL_STEPS, TUTORIAL_TITLE, useReroll, xpToLevel, xpToNext,
 } from './engine.ts'
@@ -114,13 +114,14 @@ export function apply(ctx: Context, config: Config = {}): void {
         balance: shopBalance(save),
         items: SHOP_ITEMS.map(item => {
           const owned = item.kind === 'theme'
-            ? save.shop?.theme === item.id
+            ? (save.shop?.themes ?? []).includes(item.id)
             : item.kind === 'badge'
               ? (save.shop?.badges ?? []).includes(item.id)
               : false
           return { ...item, owned }
         }),
         theme: save.shop?.theme ?? '',
+        themes: save.shop?.themes ?? [],
         badges: save.shop?.badges ?? [],
         shields: save.shop?.shields ?? 0,
         rerolls: save.shop?.rerolls ?? 0,
@@ -452,6 +453,7 @@ export function apply(ctx: Context, config: Config = {}): void {
       return { ok: true, status: buildStatus(imported) }
     },
     setTitle: async (titleId: string) => mutateSave(save => setActiveTitle(save, titleId), result => ({ ok: result.ok })),
+    setTheme: async (themeId: string) => mutateSave(save => activateTheme(save, themeId), result => ({ ok: result.ok })),
     claimWeeklyBonus: async (): Promise<{ ok: boolean; gained: number; status: DevQuestStatus }> => {
       const key = scopeKey()
       let result: { ok: boolean; gained: number } = { ok: false, gained: 0 }

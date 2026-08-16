@@ -143,8 +143,10 @@ export interface ShopState {
   shields: number
   /** 每日任务重掷次数（库存）。 */
   rerolls: number
-  /** 已购面板主题（id，空=默认）。 */
+  /** 当前激活的面板主题（id，空=默认）。 */
   theme: string
+  /** 已购面板主题（id 列表，永久拥有，可切换）。 */
+  themes: string[]
   /** 已购称号徽章（id 列表）。 */
   badges: string[]
 }
@@ -286,7 +288,7 @@ export interface DevQuestStatus {
   /** 最近回合结算事件（面板 toast 数据源）。 */
   settlements: TurnSettlementEvent[]
   /** 赛季商店：余额 + 商品（含已购状态）。 */
-  shop: { balance: number; items: ShopItemView[]; theme: string; badges: string[]; shields: number; rerolls: number }
+  shop: { balance: number; items: ShopItemView[]; theme: string; themes: string[]; badges: string[]; shields: number; rerolls: number }
   /** 新手任务链视图。 */
   tutorial: {
     steps: { id: string; name: { zh: string; en: string }; icon: string; xp: number; done: boolean; acquiredAt?: number }[]

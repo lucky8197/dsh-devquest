@@ -60,6 +60,9 @@ declare const zh: {
     readonly 'dq.shopBuy': "购买";
     readonly 'dq.shopConfirm': "确认购买？";
     readonly 'dq.shopOwned': "已拥有";
+    readonly 'dq.themeActive': "使用中";
+    readonly 'dq.themeUse': "使用";
+    readonly 'dq.themeUsed': "已切换主题";
     readonly 'dq.shopNoBalance': "赛季货币不足";
     readonly 'dq.shopBought': "购买成功";
     readonly 'dq.shopReroll': "重掷任务";

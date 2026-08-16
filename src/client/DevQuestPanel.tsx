@@ -48,6 +48,38 @@ const TONE = {
   red: 'var(--dsw-alias-state-error-primary, #ff8592)',
 } as const
 
+/**
+ * 商店主题 id → 面板 CSS 变量覆写。
+ * 在面板根元素上覆写 --dsw-alias-*，TONE 与所有引用这些变量的子元素自动跟随。
+ * 配色在浅色主题下保持可读（背景保持浅色、仅强调色改变）。
+ */
+function themeVars(themeId: string): CSSProperties {
+  const palettes: Record<string, Record<string, string>> = {
+    'theme-ember': {
+      '--dsw-alias-brand-primary': '#e07b39',
+      '--dsw-alias-state-warn-primary': '#d97706',
+      '--dsw-alias-state-success-primary': '#d97706',
+      '--dsw-alias-bg-overlay': '#fff6ee',
+      '--dsw-alias-bg-layer-2': '#fff0e2',
+    },
+    'theme-frost': {
+      '--dsw-alias-brand-primary': '#3b9fe0',
+      '--dsw-alias-state-warn-primary': '#4a90c2',
+      '--dsw-alias-state-success-primary': '#3b9fe0',
+      '--dsw-alias-bg-overlay': '#f0f7fc',
+      '--dsw-alias-bg-layer-2': '#e4f1fa',
+    },
+    'theme-verdant': {
+      '--dsw-alias-brand-primary': '#34a85e',
+      '--dsw-alias-state-warn-primary': '#6aa84f',
+      '--dsw-alias-state-success-primary': '#34a85e',
+      '--dsw-alias-bg-overlay': '#f1f9f2',
+      '--dsw-alias-bg-layer-2': '#e2f3e5',
+    },
+  }
+  return (palettes[themeId] ?? {}) as CSSProperties
+}
+
 const CATEGORY_KEYS = ['journey', 'crafting', 'quest', 'time', 'legend', 'egg'] as const
 
 // ---------------------------------------------------------------------------
@@ -526,6 +558,22 @@ export function DevQuestPanelCard(
     }
   }, [actions])
 
+  /** 切换已拥有主题（空 = 默认主题）。 */
+  const activateTheme = useCallback(async (themeId: string): Promise<void> => {
+    try {
+      const response = await fetch('/api/devquest/shop/theme', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ themeId }),
+      })
+      const data = await response.json() as { ok: boolean; status: DevQuestStatus }
+      if (data.status !== null && data.status !== undefined) actions.setStatus(data.status)
+      if (data.ok) setShopMsg({ ok: true, text: t('dq.themeUsed') })
+    } catch {
+      // 静默失败
+    }
+  }, [actions, t])
+
   /** 领取每周全清奖励。 */
   const claimWeekly = useCallback(async (): Promise<void> => {
     if (weeklyClaiming) return
@@ -653,7 +701,7 @@ export function DevQuestPanelCard(
 
   return <section
     ref={cardRef}
-    style={{ ...cardStyle, ...positionStyle, ...(dragging ? cardDraggingStyle : {}) }}
+    style={{ ...cardStyle, ...positionStyle, ...(dragging ? cardDraggingStyle : {}), ...themeVars(status.shop?.theme ?? '') }}
     data-devquest
     onPointerDown={onCardPointerDown}
     onPointerMove={onCardPointerMove}
@@ -804,6 +852,8 @@ export function DevQuestPanelCard(
           <div style={shopGridStyle}>
             {status.shop?.items.map(item => {
               const canAfford = (status.shop!.balance) >= item.price
+              const isTheme = item.kind === 'theme'
+              const themeActive = isTheme && status.shop?.theme === item.id
               return (
                 <div key={item.id} style={shopItemStyle}>
                   <div style={shopItemHeadStyle}>
@@ -812,24 +862,33 @@ export function DevQuestPanelCard(
                     <span style={shopItemPriceStyle}>{item.price}</span>
                   </div>
                   <div style={shopItemDescStyle}>{item.description.zh}</div>
-                  {item.owned
-                    ? <div style={shopOwnedStyle}>{t('dq.shopOwned')}</div>
-                    : <button
-                      type="button"
-                      onClick={() => void buy(item.id)}
-                      disabled={buying !== null || !canAfford}
-                      style={{
-                        ...shopBuyButtonStyle,
-                        ...(confirmBuyId === item.id ? shopConfirmButtonStyle : {}),
-                        ...(!canAfford ? shopBuyDisabledStyle : {}),
-                      }}
-                    >
-                      {buying === item.id
-                        ? '…'
-                        : confirmBuyId === item.id
-                          ? `⚠️ ${t('dq.shopConfirm')}`
-                          : t('dq.shopBuy')}
-                    </button>}
+                  {themeActive
+                    ? <div style={shopOwnedStyle}>{t('dq.themeActive')}</div>
+                    : item.owned
+                      ? <button
+                        type="button"
+                        onClick={() => void activateTheme(item.id)}
+                        disabled={buying !== null}
+                        style={{ ...shopBuyButtonStyle, ...shopThemeUseButtonStyle }}
+                      >
+                        {t('dq.themeUse')}
+                      </button>
+                      : <button
+                        type="button"
+                        onClick={() => void buy(item.id)}
+                        disabled={buying !== null || !canAfford}
+                        style={{
+                          ...shopBuyButtonStyle,
+                          ...(confirmBuyId === item.id ? shopConfirmButtonStyle : {}),
+                          ...(!canAfford ? shopBuyDisabledStyle : {}),
+                        }}
+                      >
+                        {buying === item.id
+                          ? '…'
+                          : confirmBuyId === item.id
+                            ? `⚠️ ${t('dq.shopConfirm')}`
+                            : t('dq.shopBuy')}
+                      </button>}
                 </div>
               )
             })}
@@ -1805,6 +1864,13 @@ const shopConfirmButtonStyle: CSSProperties = {
 }
 
 const shopBuyDisabledStyle: CSSProperties = { opacity: 0.4, cursor: 'not-allowed' }
+
+/** 「使用主题」按钮：品牌色描边 + 浅色填充（区别于购买的金色按钮）。 */
+const shopThemeUseButtonStyle: CSSProperties = {
+  border: '1px solid color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 55%, transparent)',
+  background: 'linear-gradient(180deg, color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 30%, white), color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 14%, white))',
+  color: 'var(--dsw-alias-label-primary, #1a2230)',
+}
 
 const rerollButtonStyle: CSSProperties = {
   marginTop: 4,

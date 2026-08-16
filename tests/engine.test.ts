@@ -6,7 +6,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { ACHIEVEMENTS, achievementById, ACHIEVEMENT_RARITY, rarityOf } from '../src/achievements.ts'
 import {
-  addXp, applyDaily, applyTurn, applyTurnDetailed, applyWeekly, autoSeasonId, buildRecordsView, buyShopItem, checkAchievements, checkCollections, checkTitles,
+  activateTheme, addXp, applyDaily, applyTurn, applyTurnDetailed, applyWeekly, autoSeasonId, buildRecordsView, buyShopItem, checkAchievements, checkCollections, checkTitles,
   checkTutorial, claimDailyChest, claimLucky, claimWeeklyBonus, DAILY_CHEST_REWARD, DAILY_QUEST_POOL, dailyQuestsDone, dayKey, ensureDaily, ensureWeekly,
   freshSave, freshShop, HISTORY_KEEP, mergeSaves, migrateSave, nextTitle, rollDailyQuests, rollWeeklyQuests, SETTLEMENT_KEEP, setActiveTitle, SHOP_ITEMS,
   shopBalance, titleFor, TITLE_POOL, trimHistory, trimRecords, TUTORIAL_STEPS, updateRecords, useReroll, weekKey, WEEKLY_BONUS_XP, WEEKLY_QUEST_POOL, xpToLevel, xpToNext,
@@ -797,14 +797,37 @@ test('商店：余额 = seasonXp - spent，购买扣款并加库存', () => {
   assert.equal(r2.ok, false)
   assert.equal(r2.reason, 'insufficient-balance')
 
-  // 主题：买一次后重复买 → already-owned
+  // 主题：买一次后重复买 → already-owned（按已购列表判断，不依赖当前激活）
   save.player.seasonXp = 1000
   const r3 = buyShopItem(save, 'theme-ember', NOW)
   assert.equal(r3.ok, true)
   assert.equal(r3.save.shop!.theme, 'theme-ember')
+  assert.deepEqual(r3.save.shop!.themes, ['theme-ember'])
   const r4 = buyShopItem(r3.save, 'theme-ember', NOW)
   assert.equal(r4.ok, false)
   assert.equal(r4.reason, 'already-owned')
+
+  // 再买第二个主题：已拥有列表累积，当前激活切到新主题
+  save.player.seasonXp = 2000
+  const r5 = buyShopItem(r3.save, 'theme-frost', NOW)
+  assert.equal(r5.ok, true)
+  assert.deepEqual(r5.save.shop!.themes, ['theme-ember', 'theme-frost'])
+  assert.equal(r5.save.shop!.theme, 'theme-frost')
+
+  // 切换回已拥有的 ember：成功且不扣款
+  const r6 = activateTheme(r5.save, 'theme-ember')
+  assert.equal(r6.ok, true)
+  assert.equal(r6.save.shop!.theme, 'theme-ember')
+  assert.equal(r6.save.shop!.spent, r5.save.shop!.spent)
+
+  // 未拥有的主题不可切换
+  const r7 = activateTheme(r6.save, 'theme-verdant')
+  assert.equal(r7.ok, false)
+
+  // 空 id = 回到默认主题
+  const r8 = activateTheme(r6.save, '')
+  assert.equal(r8.ok, true)
+  assert.equal(r8.save.shop!.theme, '')
 })
 
 test('商店：商品表完备（4 类商品齐备）', () => {

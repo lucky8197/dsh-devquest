@@ -29,6 +29,8 @@ export interface DevQuestRoutesConfig {
   importSave: (raw: unknown) => Promise<{ ok: boolean; error?: string; status: DevQuestStatus }>
   /** 切换展示称号；返回是否成功与最新状态。 */
   setTitle: (titleId: string) => Promise<{ ok: boolean; status: DevQuestStatus }>
+  /** 切换已拥有主题（空字符串=默认主题）；返回是否成功与最新状态。 */
+  setTheme: (themeId: string) => Promise<{ ok: boolean; status: DevQuestStatus }>
   /** 领取每周全清奖励；返回是否成功、奖励 XP 与最新状态。 */
   claimWeeklyBonus: () => Promise<{ ok: boolean; gained: number; status: DevQuestStatus }>
   /** 结果缓存时长（毫秒）。默认 60s。 */
@@ -239,6 +241,31 @@ export function makeDevQuestRoutes(config: DevQuestRoutesConfig): WebRoute[] {
           titleId = ''
         }
         return config.setTitle(titleId).then((result) => {
+          invalidateCache()
+          json(res, 200, { ok: result.ok, status: result.status })
+        })
+      }).then(undefined, (error: unknown) => json(res, 500, {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      }))
+    },
+  }, {
+    kind: 'exact',
+    path: `${STATUS_API_PREFIX}/shop/theme`,
+    handler: (req: IncomingMessage, res: ServerResponse): void => {
+      if (req.method !== 'POST') {
+        json(res, 405, { ok: false, error: 'method-not-allowed' })
+        return
+      }
+      readBody(req).then(body => {
+        let themeId = ''
+        try {
+          const parsed = JSON.parse(body) as { themeId?: unknown }
+          if (typeof parsed.themeId === 'string') themeId = parsed.themeId
+        } catch {
+          themeId = ''
+        }
+        return config.setTheme(themeId).then((result) => {
           invalidateCache()
           json(res, 200, { ok: result.ok, status: result.status })
         })

@@ -47,6 +47,11 @@ export interface DevQuestRoutesConfig {
         ok: boolean;
         status: DevQuestStatus;
     }>;
+    /** 切换已拥有主题（空字符串=默认主题）；返回是否成功与最新状态。 */
+    setTheme: (themeId: string) => Promise<{
+        ok: boolean;
+        status: DevQuestStatus;
+    }>;
     /** 领取每周全清奖励；返回是否成功、奖励 XP 与最新状态。 */
     claimWeeklyBonus: () => Promise<{
         ok: boolean;

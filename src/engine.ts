@@ -190,7 +190,7 @@ export function claimDailyChest(
 
 /** 构造最小商店状态。 */
 export function freshShop(): ShopState {
-  return { spent: 0, shields: 0, rerolls: 0, theme: '', badges: [] }
+  return { spent: 0, shields: 0, rerolls: 0, theme: '', themes: [], badges: [] }
 }
 
 /** 商店余额（本赛季可支配 XP）。 */
@@ -211,9 +211,9 @@ export function buyShopItem(
   const item = SHOP_ITEMS.find(i => i.id === itemId)
   if (item === undefined) return { ok: false, reason: 'unknown-item', save: structuredClone(save) }
   const s = structuredClone(save)
-  const shop: ShopState = { ...freshShop(), ...(s.shop ?? {}) }
-  // 主题/徽章是永久解锁，重复购买无意义
-  if (item.kind === 'theme' && shop.theme === item.id) return { ok: false, reason: 'already-owned', save: s }
+  const shop: ShopState = { ...freshShop(), ...(s.shop ?? {}), themes: s.shop?.themes ?? [] }
+  // 主题/徽章是永久解锁，重复购买无意义（主题按已购列表判断，非当前激活）
+  if (item.kind === 'theme' && shop.themes.includes(item.id)) return { ok: false, reason: 'already-owned', save: s }
   if (item.kind === 'badge' && shop.badges.includes(item.id)) return { ok: false, reason: 'already-owned', save: s }
   // 余额校验（换季时 seasonXp 已清零，spent 也一并清零——见 addXp 换季逻辑）
   const balance = shopBalance(s)
@@ -221,8 +221,21 @@ export function buyShopItem(
   shop.spent += item.price
   if (item.kind === 'shield') shop.shields += item.id === 'shield-3' ? 3 : 1
   if (item.kind === 'reroll') shop.rerolls += 1
-  if (item.kind === 'theme') shop.theme = item.id
+  if (item.kind === 'theme') {
+    shop.themes = [...shop.themes, item.id]
+    shop.theme = item.id // 购买即激活
+  }
   if (item.kind === 'badge') shop.badges = [...shop.badges, item.id]
+  s.shop = shop
+  return { ok: true, save: s }
+}
+
+/** 切换已拥有主题（id 空=默认主题；未拥有则拒绝）。 */
+export function activateTheme(save: SaveData, themeId: string): { ok: boolean; save: SaveData } {
+  const s = structuredClone(save)
+  const shop: ShopState = { ...freshShop(), ...(s.shop ?? {}), themes: s.shop?.themes ?? [] }
+  if (themeId !== '' && !shop.themes.includes(themeId)) return { ok: false, save: s }
+  shop.theme = themeId
   s.shop = shop
   return { ok: true, save: s }
 }
@@ -755,7 +768,8 @@ export function addXp(save: SaveData, gain: number, now: number = Date.now(), se
     s.player.seasonXp = 0
     s.counters.seasonTokensOut = 0
     // 新赛季：商店余额重新累计（spent 清零，库存保留？不——赛季货币清零，库存也清零更公平）
-    s.shop = { ...freshShop(), theme: s.shop?.theme ?? '', badges: s.shop?.badges ?? [] }
+    // 但主题/徽章是永久解锁，跨赛季保留。
+    s.shop = { ...freshShop(), theme: s.shop?.theme ?? '', themes: s.shop?.themes ?? [], badges: s.shop?.badges ?? [] }
   }
   if (gain > 0) {
     s.player.xp += gain
@@ -933,7 +947,7 @@ export function applyTurnDetailed(
     c.turnsFailed++
     // 连击保险：失误回合自动消耗一个，连击不清零（商店购买）。
     if ((s.shop?.shields ?? 0) > 0) {
-      s.shop = { ...(s.shop ?? { spent: 0, shields: 0, rerolls: 0, theme: '', badges: [] }), shields: (s.shop?.shields ?? 0) - 1 }
+      s.shop = { ...(s.shop ?? { spent: 0, shields: 0, rerolls: 0, theme: '', themes: [], badges: [] }), shields: (s.shop?.shields ?? 0) - 1 }
     } else {
       c.consecutiveSuccess = 0
     }

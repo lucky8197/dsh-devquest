@@ -6,7 +6,6 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
-
     "skipLibCheck": true,
     "esModuleInterop": true,
     "declaration": true,
@@ -26,58 +25,52 @@
     "noEmitOnError": true,
     "paths": {
       "@deepseek-ai/cordis": [
-        "/PLACEHOLDER/source/current/node_modules/@deepseek-ai/cordis/lib/types/index.d.ts"
+        "C:\\Users\\Lucky\\AppData\\Local\\npm-cache\\_npx\\1e7f6d9597241db0\\node_modules\\@deepseek-ai\\cordis\\lib\\types\\index.d.ts"
       ],
       "@deepseek-ai/dsh-tools": [
-        "/PLACEHOLDER/source/current/packages/core/tools/lib/types/index.d.ts"
+        "C:\\Users\\Lucky\\AppData\\Local\\npm-cache\\_npx\\1e7f6d9597241db0\\node_modules\\@deepseek-ai\\dsh-tools\\lib\\types\\index.d.ts"
       ],
       "@deepseek-ai/dsh-fs": [
-        "/PLACEHOLDER/source/current/packages/fs/fs/lib/types/index.d.ts"
+        "C:\\Users\\Lucky\\AppData\\Local\\npm-cache\\_npx\\1e7f6d9597241db0\\node_modules\\@deepseek-ai\\dsh-fs\\lib\\types\\index.d.ts"
       ],
       "@deepseek-ai/dsh-host-webserver": [
-        "/PLACEHOLDER/source/current/packages/host/webserver/lib/types/index.d.ts"
+        "C:\\Users\\Lucky\\AppData\\Local\\npm-cache\\_npx\\1e7f6d9597241db0\\node_modules\\@deepseek-ai\\dsh-host-webserver\\lib\\types\\index.d.ts"
       ],
       "@deepseek-ai/dsh-session": [
-        "/PLACEHOLDER/source/current/packages/core/session/lib/types/index.d.ts"
+        "C:\\Users\\Lucky\\AppData\\Local\\npm-cache\\_npx\\1e7f6d9597241db0\\node_modules\\@deepseek-ai\\dsh-session\\lib\\types\\index.d.ts"
       ],
       "@deepseek-ai/dsh-client-runtime": [
-        "/PLACEHOLDER/source/current/packages/client/runtime/lib/types/index.d.ts"
+        "C:\\Users\\Lucky\\AppData\\Local\\npm-cache\\_npx\\1e7f6d9597241db0\\node_modules\\@deepseek-ai\\dsh-client-runtime\\lib\\types\\index.d.ts"
       ],
       "@deepseek-ai/dsh-client-runtime/client": [
-        "/PLACEHOLDER/source/current/packages/client/runtime/lib/types/client/index.d.ts"
+        "C:\\Users\\Lucky\\AppData\\Local\\npm-cache\\_npx\\1e7f6d9597241db0\\node_modules\\@deepseek-ai\\dsh-client-runtime\\lib\\types\\client\\index.d.ts"
       ],
       "@deepseek-ai/dsh-client-ui-slots": [
-        "/PLACEHOLDER/source/current/packages/client/ui-slots/lib/types/index.d.ts"
+        "C:\\Users\\Lucky\\AppData\\Local\\npm-cache\\_npx\\1e7f6d9597241db0\\node_modules\\@deepseek-ai\\dsh-client-ui-slots\\lib\\types\\index.d.ts"
       ],
       "@deepseek-ai/dsh-client-ui-sidebar": [
-        "/PLACEHOLDER/source/current/packages/client/ui-sidebar/lib/types/index.d.ts"
+        "C:\\Users\\Lucky\\AppData\\Local\\npm-cache\\_npx\\1e7f6d9597241db0\\node_modules\\@deepseek-ai\\dsh-client-ui-sidebar\\lib\\types\\index.d.ts"
       ],
       "@deepseek-ai/dsh-client-ui-sidebar/client": [
-        "/PLACEHOLDER/source/current/packages/client/ui-sidebar/lib/types/client/index.d.ts"
+        "C:\\Users\\Lucky\\AppData\\Local\\npm-cache\\_npx\\1e7f6d9597241db0\\node_modules\\@deepseek-ai\\dsh-client-ui-sidebar\\lib\\types\\client\\index.d.ts"
       ],
       "@deepseek-ai/dsh-client-ui-layout": [
-        "/PLACEHOLDER/source/current/packages/client/ui-layout/lib/types/index.d.ts"
+        "C:\\Users\\Lucky\\AppData\\Local\\npm-cache\\_npx\\1e7f6d9597241db0\\node_modules\\@deepseek-ai\\dsh-client-ui-layout\\lib\\types\\index.d.ts"
       ],
       "@deepseek-ai/dsh-client-ui-layout/client": [
-        "/PLACEHOLDER/source/current/packages/client/ui-layout/lib/types/client/index.d.ts"
+        "C:\\Users\\Lucky\\AppData\\Local\\npm-cache\\_npx\\1e7f6d9597241db0\\node_modules\\@deepseek-ai\\dsh-client-ui-layout\\lib\\types\\client\\index.d.ts"
       ],
       "@deepseek-ai/dsh-client-locale": [
-        "/PLACEHOLDER/source/current/packages/client/locale/lib/types/index.d.ts"
+        "C:\\Users\\Lucky\\AppData\\Local\\npm-cache\\_npx\\1e7f6d9597241db0\\node_modules\\@deepseek-ai\\dsh-client-locale\\lib\\types\\index.d.ts"
       ],
       "@deepseek-ai/dsh-client-locale/client": [
-        "/PLACEHOLDER/source/current/packages/client/locale/lib/types/client/index.d.ts"
+        "C:\\Users\\Lucky\\AppData\\Local\\npm-cache\\_npx\\1e7f6d9597241db0\\node_modules\\@deepseek-ai\\dsh-client-locale\\lib\\types\\client\\index.d.ts"
       ],
       "@deepseek-ai/dsh-client-ui-conversation": [
-        "/PLACEHOLDER/source/current/packages/client/ui-conversation/lib/types/index.d.ts"
+        "C:\\Users\\Lucky\\AppData\\Local\\npm-cache\\_npx\\1e7f6d9597241db0\\node_modules\\@deepseek-ai\\dsh-client-ui-conversation\\lib\\types\\index.d.ts"
       ],
       "@deepseek-ai/dsh-client-ui-conversation/client": [
-        "/PLACEHOLDER/source/current/packages/client/ui-conversation/lib/types/client/index.d.ts"
-      ],
-      "react": [
-        "/PLACEHOLDER/source/current/node_modules/react"
-      ],
-      "react/jsx-runtime": [
-        "/PLACEHOLDER/source/current/node_modules/react/jsx-runtime"
+        "C:\\Users\\Lucky\\AppData\\Local\\npm-cache\\_npx\\1e7f6d9597241db0\\node_modules\\@deepseek-ai\\dsh-client-ui-conversation\\lib\\types\\client\\index.d.ts"
       ]
     }
   },
