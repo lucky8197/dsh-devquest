@@ -964,7 +964,15 @@ export function DevQuestPanelCard(
       ...positionStyle,
       ...(dragging ? cardDraggingStyle : {}),
       ...themeVars(status.shop?.theme ?? ''),
-      fontSize: settings.fontSize * (settings.compact ? 0.9 : 1),
+      // v1.2.0 字号：zoom 整体缩放（面板内部全部是显式 px，根 fontSize 不生效）。
+      zoom: settings.fontSize,
+      // v1.2.0 紧凑模式：压缩关键间距（分区间距/卡片内边距/标题栏内边距/hero 间距）。
+      ...(settings.compact ? {
+        '--dq-section-mb': '6px',
+        '--dq-body-pad': '8px 10px 10px',
+        '--dq-head-pad': '4px 8px',
+        '--dq-hero-mb': '8px',
+      } : {}),
     }}
     data-devquest
     onPointerDown={onCardPointerDown}
@@ -2023,7 +2031,7 @@ const iconButtonStyle: CSSProperties = {
 }
 
 const cardBodyStyle: CSSProperties = {
-  padding: '12px 14px 14px',
+  padding: 'var(--dq-body-pad, 12px 14px 14px)',
   overflowY: 'auto',
   display: 'block',
 }
@@ -2033,7 +2041,7 @@ const sectionCardStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   borderRadius: 10,
-  marginBottom: 12,
+  marginBottom: 'var(--dq-section-mb, 12px)',
   background: 'color-mix(in srgb, var(--dsw-alias-bg-layer-2, #1d2735) 55%, transparent)',
   border: `1px solid ${TONE.border}`,
   overflow: 'hidden',
@@ -2046,7 +2054,7 @@ const sectionCardHeadStyle: CSSProperties = {
   justifyContent: 'space-between',
   gap: 8,
   width: '100%',
-  padding: '7px 10px',
+  padding: 'var(--dq-head-pad, 7px 10px)',
   border: 'none',
   borderBottom: `1px solid ${TONE.border}`,
   background: 'transparent',
@@ -2085,7 +2093,7 @@ const sectionCardBodyHiddenStyle: CSSProperties = {
   display: 'none',
 }
 
-const heroStyle: CSSProperties = { display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }
+const heroStyle: CSSProperties = { display: 'flex', gap: 12, alignItems: 'center', marginBottom: 'var(--dq-hero-mb, 12px)' }
 
 const levelBadgeStyle: CSSProperties = {
   position: 'absolute',
