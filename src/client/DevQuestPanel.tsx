@@ -1156,7 +1156,14 @@ export function DevQuestPanelCard(
             />
           })}
         </div>
-        <div style={reportLegendStyle}>少 ▓▓▓▓ 多</div>
+        <div style={calendarLegendStyle}>
+          <span style={calendarLegendLabelStyle}>少</span>
+          <span style={calendarLegendBlockStyle(1)} />
+          <span style={calendarLegendBlockStyle(2)} />
+          <span style={calendarLegendBlockStyle(3)} />
+          <span style={calendarLegendBlockStyle(4)} />
+          <span style={calendarLegendLabelStyle}>多</span>
+        </div>
       </SectionCard>
 
       {/* 统计 + 荣誉墙 */}
@@ -1965,6 +1972,35 @@ function calendarIntensityStyle(intensity: number): CSSProperties {
   ]
   return { background: colors[Math.min(intensity, 4)] ?? colors[0] }
 }
+
+/** 活跃日历强度色（与格子一致：1-4 级绿）。 */
+function calendarLegendColor(level: number): string {
+  const colors = [
+    'color-mix(in srgb, var(--dsw-alias-state-success-primary, #78dda0) 22%, transparent)',
+    'color-mix(in srgb, var(--dsw-alias-state-success-primary, #78dda0) 42%, transparent)',
+    'color-mix(in srgb, var(--dsw-alias-state-success-primary, #78dda0) 62%, transparent)',
+    'var(--dsw-alias-state-success-primary, #78dda0)',
+  ]
+  return colors[Math.min(Math.max(level, 1), 4) - 1]! as string
+}
+
+/** 活跃日历图例：少 → 多 4 级绿色块（与日历格子同色）。 */
+const calendarLegendStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 3,
+  marginTop: 6,
+}
+
+const calendarLegendLabelStyle: CSSProperties = { fontSize: 9, color: TONE.quiet }
+
+const calendarLegendBlockStyle = (level: number): CSSProperties => ({
+  width: 10,
+  height: 10,
+  borderRadius: 3,
+  background: calendarLegendColor(level),
+})
 
 /** 统计页。 */
 const statsWrapStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6 }
