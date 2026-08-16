@@ -6,9 +6,10 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { ACHIEVEMENTS, achievementById, ACHIEVEMENT_RARITY, rarityOf } from '../src/achievements.ts'
 import {
-  addXp, applyDaily, applyTurn, applyTurnDetailed, autoSeasonId, buyShopItem, checkAchievements, checkCollections, checkTutorial, claimDailyChest,
-  claimLucky, DAILY_CHEST_REWARD, DAILY_QUEST_POOL, dailyQuestsDone, dayKey, ensureDaily, freshSave, freshShop, HISTORY_KEEP,
-  mergeSaves, migrateSave, nextTitle, rollDailyQuests, SETTLEMENT_KEEP, SHOP_ITEMS, shopBalance, titleFor, trimHistory, TUTORIAL_STEPS, useReroll, xpToLevel, xpToNext,
+  addXp, applyDaily, applyTurn, applyTurnDetailed, applyWeekly, autoSeasonId, buyShopItem, checkAchievements, checkCollections, checkTitles,
+  checkTutorial, claimDailyChest, claimLucky, claimWeeklyBonus, DAILY_CHEST_REWARD, DAILY_QUEST_POOL, dailyQuestsDone, dayKey, ensureDaily, ensureWeekly,
+  freshSave, freshShop, HISTORY_KEEP, mergeSaves, migrateSave, nextTitle, rollDailyQuests, rollWeeklyQuests, SETTLEMENT_KEEP, setActiveTitle, SHOP_ITEMS,
+  shopBalance, titleFor, TITLE_POOL, trimHistory, TUTORIAL_STEPS, useReroll, weekKey, WEEKLY_BONUS_XP, WEEKLY_QUEST_POOL, xpToLevel, xpToNext,
 } from '../src/engine.ts'
 import type { Action, SaveData } from '../src/types.ts'
 
@@ -985,4 +986,103 @@ test('存档迁移：collections/lucky 字段补全', () => {
   const migrated = migrateSave(raw as never, 'global', undefined)
   assert.deepEqual(migrated.collections!.completed, {})
   assert.deepEqual(migrated.lucky, { date: '', claimed: false })
+})
+
+// ---------------------------------------------------------------------------
+// v0.7.0：每周挑战 / 多称号
+// ---------------------------------------------------------------------------
+
+test('weekKey：ISO 周键（周一为一周开始）', () => {
+  // 2026-08-15 是周六 → 2026-W33（2026-08-10 周一所在周）
+  const sat = new Date(2026, 7, 15, 12, 0, 0).getTime()
+  assert.equal(weekKey(sat), '2026-W33')
+  // 同周内两天相同
+  const mon = new Date(2026, 7, 10, 9, 0, 0).getTime()
+  assert.equal(weekKey(mon), '2026-W33')
+  // 周一之前（周日 08-09）属于上一周 W32
+  const sun = new Date(2026, 7, 9, 12, 0, 0).getTime()
+  assert.equal(weekKey(sun), '2026-W32')
+})
+
+test('每周挑战：滚动 3 个，同周确定，推进并结算', () => {
+  const w1 = rollWeeklyQuests(NOW)
+  assert.equal(w1.quests.length, 3)
+  assert.equal(w1.week, weekKey(NOW))
+  // 同周再滚相同
+  const w2 = rollWeeklyQuests(NOW + 3600_000)
+  assert.deepEqual(w1.quests.map(q => q.id), w2.quests.map(q => q.id))
+  // 任务来自池
+  for (const q of w1.quests) assert.ok(WEEKLY_QUEST_POOL.some(d => d.id === q.id))
+})
+
+test('每周挑战：applyWeekly 推进进度并结算奖励', () => {
+  let save = fresh()
+  // fresh() 屏蔽了 daily，但 weekly 是独立字段——手动屏蔽避免干扰
+  save.weekly = { week: weekKey(NOW), quests: [] }
+  // 直接用池里第一个任务构造
+  const def = WEEKLY_QUEST_POOL[0]!
+  save.weekly = {
+    week: weekKey(NOW),
+    quests: [{ id: def.id, label: def.label, goal: def.goal, reward: def.reward, progress: 0, done: false }],
+  }
+  // 累计回合数达成
+  save.counters.turnsCompleted = def.goal
+  const gain = applyWeekly(save, NOW)
+  assert.ok(gain >= def.reward)
+  assert.equal(save.weekly!.quests[0]!.done, true)
+})
+
+test('每周全清奖励：3 个全完成可领一次 +100 XP', () => {
+  let save = fresh()
+  const w = rollWeeklyQuests(NOW)
+  for (const q of w.quests) q.done = true
+  save.weekly = w
+  const r1 = claimWeeklyBonus(save, NOW)
+  assert.equal(r1.ok, true)
+  assert.equal(r1.gained, WEEKLY_BONUS_XP)
+  assert.equal(r1.save.weekly!.bonusClaimed, true)
+  // 二次领取拒绝
+  const r2 = claimWeeklyBonus(r1.save, NOW + 1000)
+  assert.equal(r2.ok, false)
+})
+
+test('多称号：条件达标自动解锁', () => {
+  let save = fresh()
+  const r0 = checkTitles(save, NOW)
+  assert.equal(r0.unlocked.length, 0)
+  // 达成 100 次编辑 → t-100edits 解锁
+  save.counters.craftTools = 100
+  const r1 = checkTitles(save, NOW)
+  assert.ok(r1.unlocked.includes('t-100edits'))
+  assert.ok(r1.save.titles!.unlocked.includes('t-100edits'))
+  // 不重复
+  const r2 = checkTitles(r1.save, NOW + 1)
+  assert.equal(r2.unlocked.length, 0)
+})
+
+test('多称号：切换展示（未解锁的不可切换，空=跟随等级）', () => {
+  let save = fresh()
+  save.titles = { unlocked: ['t-100edits'], active: '' }
+  // 切到已解锁
+  const r1 = setActiveTitle(save, 't-100edits')
+  assert.equal(r1.ok, true)
+  assert.equal(r1.save.titles!.active, 't-100edits')
+  // 切到未解锁 → 拒绝
+  const r2 = setActiveTitle(save, 't-30streak')
+  assert.equal(r2.ok, false)
+  assert.equal(r2.save.titles!.active, '')
+  // 切回跟随等级
+  const r3 = setActiveTitle(r1.save, '')
+  assert.equal(r3.ok, true)
+  assert.equal(r3.save.titles!.active, '')
+})
+
+test('存档迁移：weekly/titles 字段补全', () => {
+  const raw = { version: 1, cwd: 'C:/p', player: { level: 1, xp: 0, xpTotal: 0, title: '学徒', season: '2026-S3', seasonXp: 0 }, counters: {} }
+  const migrated = migrateSave(raw as never, 'global', undefined)
+  assert.ok(migrated.weekly !== undefined)
+  assert.equal(migrated.weekly!.week, weekKey(migrated.updatedAt))
+  assert.deepEqual(migrated.titles, { unlocked: [], active: '' })
+  // 称号池完备
+  assert.ok(TITLE_POOL.length >= 5)
 })

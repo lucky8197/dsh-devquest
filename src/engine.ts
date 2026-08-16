@@ -5,7 +5,7 @@
  * （时间由调用方注入 `now`，缺省 Date.now()），无 I/O 无副作用。
  */
 import type {
-  AchievementDef, Action, CollectionState, Counters, DailyQuest, DailyQuestState, DayHistory, PlayerState, SaveData, ShopItemDef, ShopState, TutorialState,
+  AchievementDef, Action, CollectionState, Counters, DailyQuest, DailyQuestState, DayHistory, PlayerState, SaveData, ShopItemDef, ShopState, TitlesState, TutorialState, WeeklyQuest, WeeklyQuestState,
 } from './types.ts'
 
 /** 称号（每 5 级一档）。 */
@@ -328,6 +328,8 @@ export function freshSave(cwd: string, seasonOverride: string | undefined, now: 
     tutorial: { steps: {}, done: false },
     collections: { completed: {} },
     lucky: { date: '', claimed: false },
+    weekly: rollWeeklyQuests(now),
+    titles: { unlocked: [], active: '' },
     updatedAt: now,
   }
 }
@@ -400,6 +402,166 @@ export const TUTORIAL_TITLE = { zh: '见习冒险者', en: 'Rookie Adventurer' }
 
 /** 新手链全部完成的额外奖励 XP。 */
 export const TUTORIAL_COMPLETE_XP = 100
+
+// ---------------------------------------------------------------------------
+// 多称号系统：条件解锁的称号（不同于等级称号），可切换展示。
+// ---------------------------------------------------------------------------
+
+/** 条件称号定义。 */
+export interface TitleDef {
+  id: string
+  name: { zh: string; en: string }
+  icon: string
+  description: { zh: string; en: string }
+  /** 解锁条件（基于存档）。 */
+  check: (save: SaveData, now: number) => boolean
+}
+
+/** 条件称号池（按里程碑/成就解锁）。 */
+export const TITLE_POOL: TitleDef[] = [
+  { id: 't-100edits', name: { zh: '百炼之匠', en: 'Hundred Smith' }, icon: '⚒️',
+    description: { zh: '累计 100 次编辑/写入', en: '100 edits or writes in total' },
+    check: s => s.counters.craftTools >= 100 },
+  { id: 't-500edits', name: { zh: '铸剑大师', en: 'Sword Smith' }, icon: '🗡️',
+    description: { zh: '累计 500 次编辑/写入', en: '500 edits or writes in total' },
+    check: s => s.counters.craftTools >= 500 },
+  { id: 't-100turns', name: { zh: '百回战将', en: 'Centurion' }, icon: '🏇',
+    description: { zh: '累计完成 100 个回合', en: 'Complete 100 turns in total' },
+    check: s => s.counters.turnsCompleted >= 100 },
+  { id: 't-30streak', name: { zh: '月之守护', en: 'Month Warden' }, icon: '🌙',
+    description: { zh: '连续 30 天活跃', en: 'Stay active 30 days in a row' },
+    check: s => s.counters.streakDays >= 30 },
+  { id: 't-allachs', name: { zh: '全成就之主', en: 'All-Rounder' }, icon: '👑',
+    description: { zh: '解锁全部 44 枚成就', en: 'Unlock all 44 achievements' },
+    check: (_s, _now) => false }, // 动态：由 host 注入全部成就数
+]
+
+/** 检查条件称号：返回新解锁的称号 id 列表（一次性）。 */
+export function checkTitles(save: SaveData, now: number = Date.now()): { unlocked: string[]; save: SaveData } {
+  const s = structuredClone(save)
+  const titles: TitlesState = s.titles ?? { unlocked: [], active: '' }
+  const unlocked: string[] = []
+  for (const t of TITLE_POOL) {
+    if (titles.unlocked.includes(t.id)) continue
+    if (t.id === 't-allachs') continue // host 注入判定（见 index.ts）
+    if (t.check(s, now)) {
+      titles.unlocked.push(t.id)
+      unlocked.push(t.id)
+    }
+  }
+  s.titles = titles
+  return { unlocked, save: s }
+}
+
+/** 切换展示称号（active 空 = 跟随等级）。 */
+export function setActiveTitle(save: SaveData, titleId: string): { ok: boolean; save: SaveData } {
+  const s = structuredClone(save)
+  const titles: TitlesState = s.titles ?? { unlocked: [], active: '' }
+  if (titleId !== '' && !titles.unlocked.includes(titleId)) return { ok: false, save: s }
+  titles.active = titleId
+  s.titles = titles
+  return { ok: true, save: s }
+}
+
+// ---------------------------------------------------------------------------
+// 每周挑战：每周 3 个目标（ISO 周），自动推进，全清有额外奖励。
+// ---------------------------------------------------------------------------
+
+/** 每周挑战定义（从计数器取进度）。 */
+export interface WeeklyQuestDef {
+  id: string
+  label: { zh: string; en: string }
+  goal: number
+  reward: number
+  progress: (c: Counters) => number
+}
+
+/** 每周挑战池。 */
+export const WEEKLY_QUEST_POOL: WeeklyQuestDef[] = [
+  { id: 'wq_turns_30', label: { zh: '完成 30 个回合', en: 'Finish 30 turns' }, goal: 30, reward: 120, progress: c => c.turnsCompleted },
+  { id: 'wq_turns_60', label: { zh: '完成 60 个回合', en: 'Finish 60 turns' }, goal: 60, reward: 200, progress: c => c.turnsCompleted },
+  { id: 'wq_tools_200', label: { zh: '调用 200 次工具', en: 'Call 200 tools' }, goal: 200, reward: 150, progress: c => c.toolCalls },
+  { id: 'wq_tools_500', label: { zh: '调用 500 次工具', en: 'Call 500 tools' }, goal: 500, reward: 250, progress: c => c.toolCalls },
+  { id: 'wq_edits_60', label: { zh: '编辑/写入 60 次', en: 'Edit or write 60 times' }, goal: 60, reward: 150, progress: c => c.craftTools },
+  { id: 'wq_cmd_80', label: { zh: '命令行 80 次', en: 'Run 80 commands' }, goal: 80, reward: 150, progress: c => (c.toolCallsByTool.pwsh ?? 0) + (c.toolCallsByTool.bash ?? 0) },
+  { id: 'wq_todos_30', label: { zh: '完成 30 个待办', en: 'Complete 30 todos' }, goal: 30, reward: 200, progress: c => c.todosCompleted },
+  { id: 'wq_tokens_300k', label: { zh: '输出 300k tokens', en: 'Output 300k tokens' }, goal: 300_000, reward: 180, progress: c => c.tokensOut },
+  { id: 'wq_tokens_800k', label: { zh: '输出 800k tokens', en: 'Output 800k tokens' }, goal: 800_000, reward: 300, progress: c => c.tokensOut },
+  { id: 'wq_subagent_5', label: { zh: '派出 5 个子代理', en: 'Spawn 5 subagents' }, goal: 5, reward: 180, progress: c => c.subagentsSpawned },
+  { id: 'wq_distinct_15', label: { zh: '使用 15 种不同工具', en: 'Use 15 different tools' }, goal: 15, reward: 150, progress: c => c.todayTools.length },
+  { id: 'wq_night_5', label: { zh: '凌晨完成 5 个回合', en: 'Finish 5 turns after midnight' }, goal: 5, reward: 200, progress: c => c.nightTurns },
+]
+
+/** 每周抽取的任务数。 */
+export const WEEKLY_QUEST_COUNT = 3
+
+/** 每周全清额外奖励 XP。 */
+export const WEEKLY_BONUS_XP = 100
+
+/** ISO 周键 'YYYY-Www'（周一为一周开始）。 */
+export function weekKey(now: number): string {
+  const d = new Date(now)
+  const day = (d.getDay() + 6) % 7 // 周一=0
+  const thursday = new Date(d)
+  thursday.setDate(d.getDate() - day + 3) // 本周周四
+  const year = thursday.getFullYear()
+  const jan1 = new Date(year, 0, 1)
+  const week = Math.ceil(((thursday.getTime() - jan1.getTime()) / 86_400_000 + 1) / 7)
+  return `${year}-W${String(week).padStart(2, '0')}`
+}
+
+/** 按周滚动本周挑战（同周结果确定）。 */
+export function rollWeeklyQuests(now: number): WeeklyQuestState {
+  const week = weekKey(now)
+  const rng = seededRng(`${week}#weekly`)
+  const pool = [...WEEKLY_QUEST_POOL]
+  const quests: WeeklyQuest[] = []
+  for (let i = 0; i < WEEKLY_QUEST_COUNT && pool.length > 0; i++) {
+    const idx = Math.floor(rng() * pool.length)
+    const def = pool.splice(idx, 1)[0]!
+    quests.push({ id: def.id, label: def.label, goal: def.goal, reward: def.reward, progress: 0, done: false })
+  }
+  return { week, quests }
+}
+
+/** 周过期时重滚（幂等）。 */
+export function ensureWeekly(save: SaveData, now: number): WeeklyQuestState {
+  if (save.weekly === undefined || save.weekly.week !== weekKey(now)) save.weekly = rollWeeklyQuests(now)
+  return save.weekly
+}
+
+/** 推进每周挑战进度并自动结算，返回本轮奖励 XP（与每日任务同机制）。 */
+export function applyWeekly(save: SaveData, now: number): number {
+  const weekly = ensureWeekly(save, now)
+  let gain = 0
+  for (const q of weekly.quests) {
+    if (q.done) continue
+    const def = WEEKLY_QUEST_POOL.find(d => d.id === q.id)
+    if (def === undefined) continue
+    q.progress = Math.min(def.progress(save.counters), q.goal)
+    if (q.progress >= q.goal) {
+      q.done = true
+      q.claimedAt = now
+      gain += q.reward
+    }
+  }
+  return gain
+}
+
+/** 领取每周全清奖励（3 个全完成可领一次 +100 XP）。 */
+export function claimWeeklyBonus(
+  save: SaveData,
+  now: number = Date.now(),
+  seasonOverride?: string,
+): { ok: boolean; gained: number; save: SaveData } {
+  const s = structuredClone(save)
+  const weekly = ensureWeekly(s, now)
+  if (weekly.quests.length === 0 || !weekly.quests.every(q => q.done) || weekly.bonusClaimed === true) {
+    return { ok: false, gained: 0, save: s }
+  }
+  weekly.bonusClaimed = true
+  return { ok: true, gained: WEEKLY_BONUS_XP, save: addXp(s, WEEKLY_BONUS_XP, now, seasonOverride) }
+}
 
 // ---------------------------------------------------------------------------
 // 分类收藏奖励：集齐某分类全部成就 → 一次性 XP + 徽章。
@@ -736,8 +898,8 @@ export function applyTurnDetailed(
 
   // 单回合兜底上限（工具 10 + todo 15 + turn 基础 + tokens，宽松防刷）。
   gain = Math.min(gain, 125)
-  // 每日任务奖励不计入兜底上限（每天固定 3 个，天然防刷）。
-  const questGain = applyDaily(s, now)
+  // 每日任务奖励不计入兜底上限（每天固定 3 个，天然防刷）；每周挑战同机制。
+  const questGain = applyDaily(s, now) + applyWeekly(s, now)
   const next = addXp(s, gain + questGain, now, seasonOverride)
   const turnsDone = completed || failed ? 1 : 0
   // 每日历史：完成回合数累计（XP 已在 addXp 内累计）。
@@ -798,6 +960,8 @@ export function migrateSave(raw: Partial<SaveData>, cwd: string, seasonOverride:
     tutorial: { steps: {}, done: false, ...(raw.tutorial ?? {}) },
     collections: { completed: {}, ...(raw.collections ?? {}) },
     lucky: { date: '', claimed: false, ...(raw.lucky ?? {}) },
+    weekly: raw.weekly ?? rollWeeklyQuests(raw.updatedAt ?? Date.now()),
+    titles: { unlocked: [], active: '', ...(raw.titles ?? {}) },
   }
   out.version = Math.max(1, raw.version ?? 1)
   // 派生字段一致性：称号跟等级走；每日任务日期过期由 ensureDaily 重滚。
@@ -910,6 +1074,14 @@ export function mergeSaves(saves: SaveData[], now: number = Date.now()): SaveDat
   // 商店派生：余额 = 汇总 seasonXp - 汇总 spent；主题取最新存档（换季后 spent 已清，见 addXp）。
   out.shop!.theme = latest.shop?.theme ?? ''
   out.tutorial!.done = TUTORIAL_STEPS.every(step => out.tutorial!.steps[step.id] !== undefined)
+  // 每周挑战：保留最新存档的（周过期由 ensureWeekly 重滚）；称号并集。
+  out.weekly = latest.weekly ?? rollWeeklyQuests(now)
+  for (const s of saves) {
+    for (const id of s.titles?.unlocked ?? []) {
+      if (!out.titles!.unlocked.includes(id)) out.titles!.unlocked.push(id)
+    }
+  }
+  out.titles!.active = latest.titles?.active ?? ''
   // 每日任务：保留最新存档的（日期过期由 ensureDaily 重滚）
   out.daily = latest.daily
   out.history = trimHistory(out.history ?? {}, now)

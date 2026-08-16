@@ -42,6 +42,17 @@ export interface DevQuestRoutesConfig {
         error?: string;
         status: DevQuestStatus;
     }>;
+    /** 切换展示称号；返回是否成功与最新状态。 */
+    setTitle: (titleId: string) => Promise<{
+        ok: boolean;
+        status: DevQuestStatus;
+    }>;
+    /** 领取每周全清奖励；返回是否成功、奖励 XP 与最新状态。 */
+    claimWeeklyBonus: () => Promise<{
+        ok: boolean;
+        gained: number;
+        status: DevQuestStatus;
+    }>;
     /** 结果缓存时长（毫秒）。默认 60s。 */
     cacheTtlMs?: number;
 }

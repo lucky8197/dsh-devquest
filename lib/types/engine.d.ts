@@ -4,7 +4,7 @@
  * 不变式：`applyTurn` / `addXp` / `checkAchievements` 都是纯函数
  * （时间由调用方注入 `now`，缺省 Date.now()），无 I/O 无副作用。
  */
-import type { AchievementDef, Action, Counters, DailyQuestState, DayHistory, PlayerState, SaveData, ShopItemDef, ShopState } from './types.ts';
+import type { AchievementDef, Action, Counters, DailyQuestState, DayHistory, PlayerState, SaveData, ShopItemDef, ShopState, WeeklyQuestState } from './types.ts';
 /** 称号（每 5 级一档）。 */
 export declare const TITLES: readonly [{
     readonly min: 1;
@@ -132,6 +132,64 @@ export declare const TUTORIAL_TITLE: {
 };
 /** 新手链全部完成的额外奖励 XP。 */
 export declare const TUTORIAL_COMPLETE_XP = 100;
+/** 条件称号定义。 */
+export interface TitleDef {
+    id: string;
+    name: {
+        zh: string;
+        en: string;
+    };
+    icon: string;
+    description: {
+        zh: string;
+        en: string;
+    };
+    /** 解锁条件（基于存档）。 */
+    check: (save: SaveData, now: number) => boolean;
+}
+/** 条件称号池（按里程碑/成就解锁）。 */
+export declare const TITLE_POOL: TitleDef[];
+/** 检查条件称号：返回新解锁的称号 id 列表（一次性）。 */
+export declare function checkTitles(save: SaveData, now?: number): {
+    unlocked: string[];
+    save: SaveData;
+};
+/** 切换展示称号（active 空 = 跟随等级）。 */
+export declare function setActiveTitle(save: SaveData, titleId: string): {
+    ok: boolean;
+    save: SaveData;
+};
+/** 每周挑战定义（从计数器取进度）。 */
+export interface WeeklyQuestDef {
+    id: string;
+    label: {
+        zh: string;
+        en: string;
+    };
+    goal: number;
+    reward: number;
+    progress: (c: Counters) => number;
+}
+/** 每周挑战池。 */
+export declare const WEEKLY_QUEST_POOL: WeeklyQuestDef[];
+/** 每周抽取的任务数。 */
+export declare const WEEKLY_QUEST_COUNT = 3;
+/** 每周全清额外奖励 XP。 */
+export declare const WEEKLY_BONUS_XP = 100;
+/** ISO 周键 'YYYY-Www'（周一为一周开始）。 */
+export declare function weekKey(now: number): string;
+/** 按周滚动本周挑战（同周结果确定）。 */
+export declare function rollWeeklyQuests(now: number): WeeklyQuestState;
+/** 周过期时重滚（幂等）。 */
+export declare function ensureWeekly(save: SaveData, now: number): WeeklyQuestState;
+/** 推进每周挑战进度并自动结算，返回本轮奖励 XP（与每日任务同机制）。 */
+export declare function applyWeekly(save: SaveData, now: number): number;
+/** 领取每周全清奖励（3 个全完成可领一次 +100 XP）。 */
+export declare function claimWeeklyBonus(save: SaveData, now?: number, seasonOverride?: string): {
+    ok: boolean;
+    gained: number;
+    save: SaveData;
+};
 /** 各分类集齐奖励 XP（按分类含成就数/难度给）。 */
 export declare const COLLECTION_REWARDS: Record<string, number>;
 /**

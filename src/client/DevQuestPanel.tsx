@@ -267,6 +267,9 @@ export function DevQuestPanelCard(
   const [luckyMsg, setLuckyMsg] = useState<string | null>(null)
   const [claimingLucky, setClaimingLucky] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [titlesOpen, setTitlesOpen] = useState(false)
+  const [weeklyClaiming, setWeeklyClaiming] = useState(false)
+  const [sharing, setSharing] = useState(false)
   // 面板位置：null = 默认右上角；拖拽后保存到 localStorage。
   const [pos, setPos] = useState<{ left: number; top: number } | null>(loadPanelPos)
   const [dragging, setDragging] = useState(false)
@@ -473,6 +476,107 @@ export function DevQuestPanelCard(
     }
   }, [importing, actions, t])
 
+  /** 切换展示称号（titleId 空 = 跟随等级）。 */
+  const switchTitle = useCallback(async (titleId: string): Promise<void> => {
+    try {
+      const response = await fetch('/api/devquest/titles/switch', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ titleId }),
+      })
+      const data = await response.json() as { ok: boolean; status: DevQuestStatus }
+      if (data.status !== null && data.status !== undefined) actions.setStatus(data.status)
+    } catch {
+      // 静默失败
+    }
+  }, [actions])
+
+  /** 领取每周全清奖励。 */
+  const claimWeekly = useCallback(async (): Promise<void> => {
+    if (weeklyClaiming) return
+    setWeeklyClaiming(true)
+    try {
+      const response = await fetch('/api/devquest/weekly-bonus', { method: 'POST' })
+      const data = await response.json() as { ok: boolean; gained: number; status: DevQuestStatus }
+      if (data.status !== null && data.status !== undefined) actions.setStatus(data.status)
+    } catch {
+      // 静默失败
+    } finally {
+      setWeeklyClaiming(false)
+    }
+  }, [weeklyClaiming, actions])
+
+  /** 生成成就分享卡片（canvas → PNG 下载）。 */
+  const shareCard = useCallback(async (): Promise<void> => {
+    if (sharing || state.status === null) return
+    setSharing(true)
+    try {
+      const s = state.status
+      const canvas = document.createElement('canvas')
+      canvas.width = 640
+      canvas.height = 400
+      const ctx = canvas.getContext('2d')
+      if (ctx === null) throw new Error('no-canvas')
+      // 深色渐变背景
+      const grad = ctx.createLinearGradient(0, 0, 640, 400)
+      grad.addColorStop(0, '#101722')
+      grad.addColorStop(1, '#1d2735')
+      ctx.fillStyle = grad
+      ctx.fillRect(0, 0, 640, 400)
+      // 边框装饰
+      ctx.strokeStyle = 'rgba(246,198,82,0.5)'
+      ctx.lineWidth = 2
+      ctx.strokeRect(12, 12, 616, 376)
+      // 标题
+      ctx.fillStyle = '#8ec5ff'
+      ctx.font = '700 22px "Segoe UI", sans-serif'
+      ctx.fillText('⚔️ DevQuest', 36, 56)
+      // 等级 + 称号
+      ctx.fillStyle = '#f6c652'
+      ctx.font = '700 46px "Segoe UI", sans-serif'
+      ctx.fillText(`Lv.${s.level}`, 36, 130)
+      const titleName = s.titles?.current?.name.zh ?? s.title.zh
+      ctx.fillStyle = '#f2f6fc'
+      ctx.font = '600 24px "Segoe UI", sans-serif'
+      ctx.fillText(titleName, 170, 130)
+      // XP 条
+      const pct = levelPercent(s)
+      ctx.fillStyle = '#1d2735'
+      ctx.fillRect(36, 160, 568, 14)
+      ctx.fillStyle = '#8ec5ff'
+      ctx.fillRect(36, 160, Math.round(568 * pct), 14)
+      ctx.fillStyle = '#9daabd'
+      ctx.font = '500 16px "Segoe UI", sans-serif'
+      ctx.fillText(`${s.xp} / ${s.xpToNext} XP`, 36, 198)
+      // 统计
+      const c = s.counters
+      ctx.fillStyle = '#9daabd'
+      ctx.font = '500 17px "Segoe UI", sans-serif'
+      ctx.fillText(`回合 ${c.turnsCompleted}   ·   工具 ${c.toolCalls}   ·   待办 ${c.todosCompleted}`, 36, 240)
+      ctx.fillText(`赛季 ${s.season} · ${s.seasonXp} XP   ·   成就 ${s.achievements.filter(a => a.unlocked).length}/44`, 36, 270)
+      // 已解锁成就图标（前 12 个）
+      const unlockedIcons = s.achievements.filter(a => a.unlocked).slice(0, 12).map(a => a.icon)
+      ctx.font = '26px "Segoe UI Emoji", "Apple Color Emoji", sans-serif'
+      for (let i = 0; i < unlockedIcons.length; i++) {
+        ctx.fillText(unlockedIcons[i]!, 36 + (i % 6) * 50, 330 + Math.floor(i / 6) * 40)
+      }
+      // 底部水印
+      ctx.fillStyle = '#718096'
+      ctx.font = '400 13px "Segoe UI", sans-serif'
+      ctx.fillText('DevQuest — 把开发变成 RPG', 36, 372)
+      // 下载
+      const a = document.createElement('a')
+      a.href = canvas.toDataURL('image/png')
+      a.download = `devquest-card-${dayKeyLocal()}.png`
+      a.click()
+      setShopMsg({ ok: true, text: t('dq.shareDone') })
+    } catch {
+      setShopMsg({ ok: false, text: t('dq.shareFailed') })
+    } finally {
+      setSharing(false)
+    }
+  }, [sharing, state.status, t])
+
   const status = state.status
   // 位置：拖拽后 left/top；未拖过则默认右上角。
   const positionStyle: CSSProperties = pos !== null
@@ -624,6 +728,34 @@ export function DevQuestPanelCard(
               🎁 {claiming ? t('dq.chestClaiming') : t('dq.chestReady', { xp: 50 })}
             </button>
         )}
+        {/* 每周挑战：本周 3 个目标 */}
+        {status.weekly !== undefined && (
+          <div style={weeklyWrapStyle}>
+            <div style={weeklyHeadStyle}>
+              <span style={weeklyTitleStyle}>🗓️ {t('dq.weekly')}</span>
+              <span style={weeklyWeekStyle}>{t('dq.weeklyWeek', { week: status.weekly.week })}</span>
+            </div>
+            {status.weekly.quests.map(q => {
+              const pct = Math.min(100, Math.round((Math.min(q.progress, q.goal) / Math.max(q.goal, 1)) * 100))
+              return (
+                <div key={q.id} style={weeklyQuestRowStyle}>
+                  <div style={weeklyQuestTopStyle}>
+                    <span style={weeklyQuestLabelStyle}>{q.done ? '✅' : '⬜'} {q.label.zh}</span>
+                    <span style={weeklyQuestRewardStyle}>+{q.reward} XP</span>
+                  </div>
+                  <div style={weeklyQuestTrackStyle}>
+                    <div style={{ ...weeklyQuestFillStyle, width: `${pct}%`, ...(q.done ? questFillDoneStyle : {}) }} />
+                  </div>
+                </div>
+              )
+            })}
+            {status.weekly.bonusReady
+              ? <button type="button" onClick={() => void claimWeekly()} disabled={weeklyClaiming} style={weeklyBonusButtonStyle}>
+                🎁 {weeklyClaiming ? '…' : t('dq.weeklyBonus', { xp: 100 })}
+              </button>
+              : status.weekly.bonusClaimed && <div style={weeklyBonusClaimedStyle}>🎁 {t('dq.weeklyBonusClaimed')}</div>}
+          </div>
+        )}
         {/* 商店入口行：余额 + 保险/重掷库存 + 打开商店 */}
         <div style={shopBarStyle}>
           <span style={shopBalanceStyle}>{t('dq.shopBalance', { balance: status.shop?.balance ?? 0 })}</span>
@@ -689,6 +821,61 @@ export function DevQuestPanelCard(
         ))}
         {status.tutorial?.done === true && (
           <div style={tutorialTitleStyle}>🏅 {t('dq.tutorialTitle', { title: status.tutorial.title.zh })}</div>
+        )}
+      </div>
+
+      {/* 多称号：条件解锁称号可切换展示 */}
+      <div style={sectionStyle}>
+        <div style={sectionHeadStyle}>
+          <span style={sectionTitleStyle}>🏷️ {t('dq.titles')}</span>
+          <button type="button" onClick={() => setTitlesOpen(v => !v)} style={linkButtonStyle}>
+            {titlesOpen ? '▾' : '▸'}
+          </button>
+        </div>
+        {/* 当前展示称号 */}
+        <div style={titleCurrentRowStyle}>
+          <span style={{ fontSize: 15 }}>{status.titles?.current?.icon ?? '🎖️'}</span>
+          <span style={titleCurrentNameStyle}>
+            {status.titles?.current !== null
+              ? status.titles?.current?.name.zh
+              : `${t('dq.titleFollowLevel')} · ${status.title.zh}`}
+          </span>
+          <button type="button" onClick={() => void shareCard()} disabled={sharing} style={shareButtonStyle}>
+            {sharing ? '…' : `📤 ${t('dq.share')}`}
+          </button>
+        </div>
+        {titlesOpen && (
+          <div style={titleListStyle}>
+            <button
+              type="button"
+              onClick={() => void switchTitle('')}
+              style={{ ...titleItemStyle, ...(status.titles?.current === null ? titleItemActiveStyle : {}) }}
+            >
+              <span>🎖️</span>
+              <span style={titleItemNameStyle}>{t('dq.titleFollowLevel')} · {status.title.zh}</span>
+              {status.titles?.current === null && <span style={titleItemActiveMarkStyle}>{t('dq.titleActive')}</span>}
+            </button>
+            {(status.titles?.items ?? []).map(ti => (
+              <button
+                key={ti.id}
+                type="button"
+                onClick={() => { if (ti.unlocked) void switchTitle(ti.id) }}
+                disabled={!ti.unlocked}
+                style={{
+                  ...titleItemStyle,
+                  ...(!ti.unlocked ? titleItemLockedStyle : {}),
+                  ...(status.titles?.current?.id === ti.id ? titleItemActiveStyle : {}),
+                }}
+              >
+                <span>{ti.unlocked ? ti.icon : '🔒'}</span>
+                <span style={titleItemNameStyle}>{ti.name.zh} <em style={itemEnStyle}>{ti.name.en}</em></span>
+                {!ti.unlocked && <span style={titleItemLockedMarkStyle}>{t('dq.titleLocked')}</span>}
+                {ti.unlocked && status.titles?.current?.id === ti.id && (
+                  <span style={titleItemActiveMarkStyle}>{t('dq.titleActive')}</span>
+                )}
+              </button>
+            ))}
+          </div>
         )}
       </div>
 
@@ -1494,6 +1681,87 @@ const collNameStyle: CSSProperties = { flex: 1, fontSize: 11, color: TONE.text }
 const collProgressStyle: CSSProperties = { fontSize: 9, color: TONE.muted, fontVariantNumeric: 'tabular-nums' }
 
 const collRewardStyle: CSSProperties = { fontSize: 9, color: TONE.quiet }
+
+// ---- v0.7.0 样式：每周挑战 / 多称号 / 分享 ----
+
+/** 每周挑战。 */
+const weeklyWrapStyle: CSSProperties = { marginTop: 8, paddingTop: 8, borderTop: `1px solid ${TONE.border}`, display: 'flex', flexDirection: 'column', gap: 5 }
+
+const weeklyHeadStyle: CSSProperties = { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }
+
+const weeklyTitleStyle: CSSProperties = { fontSize: 10, fontWeight: 600, color: TONE.muted }
+
+const weeklyWeekStyle: CSSProperties = { fontSize: 9, color: TONE.quiet }
+
+const weeklyQuestRowStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 3 }
+
+const weeklyQuestTopStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }
+
+const weeklyQuestLabelStyle: CSSProperties = { fontSize: 10, color: TONE.text }
+
+const weeklyQuestRewardStyle: CSSProperties = { fontSize: 9, fontWeight: 600, color: TONE.gold }
+
+const weeklyQuestTrackStyle: CSSProperties = { height: 4, borderRadius: 2, background: TONE.row, overflow: 'hidden' }
+
+const weeklyQuestFillStyle: CSSProperties = { height: '100%', borderRadius: 2, background: 'linear-gradient(90deg, var(--dsw-alias-brand-primary, #8ec5ff), var(--dsw-alias-state-success-primary, #78dda0))' }
+
+const weeklyBonusButtonStyle: CSSProperties = {
+  marginTop: 4,
+  padding: '6px 10px',
+  border: '1px solid color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 50%, transparent)',
+  borderRadius: 8,
+  background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 14%, transparent)',
+  color: TONE.gold,
+  fontSize: 10,
+  fontWeight: 600,
+  cursor: 'pointer',
+}
+
+const weeklyBonusClaimedStyle: CSSProperties = { marginTop: 4, fontSize: 10, color: TONE.quiet }
+
+/** 多称号。 */
+const titleCurrentRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8 }
+
+const titleCurrentNameStyle: CSSProperties = { flex: 1, fontSize: 12, color: TONE.text, fontWeight: 600 }
+
+const shareButtonStyle: CSSProperties = {
+  padding: '4px 10px',
+  border: `1px solid ${TONE.borderStrong}`,
+  borderRadius: 8,
+  background: TONE.row,
+  color: TONE.text,
+  fontSize: 10,
+  cursor: 'pointer',
+}
+
+const titleListStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }
+
+const titleItemStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '6px 8px',
+  border: `1px solid ${TONE.border}`,
+  borderRadius: 8,
+  background: TONE.row,
+  color: TONE.text,
+  fontSize: 11,
+  cursor: 'pointer',
+  textAlign: 'left',
+}
+
+const titleItemActiveStyle: CSSProperties = {
+  borderColor: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 45%, transparent)',
+  background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 10%, transparent)',
+}
+
+const titleItemLockedStyle: CSSProperties = { opacity: 0.45, cursor: 'not-allowed' }
+
+const titleItemNameStyle: CSSProperties = { flex: 1, minWidth: 0 }
+
+const titleItemActiveMarkStyle: CSSProperties = { fontSize: 9, color: TONE.gold, fontWeight: 600 }
+
+const titleItemLockedMarkStyle: CSSProperties = { fontSize: 9, color: TONE.quiet }
 
 /** 存档管理。 */
 const saveBarStyle: CSSProperties = { display: 'flex', gap: 6 }

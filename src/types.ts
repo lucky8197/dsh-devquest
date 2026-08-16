@@ -99,6 +99,34 @@ export interface PlayerState {
   levelStartedAt?: number
 }
 
+/** 称号解锁状态（多称号系统：除等级称号外，条件解锁可切换）。 */
+export interface TitlesState {
+  /** 已解锁称号 id 列表。 */
+  unlocked: string[]
+  /** 当前展示称号 id（空 = 跟随等级）。 */
+  active: string
+}
+
+/** 单个每周挑战任务。 */
+export interface WeeklyQuest {
+  id: string
+  label: { zh: string; en: string }
+  goal: number
+  reward: number
+  progress: number
+  done: boolean
+  claimedAt?: number
+}
+
+/** 每周挑战状态（按 ISO 周确定性刷新）。 */
+export interface WeeklyQuestState {
+  /** 周键 'YYYY-Www'（ISO 周）。 */
+  week: string
+  quests: WeeklyQuest[]
+  /** 全清奖励是否已领取（3 个全完成可领一次 +100 XP）。 */
+  bonusClaimed?: boolean
+}
+
 /** 每日历史记录（成长周报：按日累计 XP/回合）。 */
 export interface DayHistory {
   /** 当日获得 XP。 */
@@ -155,6 +183,10 @@ export interface SaveData {
   lastSeqBySession: Record<string, number>
   /** 每日任务状态。 */
   daily: DailyQuestState
+  /** 每周挑战状态。 */
+  weekly?: WeeklyQuestState
+  /** 多称号状态。 */
+  titles?: TitlesState
   /** 最近回合结算事件（面板 toast 用，保留最近 N 条）。 */
   settlements?: TurnSettlementEvent[]
   /** 每日历史（成长周报），date → 当日累计，保留最近 HISTORY_KEEP 天。 */
@@ -271,5 +303,19 @@ export interface DevQuestStatus {
   lucky: { available: boolean; claimed: boolean }
   /** 下一称号预览（无更高称号时为 null）。 */
   nextTitle: { level: number; name: { zh: string; en: string }; xpToNext: number } | null
+  /** 每周挑战视图。 */
+  weekly: {
+    week: string
+    quests: { id: string; label: { zh: string; en: string }; goal: number; reward: number; progress: number; done: boolean }[]
+    bonusReady: boolean
+    bonusClaimed: boolean
+  }
+  /** 多称号视图。 */
+  titles: {
+    /** 当前展示称号（active 为空时显示等级称号）。 */
+    current: { id: string; name: { zh: string; en: string }; icon: string } | null
+    /** 全部条件称号（含解锁状态）。 */
+    items: { id: string; name: { zh: string; en: string }; icon: string; description: { zh: string; en: string }; unlocked: boolean; acquiredAt?: number }[]
+  }
   updatedAt: number
 }
