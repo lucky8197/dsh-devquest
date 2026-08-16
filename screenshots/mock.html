@@ -23,7 +23,7 @@
   body {
     background: var(--canvas);
     font-family: "Segoe UI", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
-    width: 1280px; height: 1210px; position: relative; overflow: hidden;
+    width: 1280px; height: 1310px; position: relative; overflow: hidden;
   }
 
   /* ===== 侧边栏 rail ===== */
@@ -111,6 +111,34 @@
   .level-since { display: block; font-size: 9px; color: var(--quiet); margin-top: 1px; }
   .title-badge { font-size: 13px; line-height: 1; margin-left: -2px; }
 
+  /* 下一称号 + 幸运抽奖 */
+  .next-title-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .next-title { font-size: 10px; color: var(--muted); }
+  .lucky-btn {
+    margin-left: auto; padding: 4px 10px; font-size: 10px; font-weight: 600;
+    border: 1px solid color-mix(in srgb, var(--gold) 50%, transparent);
+    border-radius: 8px; background: color-mix(in srgb, var(--gold) 14%, transparent);
+    color: var(--gold); cursor: pointer;
+  }
+
+  /* 分类收藏 */
+  .coll-row { display: flex; align-items: center; gap: 7px; padding: 3px 0; }
+  .coll-name { flex: 1; font-size: 11px; color: var(--text); }
+  .coll-name.done { color: var(--gold); font-weight: 700; }
+  .coll-progress { font-size: 9px; color: var(--muted); }
+  .coll-reward { font-size: 9px; color: var(--quiet); }
+
+  /* 存档管理 */
+  .save-bar { display: flex; gap: 6px; }
+  .save-btn {
+    flex: 1; padding: 5px 8px; font-size: 10px; text-align: center;
+    border: 1px solid var(--border-strong); border-radius: 8px;
+    background: var(--row); color: var(--muted); cursor: pointer;
+  }
+
+  /* 周报回合数 */
+  .report-turn { font-size: 8px; color: var(--quiet); }
+
   /* 商店 */
   .shop-bar { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
   .shop-balance { font-size: 10px; color: var(--gold); font-weight: 600; }
@@ -177,6 +205,10 @@
   .cell .check { position: absolute; top: 1px; right: 3px; font-size: 9px; font-weight: 700; line-height: 1; color: var(--green); }
   .cell-xp { font-size: 8px; color: var(--quiet); }
   .cell.unlocked .cell-xp { color: var(--gold); font-weight: 600; }
+  .cell.rarity-common { box-shadow: none; }
+  .cell.rarity-rare { border-color: color-mix(in srgb, var(--accent) 45%, transparent); box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 18%, transparent); }
+  .cell.rarity-epic { border-color: color-mix(in srgb, #c5a3ff 45%, transparent); box-shadow: 0 0 10px color-mix(in srgb, #c5a3ff 20%, transparent); }
+  .cell.rarity-legendary { border-color: color-mix(in srgb, var(--gold) 55%, transparent); box-shadow: 0 0 12px color-mix(in srgb, var(--gold) 28%, transparent); }
 
   /* 成就悬浮简介（示意） */
   .tip {
@@ -278,6 +310,11 @@
         </div>
       </div>
 
+      <div class="next-title-row">
+        <span class="next-title">🏅 距 传说（Lv.20）还差 3200 XP</span>
+        <button class="lucky-btn">🎁 今日幸运抽奖</button>
+      </div>
+
       <div class="section">
         <div class="sec-head">
           <span class="sec-title">📅 每日任务</span>
@@ -334,6 +371,19 @@
 
       <div class="section">
         <div class="sec-head">
+          <span class="sec-title">📚 分类收藏</span>
+        </div>
+        <div class="coll-row"><span style="font-size:13px">🏅</span><span class="coll-name done">旅程</span><span class="coll-progress">已集齐</span><span class="coll-reward">+300 XP</span></div>
+        <div class="coll-row"><span style="font-size:13px">⚒️</span><span class="coll-name">锻造</span><span class="coll-progress">7/10</span><span class="coll-reward">集齐 +400 XP</span></div>
+        <div class="coll-row"><span style="font-size:13px">💎</span><span class="coll-name">传奇</span><span class="coll-progress">5/7</span><span class="coll-reward">集齐 +800 XP</span></div>
+        <div class="save-bar" style="margin-top:6px">
+          <button class="save-btn">⬇️ 导出存档</button>
+          <button class="save-btn">⬆️ 导入存档</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="sec-head">
           <span class="sec-title">最近成就</span>
           <span class="sec-date">更新于 2m</span>
         </div>
@@ -353,13 +403,13 @@
           <button class="tab">时光</button><button class="tab">传奇</button><button class="tab">彩蛋</button>
         </div>
         <div class="wall-grid">
-          <div class="cell unlocked">🚶<span class="check">✓</span><span class="cell-xp">+50</span></div>
-          <div class="cell unlocked">🎖️<span class="check">✓</span><span class="cell-xp">+100</span></div>
-          <div class="cell unlocked">🏅<span class="check">✓</span><span class="cell-xp">+250</span></div>
-          <div class="cell unlocked">🏆<span class="check">✓</span><span class="cell-xp">+500</span></div>
-          <div class="cell unlocked">💪<span class="check">✓</span><span class="cell-xp">+100</span></div>
-          <div class="cell unlocked">🛡️<span class="check">✓</span><span class="cell-xp">+400</span></div>
-          <div class="cell unlocked">🛡️<span class="check">✓</span><span class="cell-xp">+400</span></div>
+          <div class="cell unlocked rarity-common">🚶<span class="check">✓</span><span class="cell-xp">+50</span></div>
+          <div class="cell unlocked rarity-rare">🎖️<span class="check">✓</span><span class="cell-xp">+100</span></div>
+          <div class="cell unlocked rarity-rare">🏅<span class="check">✓</span><span class="cell-xp">+250</span></div>
+          <div class="cell unlocked rarity-epic">🏆<span class="check">✓</span><span class="cell-xp">+500</span></div>
+          <div class="cell unlocked rarity-common">💪<span class="check">✓</span><span class="cell-xp">+100</span></div>
+          <div class="cell unlocked rarity-epic">🛡️<span class="check">✓</span><span class="cell-xp">+400</span></div>
+          <div class="cell unlocked rarity-legendary">🗿<span class="check">✓</span><span class="cell-xp">+750</span></div>
           <div class="cell locked">🚶<span class="cell-xp">+50</span></div>
           <div class="cell locked">🎖️<span class="cell-xp">+100</span></div>
           <div class="cell hidden-locked">❔</div>
@@ -376,15 +426,15 @@
           <button class="wall-toggle">▸</button>
         </div>
         <div class="report-bars">
-          <div class="report-col"><div class="report-wrap"><div class="report-bar" style="height:40%"></div></div><span class="report-date">08-09</span></div>
-          <div class="report-col"><div class="report-wrap"><div class="report-bar" style="height:22%"></div></div><span class="report-date">08-10</span></div>
-          <div class="report-col"><div class="report-wrap"><div class="report-bar" style="height:55%"></div></div><span class="report-date">08-11</span></div>
-          <div class="report-col"><div class="report-wrap"><div class="report-bar" style="height:34%"></div></div><span class="report-date">08-12</span></div>
-          <div class="report-col"><div class="report-wrap"><div class="report-bar" style="height:72%"></div></div><span class="report-date">08-13</span></div>
-          <div class="report-col"><div class="report-wrap"><div class="report-bar" style="height:48%"></div></div><span class="report-date">08-14</span></div>
-          <div class="report-col"><div class="report-wrap"><div class="report-bar" style="height:100%"></div></div><span class="report-date">08-15</span></div>
+          <div class="report-col"><div class="report-wrap"><div class="report-bar" style="height:40%"></div></div><span class="report-turn">6</span><span class="report-date">08-09</span></div>
+          <div class="report-col"><div class="report-wrap"><div class="report-bar" style="height:22%"></div></div><span class="report-turn">3</span><span class="report-date">08-10</span></div>
+          <div class="report-col"><div class="report-wrap"><div class="report-bar" style="height:55%"></div></div><span class="report-turn">9</span><span class="report-date">08-11</span></div>
+          <div class="report-col"><div class="report-wrap"><div class="report-bar" style="height:34%"></div></div><span class="report-turn">5</span><span class="report-date">08-12</span></div>
+          <div class="report-col"><div class="report-wrap"><div class="report-bar" style="height:72%"></div></div><span class="report-turn">11</span><span class="report-date">08-13</span></div>
+          <div class="report-col"><div class="report-wrap"><div class="report-bar" style="height:48%"></div></div><span class="report-turn">7</span><span class="report-date">08-14</span></div>
+          <div class="report-col"><div class="report-wrap"><div class="report-bar" style="height:100%"></div></div><span class="report-turn">16</span><span class="report-date">08-15</span></div>
         </div>
-        <div class="report-legend">最近 7 天 XP</div>
+        <div class="report-legend">最近 7 天 XP（柱下标为当日回合数）</div>
       </div>
 
     </div>
@@ -405,11 +455,11 @@
     <div class="tip-desc">连续 25 回合零失误</div>
   </div>
 
-  <!-- toast -->
-  <div class="toast">
+  <!-- toast：史诗稀有度示例 -->
+  <div class="toast" style="border-color:color-mix(in srgb,#c5a3ff 55%,transparent);box-shadow:0 0 14px color-mix(in srgb,#c5a3ff 25%,transparent)">
     <div class="toast-icon">🛡️</div>
     <div style="min-width:0">
-      <div class="toast-title">🏆 成就解锁！</div>
+      <div class="toast-title">🏆 成就解锁！ · 史诗</div>
       <div class="toast-name">钢铁意志 <em style="font-size:10px;color:var(--quiet);font-style:normal;margin-left:4px">Iron Will</em></div>
       <div class="toast-desc">连续 25 回合零失误 · +400 XP</div>
     </div>
