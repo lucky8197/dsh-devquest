@@ -270,10 +270,10 @@ function SectionCard(props: {
       aria-expanded={!collapsed}
       title={collapsed ? '展开' : '折叠'}
     >
-      <span style={sectionCardTitleStyle}>{title}</span>
+      <span style={{ ...sectionCardTitleStyle, ...(collapsed ? sectionCardTitleCollapsedStyle : {}) }}>{title}</span>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
         {right}
-        <span style={sectionCardArrowStyle}>{collapsed ? '▸' : '▾'}</span>
+        <span style={{ ...sectionCardArrowStyle, ...(collapsed ? sectionCardTitleCollapsedStyle : {}) }}>{collapsed ? '▸' : '▾'}</span>
       </span>
     </button>
     {!collapsed && <div style={sectionCardBodyStyle}>{children}</div>}
@@ -1457,10 +1457,10 @@ const sectionCardHeadStyle: CSSProperties = {
   textAlign: 'left',
 }
 
-/** 折叠态标题栏：背景色块 + 保留文字，不再是「白条」。 */
+/** 折叠态标题栏：深色品牌底 + 白字，任何主题下都清晰可见（不再是灰/白条）。 */
 const sectionCardHeadCollapsedStyle: CSSProperties = {
   borderBottom: 'none',
-  background: 'color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 12%, transparent)',
+  background: 'color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 80%, #16202e)',
 }
 
 const sectionCardTitleStyle: CSSProperties = {
@@ -1469,6 +1469,11 @@ const sectionCardTitleStyle: CSSProperties = {
   // fallback 用深色：浅色主题下即使变量缺失文字也可见。
   color: 'var(--dsw-alias-label-primary, #1a2230)',
   letterSpacing: 0.3,
+}
+
+/** 折叠态标题文字：白色，保证在深色背景上清晰。 */
+const sectionCardTitleCollapsedStyle: CSSProperties = {
+  color: '#ffffff',
 }
 
 /** 折叠箭头。 */
