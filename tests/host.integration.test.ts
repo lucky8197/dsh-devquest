@@ -191,3 +191,35 @@ test('host 集成：失败回合 + 幂等水位（重放跳过）', async (t) =>
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+test('host 集成：session/created 子代理计数 → subagentsSpawned', async (t) => {
+  const module = await loadLib()
+  if (module === null) {
+    t.skip('缺少 lib/index.js 或其 DSH 依赖（先 npm run build）')
+    return
+  }
+  const dir = mkdtempSync(join(tmpdir(), 'devquest-test-'))
+  try {
+    const env = fakeCtx()
+    module.apply(env.ctx, { dataDir: dir, season: 'TEST-S1' })
+
+    // 普通会话创建：不计数
+    const emitCreated = [...env.listeners.get('session/created')!][0]!
+    emitCreated({ id: 'session-main', header: { cwd: 'C:/proj', origin: undefined } })
+    await new Promise(r => setTimeout(r, 100))
+
+    // 子代理会话创建：计数 +1（origin=subagent）
+    emitCreated({ id: 'session-sub-1', header: { cwd: 'C:/proj', origin: 'subagent', delegationDepth: 1 } })
+    await new Promise(r => setTimeout(r, 100))
+
+    // 再一个（delegationDepth>0 兜底判断）
+    emitCreated({ id: 'session-sub-2', header: { cwd: 'C:/proj', delegationDepth: 2 } })
+    await new Promise(r => setTimeout(r, 100))
+
+    const statusTool = env.tools.find(t => t.name === 'devquest_status')!
+    const status = await statusTool.execute({} as never, { agent: { session: { header: { cwd: 'C:/proj' } } } } as never) as unknown as { counters: { subagentsSpawned: number } }
+    assert.equal(status.counters.subagentsSpawned, 2, '两个子代理会话 → subagentsSpawned=2')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})

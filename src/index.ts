@@ -300,6 +300,21 @@ export function apply(ctx: Context, config: Config = {}): void {
     })
   })
 
+  // ---- 1b. 子代理计数：session/created（origin=subagent 或 delegationDepth>0）→ subagentsSpawned+1 ----
+  // 事件流里没有子代理创建事件，子代理是独立 session；用 session/created 监听补上。
+  ctx.on('session/created', (session: Session) => {
+    const isSubagent = session.header?.origin === 'subagent' || (session.header?.delegationDepth ?? 0) > 0
+    if (!isSubagent) return
+    const key = scopeKey()
+    enqueue(key, async () => {
+      const save = await getSave(key)
+      save.counters.subagentsSpawned += 1
+      save.updatedAt = Date.now()
+      saveCache.set(key, save)
+      await persistSave(ctx, storeConfig, save)
+    })
+  })
+
   // ---- 2. 工具 ----
   registerDevQuestTools(ctx, {
     status: async (): Promise<DevQuestStatus> => {

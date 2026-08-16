@@ -1,6 +1,6 @@
 {
   "name": "dsh-devquest",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "把开发变成 RPG：回合/工具/todo 积累 XP、成就徽章、等级与赛季。事件流驱动，纯函数计分。",
   "type": "module",
   "main": "./lib/index.js",
