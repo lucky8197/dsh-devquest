@@ -98,6 +98,10 @@ export const DAILY_QUEST_POOL: DailyQuestDef[] = [
   { id: 'dq_night_1', label: { zh: '凌晨完成 1 个回合', en: 'Finish a turn after midnight' }, goal: 1, reward: 90, progress: c => c.nightTurns },
   { id: 'dq_distinct_8', label: { zh: '使用 8 种不同工具', en: 'Use 8 different tools' }, goal: 8, reward: 100, progress: c => c.todayTools.length },
   { id: 'dq_checkin_1', label: { zh: '查看 1 次进度', en: 'Check your progress' }, goal: 1, reward: 20, progress: c => c.devquestCalls },
+  // v1.2.0 新任务
+  { id: 'dq_combo_10', label: { zh: '连击达到 10', en: 'Reach a 10-turn combo' }, goal: 10, reward: 100, progress: c => c.consecutiveSuccess },
+  { id: 'dq_combo_25', label: { zh: '连击达到 25', en: 'Reach a 25-turn combo' }, goal: 25, reward: 150, progress: c => c.consecutiveSuccess },
+  { id: 'dq_night_2', label: { zh: '凌晨完成 2 个回合', en: 'Finish 2 turns after midnight' }, goal: 2, reward: 150, progress: c => c.nightTurns },
 ]
 
 /** 每天抽取的任务数。 */
@@ -484,6 +488,15 @@ export const SHOP_ITEMS: ShopItemDef[] = [
   { id: 'theme-royal', kind: 'theme', icon: '💜', price: 300,
     name: { zh: '紫晶主题', en: 'Royal Theme' },
     description: { zh: '面板切换为紫晶紫配色', en: 'Switch the panel to royal-violet colors' } },
+  { id: 'theme-gold', kind: 'theme', icon: '✨', price: 300,
+    name: { zh: '鎏金主题', en: 'Gold Theme' },
+    description: { zh: '面板切换为鎏金黄配色', en: 'Switch the panel to gold colors' } },
+  { id: 'theme-peach', kind: 'theme', icon: '🍑', price: 300,
+    name: { zh: '蜜桃主题', en: 'Peach Theme' },
+    description: { zh: '面板切换为蜜桃粉橙配色', en: 'Switch the panel to peach colors' } },
+  { id: 'theme-neon', kind: 'theme', icon: '🌌', price: 300,
+    name: { zh: '霓虹主题', en: 'Neon Theme' },
+    description: { zh: '面板切换为霓虹蓝紫配色', en: 'Switch the panel to neon blue-violet colors' } },
   { id: 'badge-crown', kind: 'badge', icon: '👑', price: 250,
     name: { zh: '王冠徽章', en: 'Crown Badge' },
     description: { zh: '称号旁展示 👑 王冠徽章', en: 'Show a crown badge next to your title' } },
@@ -507,6 +520,9 @@ export const SHOP_THEMES: Record<string, string> = {
   'theme-ocean': 'ocean',
   'theme-sakura': 'sakura',
   'theme-royal': 'royal',
+  'theme-gold': 'gold',
+  'theme-peach': 'peach',
+  'theme-neon': 'neon',
 }
 
 /** 新手任务链：5 步引导主线，全部完成解锁专属称号。 */
@@ -799,12 +815,12 @@ export function checkCollections(
 
 /** 每分类成就列表（供收藏检查用；避免循环依赖 achievements.ts）。 */
 const ACHIEVEMENTS_BY_CATEGORY: Record<string, string[]> = {
-  journey: ['first_turn', 'turns_10', 'turns_25', 'turns_50', 'turns_100', 'turns_250', 'comeback', 'comeback_10', 'steel_will'],
-  crafting: ['first_edit', 'edits_100', 'edits_500', 'first_cmd', 'first_remote', 'first_subagent', 'subagents_10', 'tool_666', 'cmd_100', 'tools_250'],
-  quest: ['first_todo', 'todos_10', 'todos_50', 'todos_100', 'clean_sweep', 'daily_quest_10', 'daily_quest_30'],
-  time: ['night_owl', 'early_bird', 'night_owl_10', 'seven_days', 'streak_30', 'grinder'],
+  journey: ['first_turn', 'turns_10', 'turns_25', 'turns_50', 'turns_100', 'turns_250', 'turns_500', 'comeback', 'comeback_10', 'steel_will'],
+  crafting: ['first_edit', 'edits_100', 'edits_500', 'edits_1000', 'first_cmd', 'first_remote', 'first_subagent', 'subagents_10', 'tool_666', 'cmd_100', 'tools_250'],
+  quest: ['first_todo', 'todos_10', 'todos_50', 'todos_100', 'clean_sweep', 'daily_quest_10', 'daily_quest_30', 'daily_quest_50'],
+  time: ['night_owl', 'early_bird', 'night_owl_10', 'seven_days', 'streak_14', 'streak_30', 'grinder'],
   legend: ['level_5', 'level_10', 'level_15', 'level_20', 'level_25', 'level_30', 'season_100k'],
-  egg: ['devil_hour', 'self_aware', 'oops', 'thinker', 'jack_of_all', 'keyboard_warrior', 'midnight_bell', 'combo_master'],
+  egg: ['devil_hour', 'self_aware', 'oops', 'thinker', 'jack_of_all', 'keyboard_warrior', 'midnight_bell', 'combo_master', 'lunch_break'],
 }
 
 /** 分类 id 列表。 */

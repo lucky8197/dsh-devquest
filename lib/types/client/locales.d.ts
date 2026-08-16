@@ -73,6 +73,16 @@ declare const zh: {
     readonly 'dq.shopSkip': "跳过任务";
     readonly 'dq.skipUsed': "已跳过 1 个任务";
     readonly 'dq.reminder': "今天还有 {n} 个每日任务没完成，趁现在做完吧！";
+    readonly 'dq.shareSeason': "赛季报告";
+    readonly 'dq.settings': "设置";
+    readonly 'dq.settingsFont': "字号";
+    readonly 'dq.settingsCompact': "紧凑模式";
+    readonly 'dq.settingsToast': "通知过滤";
+    readonly 'dq.settingsToastAll': "全部通知";
+    readonly 'dq.settingsToastRare': "仅稀有以上";
+    readonly 'dq.settingsToastOff': "关闭通知";
+    readonly 'dq.on': "开";
+    readonly 'dq.off': "关";
     readonly 'dq.levelSince': "本等级已 {days} 天";
     readonly 'dq.seasonSprint': "赛季冲刺";
     readonly 'dq.seasonDaysLeft': "剩 {days} 天";

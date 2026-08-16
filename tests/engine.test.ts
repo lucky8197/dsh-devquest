@@ -435,15 +435,15 @@ test('成就判定：daily_quest_10 与 level_15', () => {
   assert.ok(!unlocked.includes('level_20'))
 })
 
-test('成就总数：47 枚（含 9 枚隐藏）', () => {
-  assert.equal(ACHIEVEMENTS.length, 47)
-  assert.equal(ACHIEVEMENTS.filter(a => a.hidden === true).length, 9)
+test('成就总数：52 枚（含 10 枚隐藏）', () => {
+  assert.equal(ACHIEVEMENTS.length, 52)
+  assert.equal(ACHIEVEMENTS.filter(a => a.hidden === true).length, 10)
 })
 
-test('每日任务池：21 种类型', () => {
+test('每日任务池：24 种类型', () => {
   const ids = new Set(DAILY_QUEST_POOL.map(q => q.id))
-  assert.equal(DAILY_QUEST_POOL.length, 21)
-  assert.equal(ids.size, 21) // 无重复
+  assert.equal(DAILY_QUEST_POOL.length, 24)
+  assert.equal(ids.size, 24) // 无重复
 })
 
 // ---------------------------------------------------------------------------
@@ -888,9 +888,9 @@ test('商店：商品表完备（4 类商品齐备）', () => {
   assert.ok(kinds.has('theme'))
   assert.ok(kinds.has('badge'))
   assert.ok(SHOP_ITEMS.length >= 12)
-  // v0.11.0：7 款主题皮肤
+  // v1.2.0：10 款主题皮肤
   const themeCount = SHOP_ITEMS.filter(i => i.kind === 'theme').length
-  assert.equal(themeCount, 7)
+  assert.equal(themeCount, 10)
 })
 
 test('连击保险：失误回合消耗一个，连击不清零', () => {
@@ -1003,8 +1003,8 @@ test('等级起点：升级时记录 levelStartedAt', () => {
 // v0.6.0：稀有度 / 分类收藏 / 每日抽奖 / 下一称号
 // ---------------------------------------------------------------------------
 
-test('稀有度：47 枚成就都有明确稀有度（映射完备）', () => {
-  assert.equal(ACHIEVEMENTS.length, 47)
+test('稀有度：52 枚成就都有明确稀有度（映射完备）', () => {
+  assert.equal(ACHIEVEMENTS.length, 52)
   for (const a of ACHIEVEMENTS) {
     const r = rarityOf(a.id)
     assert.ok(['common', 'rare', 'epic', 'legendary'].includes(r), `${a.id} 稀有度缺失`)
@@ -1016,8 +1016,8 @@ test('稀有度：47 枚成就都有明确稀有度（映射完备）', () => {
 
 test('分类收藏：集齐某分类全部成就 → 奖励 XP（一次性）', () => {
   let save = fresh()
-  // 集齐 journey 分类（9 枚）
-  const journeyIds = ['first_turn', 'turns_10', 'turns_25', 'turns_50', 'turns_100', 'turns_250', 'comeback', 'comeback_10', 'steel_will']
+  // 集齐 journey 分类（v1.2.0 起 10 枚）
+  const journeyIds = ['first_turn', 'turns_10', 'turns_25', 'turns_50', 'turns_100', 'turns_250', 'turns_500', 'comeback', 'comeback_10', 'steel_will']
   for (const id of journeyIds) save.achievements[id] = { acquiredAt: NOW, xp: 0 }
   const r1 = checkCollections(save, NOW)
   assert.ok(r1.completed.includes('journey'))
@@ -1252,12 +1252,13 @@ test('荣誉墙：trimRecords 只保留最近 RECORDS_KEEP 个赛季', () => {
   assert.ok(!seasons.includes('2000-S1')) // 最老的裁掉
 })
 
-test('成就总数：44 → 47（新增 3 枚彩蛋）', () => {
-  assert.equal(ACHIEVEMENTS.length, 47)
+test('成就总数：47 → 52（v1.2.0 新增 5 枚）', () => {
+  assert.equal(ACHIEVEMENTS.length, 52)
   const eggIds = ACHIEVEMENTS.filter(a => a.category === 'egg').map(a => a.id)
   assert.ok(eggIds.includes('keyboard_warrior'))
   assert.ok(eggIds.includes('midnight_bell'))
   assert.ok(eggIds.includes('combo_master'))
+  assert.ok(eggIds.includes('lunch_break'))
 })
 
 // ---------------------------------------------------------------------------
