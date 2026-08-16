@@ -377,7 +377,7 @@ export function DevQuestPanelCard(
   }
   const isCollapsed = (id: string): boolean => collapsed[id] === true
   /** 全部面板分区 id（一键折叠/展开用）。 */
-  const ALL_SECTION_IDS = ['daily', 'shop', 'skins', 'tutorial', 'titles', 'collections', 'recent', 'wall', 'report', 'calendar', 'stats']
+  const ALL_SECTION_IDS = ['daily', 'weekly', 'shop', 'skins', 'tutorial', 'titles', 'collections', 'recent', 'wall', 'report', 'calendar', 'stats']
   /** 全部展开。 */
   const expandAll = (): void => {
     const next: Record<string, boolean> = {}
@@ -855,7 +855,7 @@ export function DevQuestPanelCard(
       </div>
       {luckyMsg !== null && <div style={luckyMsgStyle}>{luckyMsg}</div>}
 
-      {/* 每日任务 + 每周挑战 + 商店 */}
+      {/* 每日任务 */}
       <SectionCard
         id="daily"
         title={`📅 ${t('dq.daily')}`}
@@ -885,13 +885,18 @@ export function DevQuestPanelCard(
               🎁 {claiming ? t('dq.chestClaiming') : t('dq.chestReady', { xp: 50 })}
             </button>
         )}
-        {/* 每周挑战：本周 3 个目标 */}
+      </SectionCard>
+
+      {/* 每周挑战：独立分区 */}
+      <SectionCard
+        id="weekly"
+        title={`🗓️ ${t('dq.weekly')}`}
+        right={<span style={updatedStyle}>{t('dq.weeklyWeek', { week: status.weekly?.week ?? '' })}</span>}
+        collapsed={isCollapsed('weekly')}
+        onToggle={() => toggleSection('weekly')}
+      >
         {status.weekly !== undefined && (
-          <div style={weeklyWrapStyle}>
-            <div style={weeklyHeadStyle}>
-              <span style={weeklyTitleStyle}>🗓️ {t('dq.weekly')}</span>
-              <span style={weeklyWeekStyle}>{t('dq.weeklyWeek', { week: status.weekly.week })}</span>
-            </div>
+          <>
             {status.weekly.quests.map(q => {
               const pct = Math.min(100, Math.round((Math.min(q.progress, q.goal) / Math.max(q.goal, 1)) * 100))
               return (
@@ -911,7 +916,7 @@ export function DevQuestPanelCard(
                 🎁 {weeklyClaiming ? '…' : t('dq.weeklyBonus', { xp: 100 })}
               </button>
               : status.weekly.bonusClaimed && <div style={weeklyBonusClaimedStyle}>🎁 {t('dq.weeklyBonusClaimed')}</div>}
-          </div>
+          </>
         )}
       </SectionCard>
 
@@ -2309,14 +2314,6 @@ const collRewardStyle: CSSProperties = { fontSize: 9, color: TONE.quiet }
 // ---- v0.7.0 样式：每周挑战 / 多称号 / 分享 ----
 
 /** 每周挑战。 */
-const weeklyWrapStyle: CSSProperties = { marginTop: 8, paddingTop: 8, borderTop: `1px solid ${TONE.border}`, display: 'flex', flexDirection: 'column', gap: 5 }
-
-const weeklyHeadStyle: CSSProperties = { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }
-
-const weeklyTitleStyle: CSSProperties = { fontSize: 10, fontWeight: 600, color: TONE.muted }
-
-const weeklyWeekStyle: CSSProperties = { fontSize: 9, color: TONE.quiet }
-
 const weeklyQuestRowStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 3 }
 
 const weeklyQuestTopStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }
