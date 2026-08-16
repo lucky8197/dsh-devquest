@@ -114,7 +114,7 @@ export function apply(ctx: Context, config: Config = {}): void {
         balance: shopBalance(save),
         items: SHOP_ITEMS.map(item => {
           const owned = item.kind === 'theme'
-            ? (save.shop?.themes ?? []).includes(item.id)
+            ? (save.shop?.themes ?? []).includes(item.id) || save.shop?.theme === item.id
             : item.kind === 'badge'
               ? (save.shop?.badges ?? []).includes(item.id)
               : false

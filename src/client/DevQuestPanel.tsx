@@ -323,7 +323,6 @@ export function DevQuestPanelCard(
   const [category, setCategory] = useState<(typeof CATEGORY_KEYS)[number]>('journey')
   const [hover, setHover] = useState<{ a: DevQuestStatus['achievements'][number]; x: number; y: number } | null>(null)
   const [claiming, setClaiming] = useState(false)
-  const [shopOpen, setShopOpen] = useState(false)
   const [buying, setBuying] = useState<string | null>(null)
   const [confirmBuyId, setConfirmBuyId] = useState<string | null>(null)
   const [shopMsg, setShopMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -841,65 +840,119 @@ export function DevQuestPanelCard(
               : status.weekly.bonusClaimed && <div style={weeklyBonusClaimedStyle}>🎁 {t('dq.weeklyBonusClaimed')}</div>}
           </div>
         )}
-        {/* 商店入口行：余额 + 保险/重掷库存 + 打开商店 */}
+      </SectionCard>
+
+      {/* 商店：赛季货币消费（连击保险 / 任务重掷 / 徽章） */}
+      <SectionCard
+        id="shop"
+        title={`🛒 ${t('dq.shop')}`}
+        right={<span style={updatedStyle}>{t('dq.shopBalance', { balance: status.shop?.balance ?? 0 })}</span>}
+        collapsed={isCollapsed('shop')}
+        onToggle={() => toggleSection('shop')}
+      >
+        {/* 库存行：保险/重掷 */}
         <div style={shopBarStyle}>
-          <span style={shopBalanceStyle}>{t('dq.shopBalance', { balance: status.shop?.balance ?? 0 })}</span>
           {(status.shop?.shields ?? 0) > 0 && <span style={shopStockStyle}>{t('dq.shopShields', { n: status.shop!.shields })}</span>}
           {(status.shop?.rerolls ?? 0) > 0 && <span style={shopStockStyle}>{t('dq.shopRerolls', { n: status.shop!.rerolls })}</span>}
-          <button type="button" onClick={() => setShopOpen(v => !v)} style={linkButtonStyle}>{shopOpen ? '▾' : '🛒 ' + t('dq.shop')}</button>
         </div>
-        {shopOpen && (
-          <div style={shopGridStyle}>
-            {status.shop?.items.map(item => {
-              const canAfford = (status.shop!.balance) >= item.price
-              const isTheme = item.kind === 'theme'
-              const themeActive = isTheme && status.shop?.theme === item.id
-              return (
-                <div key={item.id} style={shopItemStyle}>
-                  <div style={shopItemHeadStyle}>
-                    <span style={{ fontSize: 15 }}>{item.icon}</span>
-                    <span style={shopItemNameStyle}>{item.name.zh}</span>
-                    <span style={shopItemPriceStyle}>{item.price}</span>
-                  </div>
-                  <div style={shopItemDescStyle}>{item.description.zh}</div>
-                  {themeActive
-                    ? <div style={shopOwnedStyle}>{t('dq.themeActive')}</div>
-                    : item.owned
-                      ? <button
-                        type="button"
-                        onClick={() => void activateTheme(item.id)}
-                        disabled={buying !== null}
-                        style={{ ...shopBuyButtonStyle, ...shopThemeUseButtonStyle }}
-                      >
-                        {t('dq.themeUse')}
-                      </button>
-                      : <button
-                        type="button"
-                        onClick={() => void buy(item.id)}
-                        disabled={buying !== null || !canAfford}
-                        style={{
-                          ...shopBuyButtonStyle,
-                          ...(confirmBuyId === item.id ? shopConfirmButtonStyle : {}),
-                          ...(!canAfford ? shopBuyDisabledStyle : {}),
-                        }}
-                      >
-                        {buying === item.id
-                          ? '…'
-                          : confirmBuyId === item.id
-                            ? `⚠️ ${t('dq.shopConfirm')}`
-                            : t('dq.shopBuy')}
-                      </button>}
+        <div style={shopGridStyle}>
+          {status.shop?.items.filter(item => item.kind !== 'theme').map(item => {
+            const canAfford = (status.shop!.balance) >= item.price
+            return (
+              <div key={item.id} style={shopItemStyle}>
+                <div style={shopItemHeadStyle}>
+                  <span style={{ fontSize: 15 }}>{item.icon}</span>
+                  <span style={shopItemNameStyle}>{item.name.zh}</span>
+                  <span style={shopItemPriceStyle}>{item.price}</span>
                 </div>
-              )
-            })}
-            {shopMsg !== null && <div style={shopMsgStyle(shopMsg.ok)}>{shopMsg.text}</div>}
-            {(status.shop?.rerolls ?? 0) > 0 && (
-              <button type="button" onClick={() => void rerollQuests()} disabled={rerolling} style={rerollButtonStyle}>
-                🔀 {rerolling ? '…' : t('dq.shopReroll')}
-              </button>
-            )}
-          </div>
-        )}
+                <div style={shopItemDescStyle}>{item.description.zh}</div>
+                {item.owned
+                  ? <div style={shopOwnedStyle}>{t('dq.shopOwned')}</div>
+                  : <button
+                    type="button"
+                    onClick={() => void buy(item.id)}
+                    disabled={buying !== null || !canAfford}
+                    style={{
+                      ...shopBuyButtonStyle,
+                      ...(confirmBuyId === item.id ? shopConfirmButtonStyle : {}),
+                      ...(!canAfford ? shopBuyDisabledStyle : {}),
+                    }}
+                  >
+                    {buying === item.id
+                      ? '…'
+                      : confirmBuyId === item.id
+                        ? `⚠️ ${t('dq.shopConfirm')}`
+                        : t('dq.shopBuy')}
+                  </button>}
+              </div>
+            )
+          })}
+          {shopMsg !== null && <div style={shopMsgStyle(shopMsg.ok)}>{shopMsg.text}</div>}
+          {(status.shop?.rerolls ?? 0) > 0 && (
+            <button type="button" onClick={() => void rerollQuests()} disabled={rerolling} style={rerollButtonStyle}>
+              🔀 {rerolling ? '…' : t('dq.shopReroll')}
+            </button>
+          )}
+        </div>
+      </SectionCard>
+
+      {/* 主题皮肤：已购可切换，未购可购买（独立功能） */}
+      <SectionCard
+        id="skins"
+        title={`🎨 ${t('dq.skins')}`}
+        right={(() => {
+          const activeTheme = status.shop?.items.find(i => i.id === status.shop?.theme)
+          return status.shop?.theme !== undefined && status.shop.theme !== '' && activeTheme !== undefined
+            ? <span style={skinHeadActiveStyle}>{activeTheme.icon} {activeTheme.name.zh}</span>
+            : <span style={updatedStyle}>{t('dq.skinDefault')}</span>
+        })()}
+        collapsed={isCollapsed('skins')}
+        onToggle={() => toggleSection('skins')}
+      >
+        <div style={skinGridStyle}>
+          {status.shop?.items.filter(item => item.kind === 'theme').map(item => {
+            const canAfford = (status.shop!.balance) >= item.price
+            const active = status.shop?.theme === item.id
+            const owned = item.owned
+            return (
+              <div key={item.id} style={{ ...shopItemStyle, ...(active ? skinItemActiveStyle : {}) }}>
+                <div style={shopItemHeadStyle}>
+                  <span style={{ fontSize: 15 }}>{item.icon}</span>
+                  <span style={shopItemNameStyle}>{item.name.zh}</span>
+                  <span style={shopItemPriceStyle}>{item.price}</span>
+                </div>
+                <div style={shopItemDescStyle}>{item.description.zh}</div>
+                {active
+                  ? <div style={shopOwnedStyle}>{t('dq.themeActive')}</div>
+                  : owned
+                    ? <button
+                      type="button"
+                      onClick={() => void activateTheme(item.id)}
+                      disabled={buying !== null}
+                      style={{ ...shopBuyButtonStyle, ...shopThemeUseButtonStyle }}
+                    >
+                      {t('dq.themeUse')}
+                    </button>
+                    : <button
+                      type="button"
+                      onClick={() => void buy(item.id)}
+                      disabled={buying !== null || !canAfford}
+                      style={{
+                        ...shopBuyButtonStyle,
+                        ...(confirmBuyId === item.id ? shopConfirmButtonStyle : {}),
+                        ...(!canAfford ? shopBuyDisabledStyle : {}),
+                      }}
+                    >
+                      {buying === item.id
+                        ? '…'
+                        : confirmBuyId === item.id
+                          ? `⚠️ ${t('dq.shopConfirm')}`
+                          : t('dq.shopBuy')}
+                    </button>}
+              </div>
+            )
+          })}
+        </div>
       </SectionCard>
 
       {/* 新手任务链 */}
@@ -1831,8 +1884,8 @@ const sprintFillStyle: CSSProperties = { height: '100%', borderRadius: 2, backgr
 
 const sprintDaysStyle: CSSProperties = { fontSize: 9, color: TONE.muted, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }
 
-/** 商店栏（每日任务下方）。 */
-const shopBarStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, paddingTop: 8, borderTop: `1px solid ${TONE.border}` }
+/** 商店分区：库存行（保险/重掷）。 */
+const shopBarStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, paddingBottom: 2 }
 
 const shopBalanceStyle: CSSProperties = { fontSize: 10, color: TONE.gold, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }
 
@@ -1880,6 +1933,30 @@ const shopThemeUseButtonStyle: CSSProperties = {
   border: '1px solid color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 55%, transparent)',
   background: 'linear-gradient(180deg, color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 30%, white), color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 14%, white))',
   color: 'var(--dsw-alias-label-primary, #1a2230)',
+}
+
+/** 主题皮肤独立分区：皮肤卡片网格。 */
+const skinGridStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }
+
+/** 当前激活的皮肤卡片：品牌色描边高亮。 */
+const skinItemActiveStyle: CSSProperties = {
+  border: '1.5px solid color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 65%, transparent)',
+  boxShadow: '0 0 0 1px color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 30%, transparent)',
+}
+
+/** 皮肤分区标题栏右侧：当前激活皮肤胶囊。 */
+const skinHeadActiveStyle: CSSProperties = {
+  fontSize: 10,
+  fontWeight: 600,
+  color: 'var(--dsw-alias-label-primary, #1a2230)',
+  background: 'color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 18%, transparent)',
+  border: '1px solid color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 45%, transparent)',
+  borderRadius: 99,
+  padding: '2px 8px',
+  whiteSpace: 'nowrap',
+  maxWidth: 130,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
 }
 
 const rerollButtonStyle: CSSProperties = {

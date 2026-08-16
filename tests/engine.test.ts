@@ -842,6 +842,24 @@ test('商店：旧档迁移——已激活的主题回填为已拥有', () => {
   assert.deepEqual(migrated2.shop!.themes, ['theme-ember', 'theme-frost'])
 })
 
+test('商店：双保险——旧档只有 theme 时也不能重复买/切换', () => {
+  // 模拟未迁移的旧档：shop.theme 已设但 themes 为空
+  let save = fresh()
+  save.player.seasonXp = 1000
+  save.shop = { spent: 300, shields: 0, rerolls: 0, theme: 'theme-ember', badges: [] }
+  // 已激活主题不能再买（即使 themes 列表为空）
+  const r1 = buyShopItem(save, 'theme-ember', NOW)
+  assert.equal(r1.ok, false)
+  assert.equal(r1.reason, 'already-owned')
+  // 已激活主题可切换（视为已拥有）
+  const r2 = activateTheme(save, 'theme-ember')
+  assert.equal(r2.ok, true)
+  // 未激活的仍可购买
+  const r3 = buyShopItem(save, 'theme-frost', NOW)
+  assert.equal(r3.ok, true)
+  assert.deepEqual(r3.save.shop!.themes, ['theme-ember', 'theme-frost'])
+})
+
 test('商店：商品表完备（4 类商品齐备）', () => {
   const kinds = new Set(SHOP_ITEMS.map(i => i.kind))
   assert.ok(kinds.has('shield'))

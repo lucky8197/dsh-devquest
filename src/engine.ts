@@ -211,9 +211,18 @@ export function buyShopItem(
   const item = SHOP_ITEMS.find(i => i.id === itemId)
   if (item === undefined) return { ok: false, reason: 'unknown-item', save: structuredClone(save) }
   const s = structuredClone(save)
-  const shop: ShopState = { ...freshShop(), ...(s.shop ?? {}), themes: s.shop?.themes ?? [] }
-  // 主题/徽章是永久解锁，重复购买无意义（主题按已购列表判断，非当前激活）
-  if (item.kind === 'theme' && shop.themes.includes(item.id)) return { ok: false, reason: 'already-owned', save: s }
+  // 旧档补全：themes 列表为空但 theme 已激活时，把当前激活主题纳入已购列表（防丢）。
+  const themes = s.shop?.themes?.length
+    ? [...s.shop.themes]
+    : s.shop?.theme !== undefined && s.shop.theme !== ''
+      ? [s.shop.theme]
+      : []
+  const shop: ShopState = { ...freshShop(), ...(s.shop ?? {}), themes }
+  // 主题/徽章是永久解锁，重复购买无意义。
+  // 主题按「已购列表 OR 当前激活」判断（双保险：旧档只有 theme 没有 themes 时不误判）
+  if (item.kind === 'theme' && (shop.themes.includes(item.id) || shop.theme === item.id)) {
+    return { ok: false, reason: 'already-owned', save: s }
+  }
   if (item.kind === 'badge' && shop.badges.includes(item.id)) return { ok: false, reason: 'already-owned', save: s }
   // 余额校验（换季时 seasonXp 已清零，spent 也一并清零——见 addXp 换季逻辑）
   const balance = shopBalance(s)
@@ -230,11 +239,17 @@ export function buyShopItem(
   return { ok: true, save: s }
 }
 
-/** 切换已拥有主题（id 空=默认主题；未拥有则拒绝）。 */
+/** 切换已拥有主题（id 空=默认主题；未拥有则拒绝；当前激活也视为可切换）。 */
 export function activateTheme(save: SaveData, themeId: string): { ok: boolean; save: SaveData } {
   const s = structuredClone(save)
-  const shop: ShopState = { ...freshShop(), ...(s.shop ?? {}), themes: s.shop?.themes ?? [] }
-  if (themeId !== '' && !shop.themes.includes(themeId)) return { ok: false, save: s }
+  // 旧档补全：themes 为空但 theme 已激活时纳入已购（防丢）。
+  const themes = s.shop?.themes?.length
+    ? [...s.shop.themes]
+    : s.shop?.theme !== undefined && s.shop.theme !== ''
+      ? [s.shop.theme]
+      : []
+  const shop: ShopState = { ...freshShop(), ...(s.shop ?? {}), themes }
+  if (themeId !== '' && !shop.themes.includes(themeId) && shop.theme !== themeId) return { ok: false, save: s }
   shop.theme = themeId
   s.shop = shop
   return { ok: true, save: s }

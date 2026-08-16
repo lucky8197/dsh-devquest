@@ -63,6 +63,8 @@ declare const zh: {
     readonly 'dq.themeActive': "使用中";
     readonly 'dq.themeUse': "使用";
     readonly 'dq.themeUsed': "已切换主题";
+    readonly 'dq.skins': "主题皮肤";
+    readonly 'dq.skinDefault': "默认主题";
     readonly 'dq.shopNoBalance': "赛季货币不足";
     readonly 'dq.shopBought': "购买成功";
     readonly 'dq.shopReroll': "重掷任务";

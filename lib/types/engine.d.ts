@@ -88,7 +88,7 @@ export declare function buyShopItem(save: SaveData, itemId: string, now?: number
     reason?: string;
     save: SaveData;
 };
-/** 切换已拥有主题（id 空=默认主题；未拥有则拒绝）。 */
+/** 切换已拥有主题（id 空=默认主题；未拥有则拒绝；当前激活也视为可切换）。 */
 export declare function activateTheme(save: SaveData, themeId: string): {
     ok: boolean;
     save: SaveData;
