@@ -135,10 +135,19 @@ function seasonDaysLeft(season: string): number {
   return Math.max(0, Math.ceil(ms / 86_400_000))
 }
 
+/** 数值格式化：<1k 原样；<1M 用 k；<1T 用 M；更大用 T。 */
 function formatNumber(n: number): string {
   if (n < 1000) return String(n)
-  const v = n / 1000
-  return `${v >= 100 ? Math.round(v) : v.toFixed(1)}k`
+  if (n < 1_000_000) {
+    const v = n / 1000
+    return `${v >= 100 ? Math.round(v) : v.toFixed(1)}k`
+  }
+  if (n < 1_000_000_000) {
+    const v = n / 1_000_000
+    return `${v >= 100 ? Math.round(v) : v.toFixed(1)}M`
+  }
+  const v = n / 1_000_000_000
+  return `${v >= 100 ? Math.round(v) : v.toFixed(1)}T`
 }
 
 function updatedLabel(refreshedAt: number | null): string {
