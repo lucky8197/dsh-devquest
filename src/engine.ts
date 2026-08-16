@@ -5,7 +5,7 @@
  * （时间由调用方注入 `now`，缺省 Date.now()），无 I/O 无副作用。
  */
 import type {
-  AchievementDef, Action, Counters, DailyQuest, DailyQuestState, DayHistory, PlayerState, SaveData, ShopItemDef, ShopState, TutorialState,
+  AchievementDef, Action, CollectionState, Counters, DailyQuest, DailyQuestState, DayHistory, PlayerState, SaveData, ShopItemDef, ShopState, TutorialState,
 } from './types.ts'
 
 /** 称号（每 5 级一档）。 */
@@ -326,6 +326,8 @@ export function freshSave(cwd: string, seasonOverride: string | undefined, now: 
     history: {},
     shop: freshShop(),
     tutorial: { steps: {}, done: false },
+    collections: { completed: {} },
+    lucky: { date: '', claimed: false },
     updatedAt: now,
   }
 }
@@ -398,6 +400,142 @@ export const TUTORIAL_TITLE = { zh: '见习冒险者', en: 'Rookie Adventurer' }
 
 /** 新手链全部完成的额外奖励 XP。 */
 export const TUTORIAL_COMPLETE_XP = 100
+
+// ---------------------------------------------------------------------------
+// 分类收藏奖励：集齐某分类全部成就 → 一次性 XP + 徽章。
+// ---------------------------------------------------------------------------
+
+/** 各分类集齐奖励 XP（按分类含成就数/难度给）。 */
+export const COLLECTION_REWARDS: Record<string, number> = {
+  journey: 300,
+  crafting: 400,
+  quest: 300,
+  time: 400,
+  legend: 800,
+  egg: 500,
+}
+
+/**
+ * 检查分类收藏：返回新完成的分类（含奖励 XP 的存档副本）。
+ * completed 记录集齐时间；奖励计入累计 XP。
+ */
+export function checkCollections(
+  save: SaveData,
+  now: number = Date.now(),
+  seasonOverride?: string,
+): { completed: string[]; save: SaveData } {
+  const s = structuredClone(save)
+  const collections: CollectionState = s.collections ?? { completed: {} }
+  const completed: string[] = []
+  let gain = 0
+  for (const cat of CATEGORY_IDS) {
+    if (collections.completed[cat] !== undefined) continue
+    const defs = ACHIEVEMENTS_BY_CATEGORY[cat]
+    if (defs === undefined) continue
+    const all = defs.every(id => s.achievements[id] !== undefined)
+    if (all) {
+      collections.completed[cat] = now
+      completed.push(cat)
+      gain += COLLECTION_REWARDS[cat] ?? 0
+    }
+  }
+  s.collections = collections
+  return { completed, save: gain > 0 ? addXp(s, gain, now, seasonOverride) : s }
+}
+
+/** 每分类成就列表（供收藏检查用；避免循环依赖 achievements.ts）。 */
+const ACHIEVEMENTS_BY_CATEGORY: Record<string, string[]> = {
+  journey: ['first_turn', 'turns_10', 'turns_25', 'turns_50', 'turns_100', 'turns_250', 'comeback', 'comeback_10', 'steel_will'],
+  crafting: ['first_edit', 'edits_100', 'edits_500', 'first_cmd', 'first_remote', 'first_subagent', 'subagents_10', 'tool_666', 'cmd_100', 'tools_250'],
+  quest: ['first_todo', 'todos_10', 'todos_50', 'todos_100', 'clean_sweep', 'daily_quest_10', 'daily_quest_30'],
+  time: ['night_owl', 'early_bird', 'night_owl_10', 'seven_days', 'streak_30', 'grinder'],
+  legend: ['level_5', 'level_10', 'level_15', 'level_20', 'level_25', 'level_30', 'season_100k'],
+  egg: ['devil_hour', 'self_aware', 'oops', 'thinker', 'jack_of_all'],
+}
+
+/** 分类 id 列表。 */
+export const CATEGORY_IDS = ['journey', 'crafting', 'quest', 'time', 'legend', 'egg'] as const
+
+// ---------------------------------------------------------------------------
+// 每日幸运抽奖：每天一次免费，随机 XP/货币/保险/重掷。
+// ---------------------------------------------------------------------------
+
+/** 抽奖结果类型。 */
+export type LuckyReward =
+  | { kind: 'xp'; amount: number; label: string }
+  | { kind: 'currency'; amount: number; label: string }
+  | { kind: 'shield'; count: number; label: string }
+  | { kind: 'reroll'; count: number; label: string }
+
+/** 每日抽奖奖池（权重表）。 */
+export const LUCKY_POOL: { weight: number; roll: () => LuckyReward }[] = [
+  { weight: 30, roll: () => ({ kind: 'xp', amount: 50, label: '⚡ +50 XP' }) },
+  { weight: 20, roll: () => ({ kind: 'xp', amount: 100, label: '⚡ +100 XP' }) },
+  { weight: 15, roll: () => ({ kind: 'currency', amount: 100, label: '💰 +100 赛季货币' }) },
+  { weight: 15, roll: () => ({ kind: 'shield', count: 1, label: '🛡️ 连击保险 ×1' }) },
+  { weight: 10, roll: () => ({ kind: 'reroll', count: 1, label: '🔀 任务重掷 ×1' }) },
+  { weight: 10, roll: () => ({ kind: 'xp', amount: 200, label: '🌟 +200 XP' }) },
+]
+
+/** 每日幸运抽奖（每天一次；未抽过时可用）。返回奖励与存档副本。 */
+export function claimLucky(
+  save: SaveData,
+  now: number = Date.now(),
+  seasonOverride?: string,
+): { ok: boolean; reward?: LuckyReward; save: SaveData } {
+  const s = structuredClone(save)
+  const today = dayKey(now)
+  const lucky = s.lucky ?? { date: '', claimed: false }
+  if (lucky.date === today && lucky.claimed) return { ok: false, save: s }
+  // 加权随机
+  const total = LUCKY_POOL.reduce((sum, p) => sum + p.weight, 0)
+  let r = Math.floor(Math.random() * total)
+  let reward: LuckyReward = LUCKY_POOL[0]!.roll()
+  for (const p of LUCKY_POOL) {
+    if (r < p.weight) { reward = p.roll(); break }
+    r -= p.weight
+  }
+  s.lucky = { date: today, claimed: true }
+  switch (reward.kind) {
+    case 'xp':
+      return { ok: true, reward, save: addXp(s, reward.amount, now, seasonOverride) }
+    case 'currency':
+      // 赛季货币 = 直接加 seasonXp（下赛季清零）
+      return { ok: true, reward, save: addXp(s, reward.amount, now, seasonOverride) }
+    case 'shield': {
+      const shop = { ...freshShop(), ...(s.shop ?? {}) }
+      shop.shields += reward.count
+      s.shop = shop
+      return { ok: true, reward, save: s }
+    }
+    case 'reroll': {
+      const shop = { ...freshShop(), ...(s.shop ?? {}) }
+      shop.rerolls += reward.count
+      s.shop = shop
+      return { ok: true, reward, save: s }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 下一称号预览
+// ---------------------------------------------------------------------------
+
+/** 下一个更高称号（无则返回 null）。 */
+export function nextTitle(level: number): { level: number; name: { zh: string; en: string } } | null {
+  let next: { level: number; name: { zh: string; en: string } } | null = null
+  for (const t of TITLES) {
+    if (t.min > level) { next = { level: t.min, name: { zh: t.zh, en: t.en } }; break }
+  }
+  return next
+}
+
+/** 从 level 升到 targetLevel 所需累计 XP。 */
+export function xpToLevel(level: number, target: number): number {
+  let need = 0
+  for (let l = level; l < target; l++) need += xpToNext(l)
+  return need
+}
 
 /**
  * 加 XP 并处理升级、活跃日统计与赛季换季（返回副本；原存档不变）。
@@ -658,6 +796,8 @@ export function migrateSave(raw: Partial<SaveData>, cwd: string, seasonOverride:
     history: raw.history ?? {},
     shop: { ...freshShop(), ...(raw.shop ?? {}) },
     tutorial: { steps: {}, done: false, ...(raw.tutorial ?? {}) },
+    collections: { completed: {}, ...(raw.collections ?? {}) },
+    lucky: { date: '', claimed: false, ...(raw.lucky ?? {}) },
   }
   out.version = Math.max(1, raw.version ?? 1)
   // 派生字段一致性：称号跟等级走；每日任务日期过期由 ensureDaily 重滚。
@@ -730,6 +870,14 @@ export function mergeSaves(saves: SaveData[], now: number = Date.now()): SaveDat
     if (tut !== undefined) {
       for (const [id, at] of Object.entries(tut.steps)) {
         if (out.tutorial!.steps[id] === undefined || at < out.tutorial!.steps[id]!) out.tutorial!.steps[id] = at
+      }
+    }
+    // 分类收藏：并集（取最早完成时间）。
+    const coll = s.collections
+    if (coll !== undefined) {
+      for (const [cat, at] of Object.entries(coll.completed)) {
+        const cur = out.collections!.completed[cat as keyof CollectionState['completed']]
+        if (cur === undefined || (at ?? 0) < cur) out.collections!.completed[cat as keyof CollectionState['completed']] = at
       }
     }
   }

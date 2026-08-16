@@ -497,3 +497,62 @@ export const ACHIEVEMENTS: AchievementDef[] = [
 export function achievementById(id: string): AchievementDef | undefined {
   return ACHIEVEMENTS.find(a => a.id === id)
 }
+
+/** 成就稀有度表（id → rarity；缺省 common）。按达成难度/里程碑价值分级。 */
+export const ACHIEVEMENT_RARITY: Record<string, 'common' | 'rare' | 'epic' | 'legendary'> = {
+  // 旅程
+  first_turn: 'common',
+  turns_10: 'common',
+  turns_25: 'rare',
+  turns_50: 'rare',
+  turns_100: 'epic',
+  turns_250: 'legendary',
+  comeback: 'common',
+  comeback_10: 'legendary',
+  steel_will: 'epic',
+  // 锻造
+  first_edit: 'common',
+  edits_100: 'rare',
+  edits_500: 'epic',
+  first_cmd: 'common',
+  first_remote: 'rare',
+  first_subagent: 'common',
+  subagents_10: 'epic',
+  tool_666: 'legendary',
+  cmd_100: 'rare',
+  tools_250: 'rare',
+  // 使命
+  first_todo: 'common',
+  todos_10: 'rare',
+  todos_50: 'rare',
+  todos_100: 'epic',
+  clean_sweep: 'rare',
+  daily_quest_10: 'rare',
+  daily_quest_30: 'epic',
+  // 时光
+  night_owl: 'common',
+  early_bird: 'common',
+  night_owl_10: 'epic',
+  seven_days: 'rare',
+  streak_30: 'legendary',
+  grinder: 'epic',
+  // 传奇
+  level_5: 'rare',
+  level_10: 'epic',
+  level_15: 'epic',
+  level_20: 'legendary',
+  level_25: 'legendary',
+  level_30: 'legendary',
+  season_100k: 'rare',
+  // 彩蛋
+  devil_hour: 'legendary',
+  self_aware: 'rare',
+  oops: 'common',
+  thinker: 'epic',
+  jack_of_all: 'epic',
+}
+
+/** 取成就稀有度（缺省 common）。 */
+export function rarityOf(id: string): 'common' | 'rare' | 'epic' | 'legendary' {
+  return ACHIEVEMENT_RARITY[id] ?? 'common'
+}

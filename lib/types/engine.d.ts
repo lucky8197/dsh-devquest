@@ -132,6 +132,57 @@ export declare const TUTORIAL_TITLE: {
 };
 /** 新手链全部完成的额外奖励 XP。 */
 export declare const TUTORIAL_COMPLETE_XP = 100;
+/** 各分类集齐奖励 XP（按分类含成就数/难度给）。 */
+export declare const COLLECTION_REWARDS: Record<string, number>;
+/**
+ * 检查分类收藏：返回新完成的分类（含奖励 XP 的存档副本）。
+ * completed 记录集齐时间；奖励计入累计 XP。
+ */
+export declare function checkCollections(save: SaveData, now?: number, seasonOverride?: string): {
+    completed: string[];
+    save: SaveData;
+};
+/** 分类 id 列表。 */
+export declare const CATEGORY_IDS: readonly ["journey", "crafting", "quest", "time", "legend", "egg"];
+/** 抽奖结果类型。 */
+export type LuckyReward = {
+    kind: 'xp';
+    amount: number;
+    label: string;
+} | {
+    kind: 'currency';
+    amount: number;
+    label: string;
+} | {
+    kind: 'shield';
+    count: number;
+    label: string;
+} | {
+    kind: 'reroll';
+    count: number;
+    label: string;
+};
+/** 每日抽奖奖池（权重表）。 */
+export declare const LUCKY_POOL: {
+    weight: number;
+    roll: () => LuckyReward;
+}[];
+/** 每日幸运抽奖（每天一次；未抽过时可用）。返回奖励与存档副本。 */
+export declare function claimLucky(save: SaveData, now?: number, seasonOverride?: string): {
+    ok: boolean;
+    reward?: LuckyReward;
+    save: SaveData;
+};
+/** 下一个更高称号（无则返回 null）。 */
+export declare function nextTitle(level: number): {
+    level: number;
+    name: {
+        zh: string;
+        en: string;
+    };
+} | null;
+/** 从 level 升到 targetLevel 所需累计 XP。 */
+export declare function xpToLevel(level: number, target: number): number;
 /**
  * 加 XP 并处理升级、活跃日统计与赛季换季（返回副本；原存档不变）。
  * seasonOverride 缺省按日期自动推导季度赛季；设置后赛季固定不换季。

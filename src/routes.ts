@@ -21,17 +21,23 @@ export interface DevQuestRoutesConfig {
   buy: (itemId: string) => Promise<{ ok: boolean; reason?: string; status: DevQuestStatus }>
   /** 使用任务重掷；返回是否成功与最新状态。 */
   reroll: () => Promise<{ ok: boolean; status: DevQuestStatus }>
+  /** 每日幸运抽奖；返回是否成功、奖励与最新状态。 */
+  lucky: () => Promise<{ ok: boolean; reward?: { kind: string; amount?: number; count?: number; label: string }; status: DevQuestStatus }>
+  /** 导出完整存档 JSON。 */
+  exportSave: () => Promise<object>
+  /** 导入存档（覆盖）；返回是否成功与最新状态。 */
+  importSave: (raw: unknown) => Promise<{ ok: boolean; error?: string; status: DevQuestStatus }>
   /** 结果缓存时长（毫秒）。默认 60s。 */
   cacheTtlMs?: number
 }
 
-/** 读取 POST JSON body（小请求，最多 64KB）。 */
-function readBody(req: IncomingMessage): Promise<string> {
+/** 读取 POST JSON body（小请求，最多 4MB——导入存档可能较大）。 */
+function readBody(req: IncomingMessage, max = 4 * 1024 * 1024): Promise<string> {
   return new Promise((resolve, reject) => {
     let data = ''
     req.on('data', (chunk: Buffer) => {
       data += chunk
-      if (data.length > 65536) {
+      if (data.length > max) {
         reject(new Error('body-too-large'))
         req.destroy()
       }
@@ -148,6 +154,69 @@ export function makeDevQuestRoutes(config: DevQuestRoutesConfig): WebRoute[] {
           error: error instanceof Error ? error.message : String(error),
         }),
       )
+    },
+  }, {
+    kind: 'exact',
+    path: `${STATUS_API_PREFIX}/lucky`,
+    handler: (req: IncomingMessage, res: ServerResponse): void => {
+      if (req.method !== 'POST') {
+        json(res, 405, { ok: false, error: 'method-not-allowed' })
+        return
+      }
+      config.lucky().then(
+        (result) => {
+          invalidateCache()
+          json(res, 200, { ok: result.ok, reward: result.reward, status: result.status })
+        },
+        (error: unknown) => json(res, 500, {
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      )
+    },
+  }, {
+    kind: 'exact',
+    path: `${STATUS_API_PREFIX}/export`,
+    handler: (req: IncomingMessage, res: ServerResponse): void => {
+      if (req.method !== 'GET') {
+        json(res, 405, { ok: false, error: 'method-not-allowed' })
+        return
+      }
+      config.exportSave().then(
+        (data) => {
+          res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'content-disposition': 'attachment; filename="devquest-player.json"' })
+          res.end(JSON.stringify(data, null, 2))
+        },
+        (error: unknown) => json(res, 500, {
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      )
+    },
+  }, {
+    kind: 'exact',
+    path: `${STATUS_API_PREFIX}/import`,
+    handler: (req: IncomingMessage, res: ServerResponse): void => {
+      if (req.method !== 'POST') {
+        json(res, 405, { ok: false, error: 'method-not-allowed' })
+        return
+      }
+      readBody(req, 16 * 1024 * 1024).then(body => {
+        let raw: unknown
+        try {
+          raw = JSON.parse(body)
+        } catch {
+          json(res, 400, { ok: false, error: 'invalid-json' })
+          return undefined
+        }
+        return config.importSave(raw).then((result) => {
+          invalidateCache()
+          json(res, 200, { ok: result.ok, error: result.error, status: result.status })
+        })
+      }).then(undefined, (error: unknown) => json(res, 500, {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      }))
     },
   }]
 }

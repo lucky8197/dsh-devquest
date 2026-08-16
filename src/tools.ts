@@ -12,6 +12,8 @@ export interface DevQuestToolDeps {
   status: () => Promise<DevQuestStatus>
   /** 重置全局玩家存档（确认后才执行）。 */
   reset: () => Promise<{ ok: boolean; reset: boolean }>
+  /** 购买商店商品（用赛季货币）。 */
+  buy: (itemId: string) => Promise<{ ok: boolean; reason?: string; status: DevQuestStatus }>
 }
 
 /** 状态渲染为人类可读文本。 */
@@ -117,6 +119,50 @@ export function registerDevQuestTools(ctx: Context, deps: DevQuestToolDeps): voi
           ? '✅ DevQuest 全局存档已重置'
           : '存档不存在或重置失败',
       }
+    },
+  }))
+
+  ctx.tools.register(defineTool({
+    name: 'devquest_shop',
+    description: '查看 DevQuest 赛季商店余额/商品，或用赛季货币购买商品（连击保险 shield-1/shield-3、任务重掷 reroll-1、主题 theme-ember/frost/verdant、徽章 badge-crown/star）。',
+    parameters: {
+      buy: {
+        type: 'string',
+        description: '可选：要购买的商品 id（不传则只查看余额与商品列表）',
+      },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value: Record<string, JsonValue>) => {
+        const lines = [
+          `💰 赛季货币: ${String(value.balance ?? 0)}`,
+          ...(Array.isArray(value.itemsText)
+            ? (value.itemsText as string[])
+            : []),
+          ...(value.result !== undefined ? [String(value.result)] : []),
+        ]
+        return [{ type: 'text', text: lines.join('\n') }]
+      },
+    },
+    async execute(args): Promise<Record<string, JsonValue>> {
+      const status = await deps.status()
+      const balance = status.shop?.balance ?? 0
+      const items = status.shop?.items ?? []
+      const itemsText = items.map(i =>
+        `${i.owned ? '✅' : '⬜'} ${i.icon} ${i.name.zh}（${i.id}）— ${i.price} 货币${i.owned ? '（已拥有）' : ''}`)
+      if (typeof args.buy === 'string' && args.buy !== '') {
+        const r = await deps.buy(args.buy)
+        if (r.ok) return { balance: r.status.shop?.balance ?? 0, itemsText: (r.status.shop?.items ?? []).map(i => `${i.owned ? '✅' : '⬜'} ${i.icon} ${i.name.zh}（${i.id}）— ${i.price} 货币${i.owned ? '（已拥有）' : ''}`), result: `✅ 购买成功：${args.buy}` }
+        const reason = r.reason === 'insufficient-balance'
+          ? '赛季货币不足'
+          : r.reason === 'already-owned'
+            ? '已拥有该商品'
+            : r.reason === 'unknown-item'
+              ? '未知商品 id'
+              : '购买失败'
+        return { balance: r.status.shop?.balance ?? 0, itemsText, result: `❌ ${reason}` }
+      }
+      return { balance, itemsText }
     },
   }))
 }

@@ -168,6 +168,52 @@ function formatTime(at: number): string {
   return `${h}:${m}`
 }
 
+/** 本地日期 YYYY-MM-DD（导出文件名用）。 */
+function dayKeyLocal(): string {
+  const d = new Date()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${day}`
+}
+
+// ---------------------------------------------------------------------------
+// 稀有度：视觉分级（普通/稀有/史诗/传说）
+// ---------------------------------------------------------------------------
+
+/** 稀有度 → 主题色（toast 边框 / 成就墙光晕）。 */
+const RARITY_COLOR: Record<string, string> = {
+  common: 'var(--dsw-alias-label-tertiary, #718096)',
+  rare: 'var(--dsw-alias-brand-primary, #8ec5ff)',
+  epic: '#c5a3ff',
+  legendary: 'var(--dsw-alias-state-warn-primary, #f6c652)',
+}
+
+/** 稀有度 → toast 边框样式。 */
+function rarityToastStyle(rarity: string): CSSProperties {
+  const color = RARITY_COLOR[rarity] ?? RARITY_COLOR.common
+  return {
+    border: `1px solid color-mix(in srgb, ${color} 55%, transparent)`,
+    boxShadow: `0 0 14px color-mix(in srgb, ${color} 25%, transparent)`,
+  }
+}
+
+/** 稀有度 → 成就墙已解锁格子光晕。 */
+function rarityCellStyle(rarity: string): CSSProperties {
+  const color = RARITY_COLOR[rarity] ?? RARITY_COLOR.common
+  return {
+    border: `1px solid color-mix(in srgb, ${color} 45%, transparent)`,
+    boxShadow: `0 0 10px color-mix(in srgb, ${color} 18%, transparent)`,
+  }
+}
+
+/** 分类图标（收藏进度行用）。 */
+function categoryIcon(cat: string): string {
+  const map: Record<string, string> = {
+    journey: '🚶', crafting: '⚒️', quest: '📜', time: '⏰', legend: '💎', egg: '🥚',
+  }
+  return map[cat] ?? '📦'
+}
+
 // ---------------------------------------------------------------------------
 // 面板拖拽：拖动头部可把面板放到任意位置，位置持久化到 localStorage。
 // ---------------------------------------------------------------------------
@@ -218,6 +264,9 @@ export function DevQuestPanelCard(
   const [confirmBuyId, setConfirmBuyId] = useState<string | null>(null)
   const [shopMsg, setShopMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [rerolling, setRerolling] = useState(false)
+  const [luckyMsg, setLuckyMsg] = useState<string | null>(null)
+  const [claimingLucky, setClaimingLucky] = useState(false)
+  const [importing, setImporting] = useState(false)
   // 面板位置：null = 默认右上角；拖拽后保存到 localStorage。
   const [pos, setPos] = useState<{ left: number; top: number } | null>(loadPanelPos)
   const [dragging, setDragging] = useState(false)
@@ -365,6 +414,65 @@ export function DevQuestPanelCard(
     }
   }, [rerolling, actions])
 
+  /** 每日幸运抽奖。 */
+  const claimLuckyDraw = useCallback(async (): Promise<void> => {
+    if (claimingLucky) return
+    setClaimingLucky(true)
+    setLuckyMsg(null)
+    try {
+      const response = await fetch('/api/devquest/lucky', { method: 'POST' })
+      const data = await response.json() as { ok: boolean; reward?: { kind: string; amount?: number; count?: number; label: string }; status: DevQuestStatus }
+      if (data.status !== null && data.status !== undefined) actions.setStatus(data.status)
+      if (data.ok && data.reward !== undefined) setLuckyMsg(t('dq.luckyResult', { label: data.reward.label }))
+      else if (!data.ok) setLuckyMsg(t('dq.luckyClaimed'))
+    } catch {
+      setLuckyMsg(t('dq.error'))
+    } finally {
+      setClaimingLucky(false)
+    }
+  }, [claimingLucky, actions, t])
+
+  /** 导出存档（下载 JSON）。 */
+  const exportSave = useCallback(async (): Promise<void> => {
+    try {
+      const response = await fetch('/api/devquest/export')
+      const text = await response.text()
+      const blob = new Blob([text], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `devquest-player-${dayKeyLocal()}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      setShopMsg({ ok: true, text: t('dq.exported') })
+    } catch {
+      setShopMsg({ ok: false, text: t('dq.error') })
+    }
+  }, [t])
+
+  /** 导入存档（覆盖当前）。 */
+  const importSave = useCallback(async (file: File): Promise<void> => {
+    if (importing) return
+    setImporting(true)
+    try {
+      const text = await file.text()
+      const response = await fetch('/api/devquest/import', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: text,
+      })
+      const data = await response.json() as { ok: boolean; error?: string; status: DevQuestStatus }
+      if (data.status !== null && data.status !== undefined) actions.setStatus(data.status)
+      setShopMsg(data.ok
+        ? { ok: true, text: t('dq.imported') }
+        : { ok: false, text: t('dq.importFailed') })
+    } catch {
+      setShopMsg({ ok: false, text: t('dq.importFailed') })
+    } finally {
+      setImporting(false)
+    }
+  }, [importing, actions, t])
+
   const status = state.status
   // 位置：拖拽后 left/top；未拖过则默认右上角。
   const positionStyle: CSSProperties = pos !== null
@@ -470,6 +578,24 @@ export function DevQuestPanelCard(
         </div>
       </div>
 
+      {/* 下一称号预览 + 每日幸运抽奖 */}
+      <div style={nextTitleRowStyle}>
+        {status.nextTitle !== null && (
+          <span style={nextTitleStyle}>{t('dq.nextTitle', { name: status.nextTitle.name.zh, level: status.nextTitle.level, xp: Math.max(0, Math.round(status.nextTitle.xpToNext)) })}</span>
+        )}
+        {status.lucky !== undefined && status.lucky.available && (
+          <button
+            type="button"
+            onClick={() => void claimLuckyDraw()}
+            disabled={claimingLucky}
+            style={luckyButtonStyle}
+          >
+            🎁 {claimingLucky ? '…' : t('dq.luckyDraw')}
+          </button>
+        )}
+      </div>
+      {luckyMsg !== null && <div style={luckyMsgStyle}>{luckyMsg}</div>}
+
       {/* 每日任务 */}
       <div style={sectionStyle}>
         <div style={sectionHeadStyle}>
@@ -566,6 +692,43 @@ export function DevQuestPanelCard(
         )}
       </div>
 
+      {/* 分类收藏 */}
+      <div style={sectionStyle}>
+        <div style={sectionHeadStyle}>
+          <span style={sectionTitleStyle}>📚 {t('dq.collections')}</span>
+        </div>
+        {(status.collections?.items ?? []).map(coll => (
+          <div key={coll.category} style={collRowStyle}>
+            <span style={{ fontSize: 13, opacity: coll.completed ? 1 : 0.6 }}>{coll.completed ? '🏅' : categoryIcon(coll.category)}</span>
+            <span style={{ ...collNameStyle, ...(coll.completed ? { color: TONE.gold, fontWeight: 700 } : {}) }}>
+              {t(`dq.cat.${coll.category}`)}
+            </span>
+            <span style={collProgressStyle}>
+              {coll.completed ? t('dq.collectionDone') : t('dq.collectionProgress', { n: coll.unlocked, m: coll.total })}
+            </span>
+            {!coll.completed && <span style={collRewardStyle}>{t('dq.collectionReward', { xp: coll.rewardXp })}</span>}
+          </div>
+        ))}
+      </div>
+
+      {/* 存档管理：导出 / 导入 */}
+      <div style={saveBarStyle}>
+        <button type="button" onClick={() => void exportSave()} style={saveButtonStyle}>⬇️ {t('dq.export')}</button>
+        <label style={saveButtonStyle}>
+          {importing ? '…' : `⬆️ ${t('dq.import')}`}
+          <input
+            type="file"
+            accept="application/json,.json"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (f !== undefined) void importSave(f)
+              e.target.value = ''
+            }}
+          />
+        </label>
+      </div>
+
       {/* 最近成就 */}
       <div style={sectionStyle}>
         <div style={sectionHeadStyle}>
@@ -644,7 +807,7 @@ export function DevQuestPanelCard(
                   ...wallCellStyle,
                   ...(locked
                     ? (a.hidden && !revealHint ? wallCellHiddenLockedStyle : wallCellLockedStyle)
-                    : wallCellUnlockedStyle),
+                    : { ...wallCellUnlockedStyle, ...rarityCellStyle(a.rarity) }),
                 }}
               >
                 {a.unlocked && <span style={wallCheckStyle}>✓</span>}
@@ -684,6 +847,7 @@ export function DevQuestPanelCard(
                     <div style={reportBarWrapStyle}>
                       <div style={{ ...reportBarStyle, height: `${pct}%` }} />
                     </div>
+                    <span style={reportBarTurnStyle}>{h.turns > 0 ? h.turns : ''}</span>
                     <span style={reportBarDateStyle}>{h.date.slice(5)}</span>
                   </div>
                 )
@@ -774,10 +938,12 @@ function DevQuestToast(
 
   const def = status.achievements.find(a => a.id === toast.achievementId)
   if (def === undefined) return <></>
-  return <div style={toastStyle} role="status">
+  return <div style={{ ...toastStyle, ...rarityToastStyle(def.rarity) }} role="status">
     <div style={{ fontSize: 18 }}>{def.icon}</div>
     <div style={{ minWidth: 0 }}>
-      <div style={toastTitleStyle}>{t('dq.unlocked')}</div>
+      <div style={{ ...toastTitleStyle, color: RARITY_COLOR[def.rarity] ?? TONE.gold }}>
+        {t('dq.unlocked')} <span style={{ fontSize: 9, opacity: 0.8 }}>· {t(`dq.rarity.${def.rarity}`)}</span>
+      </div>
       <div style={toastNameStyle}>{def.name.zh} <em style={itemEnStyle}>{def.name.en}</em></div>
       <div style={toastDescStyle}>{def.description.zh} · +{def.xp} XP</div>
     </div>
@@ -1300,6 +1466,55 @@ const reportBarStyle: CSSProperties = { width: '70%', borderRadius: 3, backgroun
 const reportBarDateStyle: CSSProperties = { fontSize: 8, color: TONE.quiet, overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }
 
 const reportLegendStyle: CSSProperties = { marginTop: 4, fontSize: 9, color: TONE.quiet, textAlign: 'center' }
+
+/** 下一称号预览行 + 幸运抽奖。 */
+const nextTitleRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }
+
+const nextTitleStyle: CSSProperties = { fontSize: 10, color: TONE.muted }
+
+const luckyButtonStyle: CSSProperties = {
+  marginLeft: 'auto',
+  padding: '4px 10px',
+  border: '1px solid color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 50%, transparent)',
+  borderRadius: 8,
+  background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 14%, transparent)',
+  color: TONE.gold,
+  fontSize: 10,
+  fontWeight: 600,
+  cursor: 'pointer',
+}
+
+const luckyMsgStyle: CSSProperties = { fontSize: 10, color: TONE.gold, marginTop: 2 }
+
+/** 分类收藏行。 */
+const collRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 7, padding: '3px 0' }
+
+const collNameStyle: CSSProperties = { flex: 1, fontSize: 11, color: TONE.text }
+
+const collProgressStyle: CSSProperties = { fontSize: 9, color: TONE.muted, fontVariantNumeric: 'tabular-nums' }
+
+const collRewardStyle: CSSProperties = { fontSize: 9, color: TONE.quiet }
+
+/** 存档管理。 */
+const saveBarStyle: CSSProperties = { display: 'flex', gap: 6 }
+
+const saveButtonStyle: CSSProperties = {
+  flex: 1,
+  padding: '5px 8px',
+  border: `1px solid ${TONE.borderStrong}`,
+  borderRadius: 8,
+  background: TONE.row,
+  color: TONE.muted,
+  fontSize: 10,
+  cursor: 'pointer',
+  textAlign: 'center',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+}
+
+/** 周报回合数标注。 */
+const reportBarTurnStyle: CSSProperties = { fontSize: 8, color: TONE.quiet, fontVariantNumeric: 'tabular-nums' }
 
 /** 成就悬浮简介卡（fixed 定位，pointer-events none 不挡鼠标）。 */
 const tooltipStyle: CSSProperties = {

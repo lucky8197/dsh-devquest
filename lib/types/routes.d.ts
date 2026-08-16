@@ -23,6 +23,25 @@ export interface DevQuestRoutesConfig {
         ok: boolean;
         status: DevQuestStatus;
     }>;
+    /** 每日幸运抽奖；返回是否成功、奖励与最新状态。 */
+    lucky: () => Promise<{
+        ok: boolean;
+        reward?: {
+            kind: string;
+            amount?: number;
+            count?: number;
+            label: string;
+        };
+        status: DevQuestStatus;
+    }>;
+    /** 导出完整存档 JSON。 */
+    exportSave: () => Promise<object>;
+    /** 导入存档（覆盖）；返回是否成功与最新状态。 */
+    importSave: (raw: unknown) => Promise<{
+        ok: boolean;
+        error?: string;
+        status: DevQuestStatus;
+    }>;
     /** 结果缓存时长（毫秒）。默认 60s。 */
     cacheTtlMs?: number;
 }

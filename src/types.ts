@@ -163,6 +163,10 @@ export interface SaveData {
   shop?: ShopState
   /** 新手任务链状态。 */
   tutorial?: TutorialState
+  /** 分类收藏奖励状态。 */
+  collections?: CollectionState
+  /** 每日幸运抽奖状态（每天一次）。 */
+  lucky?: { date: string; claimed: boolean }
   updatedAt: number
 }
 
@@ -187,6 +191,9 @@ export interface TurnSettlementEvent {
 /** 成就分类（面板成就墙分主题 tab）。 */
 export type AchievementCategory = 'journey' | 'crafting' | 'quest' | 'time' | 'legend' | 'egg'
 
+/** 稀有度（视觉分级：普通/稀有/史诗/传说）。 */
+export type Rarity = 'common' | 'rare' | 'epic' | 'legendary'
+
 /** 成就定义。check 为基于存档（含计数器）的纯函数。 */
 export interface AchievementDef {
   id: string // kebab-case 唯一
@@ -195,6 +202,7 @@ export interface AchievementDef {
   description: { zh: string; en: string }
   icon: string // emoji
   xp: number // 解锁奖励 XP
+  rarity?: Rarity // 缺省 common
   hidden?: boolean // 彩蛋（解锁前不显示）
   check: (save: SaveData, now: number) => boolean
   /** 可选：进度条信息（current/goal）。缺省表示纯条件成就，不显示进度。 */
@@ -209,11 +217,18 @@ export interface AchievementView {
   description: { zh: string; en: string }
   icon: string
   xp: number
+  rarity: Rarity
   hidden: boolean
   unlocked: boolean
   acquiredAt?: number
   /** 未解锁成就的进度（若有）。 */
   progress?: { current: number; goal: number }
+}
+
+/** 分类收藏奖励（集齐某分类全部成就）。 */
+export interface CollectionState {
+  /** category → 完成时间戳。 */
+  completed: Partial<Record<AchievementCategory, number>>
 }
 
 /** DevQuest 状态视图（工具与 HTTP API 共用）。 */
@@ -247,5 +262,14 @@ export interface DevQuestStatus {
   }
   /** 最近 HISTORY_DAYS 天每日历史（成长周报，时间正序）。 */
   history: { date: string; xp: number; turns: number }[]
+  /** 分类收藏进度（集齐某分类全部成就 → 奖励）。 */
+  collections: {
+    /** 每分类：总数/已解锁/是否已领奖励。 */
+    items: { category: AchievementCategory; total: number; unlocked: number; completed: boolean; rewardXp: number; claimedAt?: number }[]
+  }
+  /** 每日幸运抽奖（每天一次免费）。 */
+  lucky: { available: boolean; claimed: boolean }
+  /** 下一称号预览（无更高称号时为 null）。 */
+  nextTitle: { level: number; name: { zh: string; en: string }; xpToNext: number } | null
   updatedAt: number
 }

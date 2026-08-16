@@ -17,16 +17,17 @@ import type {} from '@deepseek-ai/dsh-fs'
 import type {} from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type { Session } from '@deepseek-ai/dsh-session'
-import { ACHIEVEMENTS, achievementById } from './achievements.ts'
+import { ACHIEVEMENTS, achievementById, rarityOf } from './achievements.ts'
 import {
-  applyTurnDetailed, buyShopItem, checkAchievements, checkTutorial, claimDailyChest, dailyQuestsDone, dayKey, ensureDaily,
-  HISTORY_KEEP, SETTLEMENT_KEEP, SHOP_ITEMS, shopBalance, titleFor, TUTORIAL_STEPS, TUTORIAL_TITLE, useReroll, xpToNext,
+  applyTurnDetailed, buyShopItem, CATEGORY_IDS, checkAchievements, checkCollections, checkTutorial, claimDailyChest, claimLucky,
+  COLLECTION_REWARDS, dailyQuestsDone, dayKey, ensureDaily, HISTORY_KEEP, migrateSave, nextTitle, SETTLEMENT_KEEP, SHOP_ITEMS, shopBalance,
+  titleFor, TUTORIAL_STEPS, TUTORIAL_TITLE, useReroll, xpToLevel, xpToNext,
 } from './engine.ts'
 import { watchEvents, type SessionAggregate } from './listener.ts'
 import { loadSave, persistSave, deleteSave, scopeKey, type StoreConfig } from './store.ts'
 import { registerDevQuestTools } from './tools.ts'
 import { makeDevQuestRoutes } from './routes.ts'
-import type { Action, AchievementView, DevQuestStatus, SaveData, TurnSettlementEvent } from './types.ts'
+import type { Action, AchievementCategory, AchievementView, DevQuestStatus, SaveData, TurnSettlementEvent } from './types.ts'
 
 export const name = 'devquest'
 export const inject = ['fs', 'sessions', 'tools'] as const
@@ -93,6 +94,7 @@ export function apply(ctx: Context, config: Config = {}): void {
           description: a.description,
           icon: a.icon,
           xp: a.xp,
+          rarity: rarityOf(a.id),
           hidden: a.hidden === true,
           unlocked: rec !== undefined,
           ...(rec !== undefined ? { acquiredAt: rec.acquiredAt } : {}),
@@ -139,8 +141,41 @@ export function apply(ctx: Context, config: Config = {}): void {
         title: TUTORIAL_TITLE,
       },
       history: buildHistory(save, Date.now()),
+      collections: buildCollections(save),
+      lucky: {
+        available: (save.lucky?.date ?? '') !== dayKey(Date.now()) || save.lucky?.claimed !== true,
+        claimed: save.lucky?.claimed === true && save.lucky?.date === dayKey(Date.now()),
+      },
+      nextTitle: buildNextTitle(save),
       updatedAt: save.updatedAt,
     }
+  }
+
+  /** 组装分类收藏进度。 */
+  function buildCollections(save: SaveData): DevQuestStatus['collections'] {
+    const completedAt = save.collections?.completed ?? {}
+    return {
+      items: (CATEGORY_IDS as readonly AchievementCategory[]).map(cat => {
+        const defs = ACHIEVEMENTS.filter(a => a.category === cat)
+        const unlockedCount = defs.filter(a => save.achievements[a.id] !== undefined).length
+        const at = completedAt[cat]
+        return {
+          category: cat,
+          total: defs.length,
+          unlocked: unlockedCount,
+          completed: at !== undefined,
+          rewardXp: COLLECTION_REWARDS[cat] ?? 0,
+          ...(at !== undefined ? { claimedAt: at } : {}),
+        }
+      }),
+    }
+  }
+
+  /** 下一称号预览（距更高称号还差多少 XP）。 */
+  function buildNextTitle(save: SaveData): DevQuestStatus['nextTitle'] {
+    const next = nextTitle(save.player.level)
+    if (next === null) return null
+    return { ...next, xpToNext: xpToLevel(save.player.level, next.level) - save.player.xp }
   }
 
   /** 组装成长周报（最近 HISTORY_KEEP 天，时间正序）。 */
@@ -191,6 +226,9 @@ export function apply(ctx: Context, config: Config = {}): void {
       // 新手任务链：步骤推进（每步 +20 XP，全清 +100 XP + 专属称号）。
       const tut = checkTutorial(next, at, seasonOverride)
       Object.assign(next, tut.save)
+      // 分类收藏：集齐某分类全部成就 → 奖励 XP。
+      const coll = checkCollections(next, at, seasonOverride)
+      Object.assign(next, coll.save)
       next.lastSeqBySession[sessionId] = seq
       saveCache.set(key, next)
       await persistSave(ctx, storeConfig, next)
@@ -208,6 +246,9 @@ export function apply(ctx: Context, config: Config = {}): void {
         })
         console.log(`[devquest] 🎓 新手任务：${names.join('、')}${tut.complete ? '（全部完成，解锁「见习冒险者」称号！）' : ''}`)
       }
+      if (coll.completed.length > 0) {
+        console.log(`[devquest] 📚 分类收藏达成：${coll.completed.join('、')}（+${coll.completed.reduce((sum, c) => sum + (COLLECTION_REWARDS[c] ?? 0), 0)} XP）`)
+      }
     })
   })
 
@@ -216,6 +257,30 @@ export function apply(ctx: Context, config: Config = {}): void {
     status: async (): Promise<DevQuestStatus> => {
       const save = await getSave(scopeKey())
       return buildStatus(save)
+    },
+    buy: async (itemId: string) => {
+      const key = scopeKey()
+      let result: { ok: boolean; reason?: string } = { ok: false }
+      let fresh: SaveData | undefined
+      await new Promise<void>((resolve, reject) => {
+        enqueue(key, async () => {
+          try {
+            const save = await getSave(key)
+            const r = buyShopItem(save, itemId, Date.now(), seasonOverride)
+            result = { ok: r.ok, ...(r.reason !== undefined ? { reason: r.reason } : {}) }
+            fresh = r.save
+            if (r.ok) {
+              saveCache.set(key, r.save)
+              await persistSave(ctx, storeConfig, r.save)
+            }
+          } catch (error) {
+            reject(error)
+            return
+          }
+          resolve()
+        })
+      })
+      return { ...result, status: buildStatus(fresh ?? (await getSave(key))) }
     },
     reset: async (): Promise<{ ok: boolean; reset: boolean }> => {
       const key = scopeKey()
@@ -291,6 +356,54 @@ export function apply(ctx: Context, config: Config = {}): void {
     },
     buy: async (itemId: string) => mutateSave(save => buyShopItem(save, itemId, Date.now(), seasonOverride), result => ({ ok: result.ok, ...(result.reason !== undefined ? { reason: result.reason } : {}) })),
     reroll: async () => mutateSave(save => useReroll(save, Date.now()), result => ({ ok: result.ok })),
+    lucky: async (): Promise<{ ok: boolean; reward?: { kind: string; amount?: number; count?: number; label: string }; status: DevQuestStatus }> => {
+      const key = scopeKey()
+      let reward: { kind: string; amount?: number; count?: number; label: string } | undefined
+      let ok = false
+      await new Promise<void>((resolve, reject) => {
+        enqueue(key, async () => {
+          try {
+            const save = await getSave(key)
+            const r = claimLucky(save, Date.now(), seasonOverride)
+            ok = r.ok
+            if (r.ok && r.reward !== undefined) {
+              reward = r.reward.kind === 'xp' || r.reward.kind === 'currency'
+                ? { kind: r.reward.kind, amount: r.reward.amount, label: r.reward.label }
+                : { kind: r.reward.kind, count: r.reward.kind === 'shield' ? r.reward.count : r.reward.count, label: r.reward.label }
+              saveCache.set(key, r.save)
+              await persistSave(ctx, storeConfig, r.save)
+            }
+          } catch (error) {
+            reject(error)
+            return
+          }
+          resolve()
+        })
+      })
+      return { ok, ...(reward !== undefined ? { reward } : {}), status: buildStatus(await getSave(key)) }
+    },
+    exportSave: async (): Promise<object> => {
+      const save = await getSave(scopeKey())
+      return JSON.parse(JSON.stringify(save)) as object
+    },
+    importSave: async (raw: unknown): Promise<{ ok: boolean; error?: string; status: DevQuestStatus }> => {
+      const key = scopeKey()
+      if (typeof raw !== 'object' || raw === null) return { ok: false, error: 'invalid-save', status: buildStatus(await getSave(key)) }
+      const candidate = raw as Partial<SaveData>
+      if (typeof candidate.player !== 'object' || typeof candidate.counters !== 'object') {
+        return { ok: false, error: 'invalid-save', status: buildStatus(await getSave(key)) }
+      }
+      let imported: SaveData
+      try {
+        imported = migrateSave(candidate, scopeKey(), seasonOverride)
+      } catch {
+        return { ok: false, error: 'invalid-save', status: buildStatus(await getSave(key)) }
+      }
+      imported.updatedAt = Date.now()
+      saveCache.set(key, imported)
+      await persistSave(ctx, storeConfig, imported)
+      return { ok: true, status: buildStatus(imported) }
+    },
     ...(config.cacheTtlMs !== undefined ? { cacheTtlMs: config.cacheTtlMs } : {}),
   })
   ctx.inject(['webServer'], (httpCtx) => {

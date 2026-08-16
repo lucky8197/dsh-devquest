@@ -4,11 +4,11 @@
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { ACHIEVEMENTS, achievementById } from '../src/achievements.ts'
+import { ACHIEVEMENTS, achievementById, ACHIEVEMENT_RARITY, rarityOf } from '../src/achievements.ts'
 import {
-  addXp, applyDaily, applyTurn, applyTurnDetailed, autoSeasonId, buyShopItem, checkAchievements, checkTutorial, claimDailyChest,
-  DAILY_CHEST_REWARD, DAILY_QUEST_POOL, dailyQuestsDone, dayKey, ensureDaily, freshSave, freshShop, HISTORY_KEEP,
-  mergeSaves, migrateSave, rollDailyQuests, SETTLEMENT_KEEP, SHOP_ITEMS, shopBalance, titleFor, trimHistory, TUTORIAL_STEPS, useReroll, xpToNext,
+  addXp, applyDaily, applyTurn, applyTurnDetailed, autoSeasonId, buyShopItem, checkAchievements, checkCollections, checkTutorial, claimDailyChest,
+  claimLucky, DAILY_CHEST_REWARD, DAILY_QUEST_POOL, dailyQuestsDone, dayKey, ensureDaily, freshSave, freshShop, HISTORY_KEEP,
+  mergeSaves, migrateSave, nextTitle, rollDailyQuests, SETTLEMENT_KEEP, SHOP_ITEMS, shopBalance, titleFor, trimHistory, TUTORIAL_STEPS, useReroll, xpToLevel, xpToNext,
 } from '../src/engine.ts'
 import type { Action, SaveData } from '../src/types.ts'
 
@@ -919,4 +919,70 @@ test('等级起点：升级时记录 levelStartedAt', () => {
   ], NOW)
   assert.equal(r.settlement.leveledUp, true)
   assert.equal(r.save.player.levelStartedAt, NOW)
+})
+
+// ---------------------------------------------------------------------------
+// v0.6.0：稀有度 / 分类收藏 / 每日抽奖 / 下一称号
+// ---------------------------------------------------------------------------
+
+test('稀有度：44 枚成就都有明确稀有度（映射完备）', () => {
+  assert.equal(ACHIEVEMENTS.length, 44)
+  for (const a of ACHIEVEMENTS) {
+    const r = rarityOf(a.id)
+    assert.ok(['common', 'rare', 'epic', 'legendary'].includes(r), `${a.id} 稀有度缺失`)
+  }
+  assert.equal(ACHIEVEMENT_RARITY['turns_250'], 'legendary')
+  assert.equal(ACHIEVEMENT_RARITY['first_turn'], 'common')
+  assert.equal(rarityOf('unknown-id'), 'common') // 缺省
+})
+
+test('分类收藏：集齐某分类全部成就 → 奖励 XP（一次性）', () => {
+  let save = fresh()
+  // 集齐 journey 分类（9 枚）
+  const journeyIds = ['first_turn', 'turns_10', 'turns_25', 'turns_50', 'turns_100', 'turns_250', 'comeback', 'comeback_10', 'steel_will']
+  for (const id of journeyIds) save.achievements[id] = { acquiredAt: NOW, xp: 0 }
+  const r1 = checkCollections(save, NOW)
+  assert.ok(r1.completed.includes('journey'))
+  assert.ok(r1.save.player.xpTotal >= 300) // journey 奖励 300
+  assert.equal(r1.save.collections!.completed['journey'], NOW)
+  // 二次检查不再奖励
+  const r2 = checkCollections(r1.save, NOW + 1000)
+  assert.ok(!r2.completed.includes('journey'))
+})
+
+test('每日幸运抽奖：每天一次，跨天重置，奖励入账', () => {
+  let save = fresh()
+  const r1 = claimLucky(save, NOW)
+  assert.equal(r1.ok, true)
+  assert.ok(r1.reward !== undefined)
+  assert.equal(r1.save.lucky!.date, dayKey(NOW))
+  assert.equal(r1.save.lucky!.claimed, true)
+  // 同一天再抽：拒绝
+  const r2 = claimLucky(r1.save, NOW + 1000)
+  assert.equal(r2.ok, false)
+  // 跨天：可再抽
+  const tomorrow = NOW + 86_400_000
+  const r3 = claimLucky(r1.save, tomorrow)
+  assert.equal(r3.ok, true)
+  // 奖励类型合法
+  const kind = r1.reward.kind
+  assert.ok(['xp', 'currency', 'shield', 'reroll'].includes(kind))
+  if (kind === 'xp' || kind === 'currency') assert.ok(r1.reward.amount !== undefined)
+  if (kind === 'shield') assert.equal(r1.save.shop!.shields, 1)
+  if (kind === 'reroll') assert.equal(r1.save.shop!.rerolls, 1)
+})
+
+test('下一称号预览：当前等级下方最近的称号与所需 XP', () => {
+  assert.deepEqual(nextTitle(1), { level: 5, name: { zh: '工匠', en: 'Artisan' } })
+  assert.deepEqual(nextTitle(9), { level: 10, name: { zh: '锻造师', en: 'Forger' } })
+  assert.equal(nextTitle(20), null) // 传说封顶
+  // xpToLevel：L1→L5 累计 100+283+520+800 = 1703
+  assert.equal(xpToLevel(1, 5), 1703)
+})
+
+test('存档迁移：collections/lucky 字段补全', () => {
+  const raw = { version: 1, cwd: 'C:/p', player: { level: 3, xp: 10, xpTotal: 110, title: '学徒', season: '2026-S3', seasonXp: 20 }, counters: { turnsCompleted: 1 } }
+  const migrated = migrateSave(raw as never, 'global', undefined)
+  assert.deepEqual(migrated.collections!.completed, {})
+  assert.deepEqual(migrated.lucky, { date: '', claimed: false })
 })
