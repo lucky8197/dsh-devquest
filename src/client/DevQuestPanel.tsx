@@ -998,8 +998,9 @@ export function DevQuestPanelCard(
       ...positionStyle,
       ...(dragging ? cardDraggingStyle : {}),
       ...themeVars(status.shop?.theme ?? ''),
-      // v1.2.0 字号：zoom 整体缩放（面板内部全部是显式 px，根 fontSize 不生效）。
-      zoom: settings.fontSize,
+      // v1.2.4 字号：只缩放文字（--dq-fsz），面板宽 330 / 位置 / 间距保持不变。
+      // 内部所有 fontSize 统一为 calc(Npx * var(--dq-fsz, 1))。
+      ...({ '--dq-fsz': String(settings.fontSize) }) as CSSProperties,
       // v1.2.0 紧凑模式：压缩关键间距（分区间距/卡片内边距/标题栏内边距/hero 间距）。
       ...(settings.compact ? {
         '--dq-section-mb': '6px',
@@ -1242,7 +1243,7 @@ export function DevQuestPanelCard(
             return (
               <div key={item.id} style={shopItemStyle}>
                 <div style={shopItemHeadStyle}>
-                  <span style={{ fontSize: 15 }}>{item.icon}</span>
+                  <span style={{ fontSize: 'calc(15px * var(--dq-fsz, 1))' }}>{item.icon}</span>
                   <span style={shopItemNameStyle}>{item.name.zh}</span>
                   <span style={shopItemPriceStyle}>{item.price}</span>
                 </div>
@@ -1302,7 +1303,7 @@ export function DevQuestPanelCard(
             return (
               <div key={item.id} style={{ ...shopItemStyle, ...(active ? skinItemActiveStyle : {}) }}>
                 <div style={shopItemHeadStyle}>
-                  <span style={{ fontSize: 15 }}>{item.icon}</span>
+                  <span style={{ fontSize: 'calc(15px * var(--dq-fsz, 1))' }}>{item.icon}</span>
                   <span style={shopItemNameStyle}>{item.name.zh}</span>
                   <span style={shopItemPriceStyle}>{item.price}</span>
                 </div>
@@ -1362,7 +1363,7 @@ export function DevQuestPanelCard(
       >
         {status.tutorial?.steps.map(step => (
           <div key={step.id} style={tutorialRowStyle}>
-            <span style={{ fontSize: 13, opacity: step.done ? 1 : 0.55 }}>{step.done ? '✅' : step.icon}</span>
+            <span style={{ fontSize: 'calc(13px * var(--dq-fsz, 1))', opacity: step.done ? 1 : 0.55 }}>{step.done ? '✅' : step.icon}</span>
             <span style={{ ...tutorialNameStyle, ...(step.done ? {} : { color: TONE.muted }) }}>{step.name.zh}</span>
             <span style={tutorialXpStyle}>+{step.xp}</span>
           </div>
@@ -1384,7 +1385,7 @@ export function DevQuestPanelCard(
       >
         {/* 当前展示称号 */}
         <div style={titleCurrentRowStyle}>
-          <span style={{ fontSize: 15 }}>{status.titles?.current?.icon ?? '🎖️'}</span>
+          <span style={{ fontSize: 'calc(15px * var(--dq-fsz, 1))' }}>{status.titles?.current?.icon ?? '🎖️'}</span>
           <span style={titleCurrentNameStyle}>
             {status.titles?.current !== null
               ? status.titles?.current?.name.zh
@@ -1439,7 +1440,7 @@ export function DevQuestPanelCard(
       >
         {(status.collections?.items ?? []).map(coll => (
           <div key={coll.category} style={collRowStyle}>
-            <span style={{ fontSize: 13, opacity: coll.completed ? 1 : 0.6 }}>{coll.completed ? '🏅' : categoryIcon(coll.category)}</span>
+            <span style={{ fontSize: 'calc(13px * var(--dq-fsz, 1))', opacity: coll.completed ? 1 : 0.6 }}>{coll.completed ? '🏅' : categoryIcon(coll.category)}</span>
             <span style={{ ...collNameStyle, ...(coll.completed ? { color: TONE.gold, fontWeight: 700 } : {}) }}>
               {t(`dq.cat.${coll.category}`)}
             </span>
@@ -1517,7 +1518,7 @@ export function DevQuestPanelCard(
           : <ul style={listStyle}>
             {recent.map(a => (
               <li key={a.id} style={listItemStyle}>
-                <span style={{ fontSize: 15 }}>{a.icon}</span>
+                <span style={{ fontSize: 'calc(15px * var(--dq-fsz, 1))' }}>{a.icon}</span>
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <span style={itemNameStyle}>{a.name.zh} <em style={itemEnStyle}>{a.name.en}</em></span>
                 </span>
@@ -1618,7 +1619,7 @@ export function DevQuestPanelCard(
               }}
             >
               {a.unlocked && <span style={wallCheckStyle}>✓</span>}
-              <span style={{ fontSize: 17, lineHeight: 1.2 }}>{visible ? a.icon : (revealHint ? '❔' : '🔒')}</span>
+              <span style={{ fontSize: 'calc(17px * var(--dq-fsz, 1))', lineHeight: 1.2 }}>{visible ? a.icon : (revealHint ? '❔' : '🔒')}</span>
               {!a.hidden && (
                 <span style={{ ...wallXpStyle, ...(a.unlocked ? wallXpUnlockedStyle : {}) }}>+{a.xp}</span>
               )}
@@ -1784,7 +1785,7 @@ function AchievementTooltip(
   const near = !a.unlocked && a.hidden && a.progress !== undefined && a.progress.goal > 0 && a.progress.current / a.progress.goal >= 0.5
   return <div style={{ ...tooltipStyle, left: hover.x, top: hover.y }} role="tooltip">
     <div style={tooltipHeadStyle}>
-      <span style={{ fontSize: 20 }}>{visible ? a.icon : (near ? '❔' : '🔒')}</span>
+      <span style={{ fontSize: 'calc(20px * var(--dq-fsz, 1))' }}>{visible ? a.icon : (near ? '❔' : '🔒')}</span>
       <div style={{ minWidth: 0 }}>
         <div style={tooltipNameStyle}>{visible ? `${a.name.zh} ${a.name.en}` : '？？？'}</div>
         <div style={tooltipStatusStyle}>
@@ -1829,7 +1830,7 @@ function DevQuestToast(
     const comboText = s.combo !== null ? ` · 🔥 ×${s.combo}` : ''
     const questText = s.questXp > 0 ? ` · 📅 +${s.questXp}` : ''
     return <div style={{ ...toastStyle, borderColor: 'color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 40%, transparent)' }} role="status">
-      <div style={{ fontSize: 18 }}>{s.leveledUp ? '⬆️' : '⚔️'}</div>
+      <div style={{ fontSize: 'calc(18px * var(--dq-fsz, 1))' }}>{s.leveledUp ? '⬆️' : '⚔️'}</div>
       <div style={{ minWidth: 0 }}>
         <div style={{ ...toastTitleStyle, color: s.leveledUp ? TONE.gold : TONE.accent }}>
           {s.leveledUp ? t('dq.levelUp', { level: s.levelAfter }) : t('dq.turnDone')}
@@ -1848,10 +1849,10 @@ function DevQuestToast(
   const def = status.achievements.find(a => a.id === toast.achievementId)
   if (def === undefined) return <></>
   return <div style={{ ...toastStyle, ...rarityToastStyle(def.rarity) }} role="status">
-    <div style={{ fontSize: 18 }}>{def.icon}</div>
+    <div style={{ fontSize: 'calc(18px * var(--dq-fsz, 1))' }}>{def.icon}</div>
     <div style={{ minWidth: 0 }}>
       <div style={{ ...toastTitleStyle, color: RARITY_COLOR[def.rarity] ?? TONE.gold }}>
-        {t('dq.unlocked')} <span style={{ fontSize: 9, opacity: 0.8 }}>· {t(`dq.rarity.${def.rarity}`)}</span>
+        {t('dq.unlocked')} <span style={{ fontSize: 'calc(9px * var(--dq-fsz, 1))', opacity: 0.8 }}>· {t(`dq.rarity.${def.rarity}`)}</span>
       </div>
       <div style={toastNameStyle}>{def.name.zh} <em style={itemEnStyle}>{def.name.en}</em></div>
       <div style={toastDescStyle}>{def.description.zh} · +{def.xp} XP</div>
@@ -1997,7 +1998,7 @@ export function DevQuestOverlay(props: DevQuestOverlayProps): ReactElement {
     {celebration !== null && (
       <div style={celebrationOverlayStyle} role="alert">
         <div style={celebrationInnerStyle}>
-          <div style={{ fontSize: 64, lineHeight: 1 }}>🏆</div>
+          <div style={{ fontSize: 'calc(64px * var(--dq-fsz, 1))', lineHeight: 1 }}>🏆</div>
           <div style={celebrationTitleStyle}>{t('dq.celebration')}</div>
           <div style={celebrationLevelStyle}>{t('dq.celebrationLevel', { level: celebration.level, title: celebration.title })}</div>
           <div style={celebrationStatsStyle}>{t('dq.celebrationStats', { days: celebration.days, turns: celebration.turns })}</div>
@@ -2042,11 +2043,11 @@ const cardHeaderStyle: CSSProperties = {
 /** 拖拽中：光标变抓取中，防止误选中文字。 */
 const cardDraggingStyle: CSSProperties = { cursor: 'grabbing', userSelect: 'none' }
 
-const cardTitleStyle: CSSProperties = { fontSize: 14, color: TONE.text, letterSpacing: 0.2 }
+const cardTitleStyle: CSSProperties = { fontSize: 'calc(14px * var(--dq-fsz, 1))', color: TONE.text, letterSpacing: 0.2 }
 
 /** 面板头部版本号：小号弱化标签（提示当前加载的插件版本）。 */
 const versionLabelStyle: CSSProperties = {
-  fontSize: 9,
+  fontSize: 'calc(9px * var(--dq-fsz, 1))',
   lineHeight: 1,
   color: TONE.quiet,
   border: `1px solid ${TONE.border}`,
@@ -2104,7 +2105,7 @@ const sectionCardHeadStyle: CSSProperties = {
 }
 
 const sectionCardTitleStyle: CSSProperties = {
-  fontSize: 11,
+  fontSize: 'calc(11px * var(--dq-fsz, 1))',
   fontWeight: 700,
   // fallback 用深色：浅色主题下即使变量缺失文字也可见。
   color: 'var(--dsw-alias-label-primary, #1a2230)',
@@ -2113,7 +2114,7 @@ const sectionCardTitleStyle: CSSProperties = {
 
 /** 折叠箭头。 */
 const sectionCardArrowStyle: CSSProperties = {
-  fontSize: 10,
+  fontSize: 'calc(10px * var(--dq-fsz, 1))',
   color: TONE.quiet,
   display: 'inline-flex',
   alignItems: 'center',
@@ -2145,15 +2146,15 @@ const levelBadgeStyle: CSSProperties = {
   pointerEvents: 'none',
 }
 
-const levelNumStyle: CSSProperties = { fontSize: 15, fontWeight: 700, color: TONE.text, lineHeight: 1.1 }
+const levelNumStyle: CSSProperties = { fontSize: 'calc(15px * var(--dq-fsz, 1))', fontWeight: 700, color: TONE.text, lineHeight: 1.1 }
 
-const levelSubStyle: CSSProperties = { fontSize: 10, color: TONE.muted }
+const levelSubStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.muted }
 
 const titleRowStyle: CSSProperties = { display: 'flex', alignItems: 'baseline', gap: 8 }
 
-const titleTextStyle: CSSProperties = { fontSize: 13, fontWeight: 600, color: TONE.text }
+const titleTextStyle: CSSProperties = { fontSize: 'calc(13px * var(--dq-fsz, 1))', fontWeight: 600, color: TONE.text }
 
-const seasonStyle: CSSProperties = { fontSize: 10, color: TONE.quiet }
+const seasonStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.quiet }
 
 const xpTrackStyle: CSSProperties = {
   height: 7,
@@ -2174,14 +2175,14 @@ const xpFillStyle: CSSProperties = {
 
 const xpRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }
 
-const xpTextStyle: CSSProperties = { fontSize: 10, color: TONE.muted }
+const xpTextStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.muted }
 
 const metaRowStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: '4px 10px', marginTop: 6 }
 
-const metaStyle: CSSProperties = { fontSize: 10, color: TONE.quiet, background: TONE.row, padding: '2px 6px', borderRadius: 5 }
+const metaStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.quiet, background: TONE.row, padding: '2px 6px', borderRadius: 5 }
 
 const comboStyle: CSSProperties = {
-  fontSize: 10,
+  fontSize: 'calc(10px * var(--dq-fsz, 1))',
   fontWeight: 700,
   color: TONE.gold,
   background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 14%, transparent)',
@@ -2194,9 +2195,9 @@ const questRowStyle: CSSProperties = { display: 'flex', flexDirection: 'column',
 
 const questTopStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }
 
-const questLabelStyle: CSSProperties = { fontSize: 11, color: TONE.text }
+const questLabelStyle: CSSProperties = { fontSize: 'calc(11px * var(--dq-fsz, 1))', color: TONE.text }
 
-const questRewardStyle: CSSProperties = { fontSize: 10, fontWeight: 600, color: TONE.gold }
+const questRewardStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', fontWeight: 600, color: TONE.gold }
 
 const questTrackStyle: CSSProperties = { height: 6, borderRadius: 3, background: 'rgba(120, 130, 150, 0.28)', border: `1px solid ${TONE.border}`, overflow: 'hidden' }
 
@@ -2211,7 +2212,7 @@ const questFillDoneStyle: CSSProperties = { background: `linear-gradient(90deg, 
 
 const wallCountStyle: CSSProperties = { color: TONE.quiet, fontWeight: 400 }
 
-const updatedStyle: CSSProperties = { fontSize: 10, color: TONE.quiet }
+const updatedStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.quiet }
 
 const listStyle: CSSProperties = { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 2 }
 
@@ -2224,13 +2225,13 @@ const listItemStyle: CSSProperties = {
   background: TONE.row,
 }
 
-const itemNameStyle: CSSProperties = { fontSize: 12, color: TONE.text }
+const itemNameStyle: CSSProperties = { fontSize: 'calc(12px * var(--dq-fsz, 1))', color: TONE.text }
 
-const itemEnStyle: CSSProperties = { fontSize: 10, color: TONE.quiet, fontStyle: 'normal', marginLeft: 4 }
+const itemEnStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.quiet, fontStyle: 'normal', marginLeft: 4 }
 
-const itemTimeStyle: CSSProperties = { fontSize: 10, color: TONE.quiet }
+const itemTimeStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.quiet }
 
-const linkButtonStyle: CSSProperties = { border: 'none', background: 'transparent', color: TONE.muted, cursor: 'pointer', fontSize: 11, padding: '0 4px' }
+const linkButtonStyle: CSSProperties = { border: 'none', background: 'transparent', color: TONE.muted, cursor: 'pointer', fontSize: 'calc(11px * var(--dq-fsz, 1))', padding: '0 4px' }
 
 const tabsStyle: CSSProperties = { display: 'flex', gap: 4, flexWrap: 'wrap' }
 
@@ -2243,7 +2244,7 @@ const wallSearchInputStyle: CSSProperties = {
   border: `1px solid ${TONE.borderStrong}`,
   borderRadius: 6,
   padding: '3px 7px',
-  fontSize: 10,
+  fontSize: 'calc(10px * var(--dq-fsz, 1))',
   color: TONE.text,
   background: 'transparent',
   outline: 'none',
@@ -2253,7 +2254,7 @@ const wallSelectStyle: CSSProperties = {
   border: `1px solid ${TONE.borderStrong}`,
   borderRadius: 6,
   padding: '2px 4px',
-  fontSize: 10,
+  fontSize: 'calc(10px * var(--dq-fsz, 1))',
   color: TONE.text,
   background: 'transparent',
   cursor: 'pointer',
@@ -2263,7 +2264,7 @@ const tabStyle: CSSProperties = {
   border: 'none',
   borderRadius: 6,
   padding: '3px 8px',
-  fontSize: 10,
+  fontSize: 'calc(10px * var(--dq-fsz, 1))',
   color: TONE.muted,
   background: 'transparent',
   cursor: 'pointer',
@@ -2311,13 +2312,13 @@ const wallCheckStyle: CSSProperties = {
   position: 'absolute',
   top: 1,
   right: 3,
-  fontSize: 9,
+  fontSize: 'calc(9px * var(--dq-fsz, 1))',
   fontWeight: 700,
   lineHeight: 1,
   color: TONE.green,
 }
 
-const wallXpStyle: CSSProperties = { fontSize: 8, color: TONE.quiet }
+const wallXpStyle: CSSProperties = { fontSize: 'calc(8px * var(--dq-fsz, 1))', color: TONE.quiet }
 
 const wallXpUnlockedStyle: CSSProperties = { color: TONE.gold, fontWeight: 600 }
 
@@ -2351,13 +2352,13 @@ const milestoneStyle: CSSProperties = {
   marginBottom: 8,
 }
 
-const milestoneIconStyle: CSSProperties = { fontSize: 16, lineHeight: 1 }
+const milestoneIconStyle: CSSProperties = { fontSize: 'calc(16px * var(--dq-fsz, 1))', lineHeight: 1 }
 
 const milestoneTopStyle: CSSProperties = { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }
 
-const milestoneNameStyle: CSSProperties = { fontSize: 10, color: TONE.text, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
+const milestoneNameStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.text, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
 
-const milestoneNumStyle: CSSProperties = { fontSize: 9, color: TONE.muted, fontVariantNumeric: 'tabular-nums' }
+const milestoneNumStyle: CSSProperties = { fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.muted, fontVariantNumeric: 'tabular-nums' }
 
 const milestoneTrackStyle: CSSProperties = {
   height: 3,
@@ -2375,9 +2376,9 @@ const tooltipProgressWrapStyle: CSSProperties = { marginTop: 7 }
 
 const tooltipProgressTopStyle: CSSProperties = { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 3 }
 
-const tooltipProgressLabelStyle: CSSProperties = { fontSize: 9, color: TONE.quiet, textTransform: 'uppercase', letterSpacing: 0.3 }
+const tooltipProgressLabelStyle: CSSProperties = { fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.quiet, textTransform: 'uppercase', letterSpacing: 0.3 }
 
-const tooltipProgressNumStyle: CSSProperties = { fontSize: 9, color: TONE.muted, fontVariantNumeric: 'tabular-nums' }
+const tooltipProgressNumStyle: CSSProperties = { fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.muted, fontVariantNumeric: 'tabular-nums' }
 
 const tooltipProgressTrackStyle: CSSProperties = { height: 3, borderRadius: 2, background: 'rgba(120, 130, 150, 0.28)', border: `1px solid ${TONE.border}`, overflow: 'hidden' }
 
@@ -2396,7 +2397,7 @@ const chestButtonStyle: CSSProperties = {
   borderRadius: 9,
   background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 12%, transparent)',
   color: TONE.gold,
-  fontSize: 11,
+  fontSize: 'calc(11px * var(--dq-fsz, 1))',
   fontWeight: 600,
   cursor: 'pointer',
 }
@@ -2410,33 +2411,33 @@ const chestClaimedStyle: CSSProperties = {
   borderRadius: 9,
   background: TONE.row,
   color: TONE.quiet,
-  fontSize: 11,
+  fontSize: 'calc(11px * var(--dq-fsz, 1))',
 }
 
 // ---- P1/P2 样式 ----
 
 /** 已购称号徽章（称号旁小图标）。 */
-const titleBadgeStyle: CSSProperties = { fontSize: 13, lineHeight: 1, marginLeft: -2 }
+const titleBadgeStyle: CSSProperties = { fontSize: 'calc(13px * var(--dq-fsz, 1))', lineHeight: 1, marginLeft: -2 }
 
 /** 等级持续天数。 */
-const levelSinceStyle: CSSProperties = { display: 'block', fontSize: 9, color: TONE.quiet, marginTop: 1 }
+const levelSinceStyle: CSSProperties = { display: 'block', fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.quiet, marginTop: 1 }
 
 /** 赛季冲刺条。 */
 const sprintRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }
 
-const sprintLabelStyle: CSSProperties = { fontSize: 9, color: TONE.quiet, whiteSpace: 'nowrap' }
+const sprintLabelStyle: CSSProperties = { fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.quiet, whiteSpace: 'nowrap' }
 
 const sprintTrackStyle: CSSProperties = { flex: 1, height: 4, borderRadius: 2, background: 'rgba(120, 130, 150, 0.28)', border: `1px solid ${TONE.border}`, overflow: 'hidden' }
 
 const sprintFillStyle: CSSProperties = { height: '100%', borderRadius: 2, background: 'linear-gradient(90deg, var(--dsw-alias-state-warn-primary, #f6c652), var(--dsw-alias-brand-primary, #8ec5ff))' }
 
-const sprintDaysStyle: CSSProperties = { fontSize: 9, color: TONE.muted, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }
+const sprintDaysStyle: CSSProperties = { fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.muted, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }
 
 /** v1.1 连续活跃行。 */
 const streakRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }
 
 const streakBadgeStyle: CSSProperties = {
-  fontSize: 9,
+  fontSize: 'calc(9px * var(--dq-fsz, 1))',
   fontWeight: 600,
   color: 'var(--dsw-alias-label-primary, #1a2230)',
   background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 22%, transparent)',
@@ -2446,9 +2447,9 @@ const streakBadgeStyle: CSSProperties = {
   whiteSpace: 'nowrap',
 }
 
-const streakNextStyle: CSSProperties = { fontSize: 9, color: TONE.quiet }
+const streakNextStyle: CSSProperties = { fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.quiet }
 
-const boostStockStyle: CSSProperties = { marginLeft: 'auto', fontSize: 9, color: TONE.gold, whiteSpace: 'nowrap' }
+const boostStockStyle: CSSProperties = { marginLeft: 'auto', fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.gold, whiteSpace: 'nowrap' }
 
 /** v1.1 赛季通行证行。 */
 const passRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }
@@ -2456,12 +2457,12 @@ const passRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap
 /** v1.1 每日开工仪式。 */
 const ritualStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 5 }
 
-const ritualGreetingStyle: CSSProperties = { fontSize: 12, fontWeight: 700, color: 'var(--dsw-alias-label-primary, #1a2230)' }
+const ritualGreetingStyle: CSSProperties = { fontSize: 'calc(12px * var(--dq-fsz, 1))', fontWeight: 700, color: 'var(--dsw-alias-label-primary, #1a2230)' }
 
-const ritualSummaryStyle: CSSProperties = { fontSize: 10, color: TONE.muted }
+const ritualSummaryStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.muted }
 
 const ritualReminderStyle: CSSProperties = {
-  fontSize: 10,
+  fontSize: 'calc(10px * var(--dq-fsz, 1))',
   fontWeight: 600,
   color: 'var(--dsw-alias-label-primary, #1a2230)',
   background: 'color-mix(in srgb, var(--dsw-alias-state-error-primary, #ff8592) 16%, transparent)',
@@ -2473,7 +2474,7 @@ const ritualReminderStyle: CSSProperties = {
 const ritualGoalsStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 4 }
 
 const ritualGoalStyle: CSSProperties = {
-  fontSize: 9,
+  fontSize: 'calc(9px * var(--dq-fsz, 1))',
   color: TONE.text,
   background: TONE.row,
   borderRadius: 99,
@@ -2486,9 +2487,9 @@ const pokedexGridStyle: CSSProperties = { display: 'flex', flexDirection: 'colum
 
 const pokedexItemStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 7 }
 
-const pokedexIconStyle: CSSProperties = { fontSize: 14, width: 18, textAlign: 'center' }
+const pokedexIconStyle: CSSProperties = { fontSize: 'calc(14px * var(--dq-fsz, 1))', width: 18, textAlign: 'center' }
 
-const pokedexNameStyle: CSSProperties = { fontSize: 10, color: TONE.text, width: 52, flexShrink: 0 }
+const pokedexNameStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.text, width: 52, flexShrink: 0 }
 
 const pokedexTrackStyle: CSSProperties = {
   flex: 1,
@@ -2505,16 +2506,16 @@ const pokedexFillStyle: CSSProperties = {
   background: 'linear-gradient(90deg, var(--dsw-alias-state-warn-primary, #f6c652), var(--dsw-alias-brand-primary, #8ec5ff))',
 }
 
-const pokedexNumStyle: CSSProperties = { fontSize: 9, color: TONE.quiet, width: 34, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }
+const pokedexNumStyle: CSSProperties = { fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.quiet, width: 34, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }
 
 /** v1.2.0 设置区。 */
 const settingsRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '3px 0' }
 
-const settingsLabelStyle: CSSProperties = { fontSize: 10, color: TONE.text }
+const settingsLabelStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.text }
 
 const settingsControlStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 6 }
 
-const settingsValueStyle: CSSProperties = { fontSize: 10, color: TONE.gold, minWidth: 36, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }
+const settingsValueStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.gold, minWidth: 36, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }
 
 const settingsBtnStyle: CSSProperties = {
   width: 22,
@@ -2523,7 +2524,7 @@ const settingsBtnStyle: CSSProperties = {
   borderRadius: 6,
   background: 'transparent',
   color: TONE.text,
-  fontSize: 12,
+  fontSize: 'calc(12px * var(--dq-fsz, 1))',
   cursor: 'pointer',
   display: 'inline-flex',
   alignItems: 'center',
@@ -2534,7 +2535,7 @@ const settingsToggleStyle: CSSProperties = {
   border: `1px solid ${TONE.borderStrong}`,
   borderRadius: 6,
   padding: '2px 10px',
-  fontSize: 10,
+  fontSize: 'calc(10px * var(--dq-fsz, 1))',
   color: TONE.quiet,
   background: 'transparent',
   cursor: 'pointer',
@@ -2555,7 +2556,7 @@ const passTierStyle = (reached: boolean, claimed: boolean): CSSProperties => ({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  fontSize: 8,
+  fontSize: 'calc(8px * var(--dq-fsz, 1))',
   lineHeight: 1,
   cursor: reached && !claimed ? 'pointer' : 'default',
   background: claimed
@@ -2570,9 +2571,9 @@ const passTierStyle = (reached: boolean, claimed: boolean): CSSProperties => ({
 /** 商店分区：库存行（保险/重掷）。 */
 const shopBarStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, paddingBottom: 2 }
 
-const shopBalanceStyle: CSSProperties = { fontSize: 10, color: TONE.gold, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }
+const shopBalanceStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.gold, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }
 
-const shopStockStyle: CSSProperties = { fontSize: 9, color: TONE.muted }
+const shopStockStyle: CSSProperties = { fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.muted }
 
 const shopGridStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }
 
@@ -2580,13 +2581,13 @@ const shopItemStyle: CSSProperties = { padding: '7px 9px', borderRadius: 9, back
 
 const shopItemHeadStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 6 }
 
-const shopItemNameStyle: CSSProperties = { flex: 1, fontSize: 11, color: TONE.text, fontWeight: 600 }
+const shopItemNameStyle: CSSProperties = { flex: 1, fontSize: 'calc(11px * var(--dq-fsz, 1))', color: TONE.text, fontWeight: 600 }
 
-const shopItemPriceStyle: CSSProperties = { fontSize: 10, color: TONE.gold, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }
+const shopItemPriceStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.gold, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }
 
-const shopItemDescStyle: CSSProperties = { fontSize: 10, color: TONE.muted, marginTop: 3, lineHeight: 1.4 }
+const shopItemDescStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.muted, marginTop: 3, lineHeight: 1.4 }
 
-const shopOwnedStyle: CSSProperties = { marginTop: 5, fontSize: 10, color: TONE.green }
+const shopOwnedStyle: CSSProperties = { marginTop: 5, fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.green }
 
 /** 购买按钮：金色高对比（任何主题下都清晰可点，不再是暗色「黑块」）。 */
 const shopBuyButtonStyle: CSSProperties = {
@@ -2596,7 +2597,7 @@ const shopBuyButtonStyle: CSSProperties = {
   borderRadius: 7,
   background: 'linear-gradient(180deg, color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 92%, white), var(--dsw-alias-state-warn-primary, #f6c652))',
   color: '#2b1d00',
-  fontSize: 10,
+  fontSize: 'calc(10px * var(--dq-fsz, 1))',
   fontWeight: 700,
   cursor: 'pointer',
   boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
@@ -2649,7 +2650,7 @@ const skinItemActiveStyle: CSSProperties = {
 
 /** 皮肤分区标题栏右侧：当前激活皮肤胶囊。 */
 const skinHeadActiveStyle: CSSProperties = {
-  fontSize: 10,
+  fontSize: 'calc(10px * var(--dq-fsz, 1))',
   fontWeight: 600,
   color: 'var(--dsw-alias-label-primary, #1a2230)',
   background: 'color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 18%, transparent)',
@@ -2669,13 +2670,13 @@ const rerollButtonStyle: CSSProperties = {
   borderRadius: 8,
   background: TONE.row,
   color: TONE.text,
-  fontSize: 10,
+  fontSize: 'calc(10px * var(--dq-fsz, 1))',
   cursor: 'pointer',
 }
 
 /** v1.2.3：全局操作结果条（成功绿色 / 失败红色，带淡背景）。 */
 const panelMsgStyle = (ok: boolean): CSSProperties => ({
-  fontSize: 11,
+  fontSize: 'calc(11px * var(--dq-fsz, 1))',
   lineHeight: 1.4,
   color: ok ? TONE.green : TONE.red,
   background: ok
@@ -2691,11 +2692,11 @@ const panelMsgStyle = (ok: boolean): CSSProperties => ({
 /** 新手任务链。 */
 const tutorialRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 7, padding: '3px 0' }
 
-const tutorialNameStyle: CSSProperties = { flex: 1, fontSize: 11, color: TONE.text }
+const tutorialNameStyle: CSSProperties = { flex: 1, fontSize: 'calc(11px * var(--dq-fsz, 1))', color: TONE.text }
 
-const tutorialXpStyle: CSSProperties = { fontSize: 9, color: TONE.gold }
+const tutorialXpStyle: CSSProperties = { fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.gold }
 
-const tutorialTitleStyle: CSSProperties = { marginTop: 4, fontSize: 11, color: TONE.gold, fontWeight: 700 }
+const tutorialTitleStyle: CSSProperties = { marginTop: 4, fontSize: 'calc(11px * var(--dq-fsz, 1))', color: TONE.gold, fontWeight: 700 }
 
 /** 成长周报。 */
 const reportStyle: CSSProperties = { marginTop: 4 }
@@ -2708,9 +2709,9 @@ const reportBarWrapStyle: CSSProperties = { flex: 1, width: '100%', display: 'fl
 
 const reportBarStyle: CSSProperties = { width: '70%', borderRadius: 3, background: 'linear-gradient(180deg, var(--dsw-alias-brand-primary, #8ec5ff), color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 45%, transparent))', transition: 'height .3s ease' }
 
-const reportBarDateStyle: CSSProperties = { fontSize: 8, color: TONE.quiet, overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }
+const reportBarDateStyle: CSSProperties = { fontSize: 'calc(8px * var(--dq-fsz, 1))', color: TONE.quiet, overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }
 
-const reportLegendStyle: CSSProperties = { marginTop: 4, fontSize: 9, color: TONE.quiet, textAlign: 'center' }
+const reportLegendStyle: CSSProperties = { marginTop: 4, fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.quiet, textAlign: 'center' }
 
 // ---- v0.8.0 样式：庆祝动效 / 活跃日历 / 统计 / 荣誉墙 ----
 
@@ -2739,11 +2740,11 @@ const celebrationInnerStyle: CSSProperties = {
   boxShadow: '0 0 60px rgba(246,198,82,0.35)',
 }
 
-const celebrationTitleStyle: CSSProperties = { fontSize: 20, fontWeight: 800, color: TONE.gold, letterSpacing: 1 }
+const celebrationTitleStyle: CSSProperties = { fontSize: 'calc(20px * var(--dq-fsz, 1))', fontWeight: 800, color: TONE.gold, letterSpacing: 1 }
 
-const celebrationLevelStyle: CSSProperties = { fontSize: 16, fontWeight: 600, color: TONE.text }
+const celebrationLevelStyle: CSSProperties = { fontSize: 'calc(16px * var(--dq-fsz, 1))', fontWeight: 600, color: TONE.text }
 
-const celebrationStatsStyle: CSSProperties = { fontSize: 12, color: TONE.muted }
+const celebrationStatsStyle: CSSProperties = { fontSize: 'calc(12px * var(--dq-fsz, 1))', color: TONE.muted }
 
 /** 活跃日历。 */
 const calendarGridStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 3, marginTop: 4 }
@@ -2785,7 +2786,7 @@ const calendarLegendStyle: CSSProperties = {
   marginTop: 6,
 }
 
-const calendarLegendLabelStyle: CSSProperties = { fontSize: 9, color: TONE.quiet }
+const calendarLegendLabelStyle: CSSProperties = { fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.quiet }
 
 const calendarLegendBlockStyle = (level: number): CSSProperties => ({
   width: 10,
@@ -2799,29 +2800,29 @@ const statsWrapStyle: CSSProperties = { display: 'flex', flexDirection: 'column'
 
 const statsRowStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 6 }
 
-const statsChipStyle: CSSProperties = { fontSize: 10, color: TONE.text, background: TONE.row, padding: '4px 8px', borderRadius: 7 }
+const statsChipStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.text, background: TONE.row, padding: '4px 8px', borderRadius: 7 }
 
-const statsSubTitleStyle: CSSProperties = { fontSize: 10, fontWeight: 600, color: TONE.muted, marginTop: 2 }
+const statsSubTitleStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', fontWeight: 600, color: TONE.muted, marginTop: 2 }
 
 const toolRankStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 2 }
 
 const toolRankRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, padding: '3px 6px', borderRadius: 6, background: TONE.row }
 
-const toolRankNumStyle: CSSProperties = { width: 16, fontSize: 9, color: TONE.quiet, fontWeight: 700 }
+const toolRankNumStyle: CSSProperties = { width: 16, fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.quiet, fontWeight: 700 }
 
-const toolRankNameStyle: CSSProperties = { flex: 1, fontSize: 10, color: TONE.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
+const toolRankNameStyle: CSSProperties = { flex: 1, fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
 
-const toolRankCountStyle: CSSProperties = { fontSize: 10, color: TONE.gold, fontVariantNumeric: 'tabular-nums' }
+const toolRankCountStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.gold, fontVariantNumeric: 'tabular-nums' }
 
 /** 荣誉墙。 */
 const recordRowStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 5 }
 
-const recordChipStyle: CSSProperties = { fontSize: 9, color: TONE.gold, background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 30%, transparent)', padding: '3px 7px', borderRadius: 6 }
+const recordChipStyle: CSSProperties = { fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.gold, background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 30%, transparent)', padding: '3px 7px', borderRadius: 6 }
 
 /** 下一称号预览行 + 幸运抽奖。 */
 const nextTitleRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }
 
-const nextTitleStyle: CSSProperties = { fontSize: 10, color: TONE.muted }
+const nextTitleStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.muted }
 
 const luckyButtonStyle: CSSProperties = {
   marginLeft: 'auto',
@@ -2830,21 +2831,21 @@ const luckyButtonStyle: CSSProperties = {
   borderRadius: 8,
   background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 14%, transparent)',
   color: TONE.gold,
-  fontSize: 10,
+  fontSize: 'calc(10px * var(--dq-fsz, 1))',
   fontWeight: 600,
   cursor: 'pointer',
 }
 
-const luckyMsgStyle: CSSProperties = { fontSize: 10, color: TONE.gold, marginTop: 2 }
+const luckyMsgStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.gold, marginTop: 2 }
 
 /** 分类收藏行。 */
 const collRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 7, padding: '3px 0' }
 
-const collNameStyle: CSSProperties = { flex: 1, fontSize: 11, color: TONE.text }
+const collNameStyle: CSSProperties = { flex: 1, fontSize: 'calc(11px * var(--dq-fsz, 1))', color: TONE.text }
 
-const collProgressStyle: CSSProperties = { fontSize: 9, color: TONE.muted, fontVariantNumeric: 'tabular-nums' }
+const collProgressStyle: CSSProperties = { fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.muted, fontVariantNumeric: 'tabular-nums' }
 
-const collRewardStyle: CSSProperties = { fontSize: 9, color: TONE.quiet }
+const collRewardStyle: CSSProperties = { fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.quiet }
 
 // ---- v0.7.0 样式：每周挑战 / 多称号 / 分享 ----
 
@@ -2853,9 +2854,9 @@ const weeklyQuestRowStyle: CSSProperties = { display: 'flex', flexDirection: 'co
 
 const weeklyQuestTopStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }
 
-const weeklyQuestLabelStyle: CSSProperties = { fontSize: 10, color: TONE.text }
+const weeklyQuestLabelStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.text }
 
-const weeklyQuestRewardStyle: CSSProperties = { fontSize: 9, fontWeight: 600, color: TONE.gold }
+const weeklyQuestRewardStyle: CSSProperties = { fontSize: 'calc(9px * var(--dq-fsz, 1))', fontWeight: 600, color: TONE.gold }
 
 const weeklyQuestTrackStyle: CSSProperties = { height: 4, borderRadius: 2, background: 'rgba(120, 130, 150, 0.28)', border: `1px solid ${TONE.border}`, overflow: 'hidden' }
 
@@ -2868,21 +2869,21 @@ const weeklyBonusButtonStyle: CSSProperties = {
   borderRadius: 8,
   background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 14%, transparent)',
   color: TONE.gold,
-  fontSize: 10,
+  fontSize: 'calc(10px * var(--dq-fsz, 1))',
   fontWeight: 600,
   cursor: 'pointer',
 }
 
-const weeklyBonusClaimedStyle: CSSProperties = { marginTop: 4, fontSize: 10, color: TONE.quiet }
+const weeklyBonusClaimedStyle: CSSProperties = { marginTop: 4, fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.quiet }
 
 /** 多称号。 */
 const titleCurrentRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8 }
 
-const titleCurrentNameStyle: CSSProperties = { flex: 1, fontSize: 12, color: TONE.text, fontWeight: 600 }
+const titleCurrentNameStyle: CSSProperties = { flex: 1, fontSize: 'calc(12px * var(--dq-fsz, 1))', color: TONE.text, fontWeight: 600 }
 
 /** 称号区标题栏右侧：当前展示称号（折叠时也能看到具体称号）。 */
 const titleHeadCurrentStyle: CSSProperties = {
-  fontSize: 10,
+  fontSize: 'calc(10px * var(--dq-fsz, 1))',
   fontWeight: 600,
   color: 'var(--dsw-alias-label-primary, #1a2230)',
   background: 'color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 18%, transparent)',
@@ -2901,7 +2902,7 @@ const shareButtonStyle: CSSProperties = {
   borderRadius: 8,
   background: TONE.row,
   color: TONE.text,
-  fontSize: 10,
+  fontSize: 'calc(10px * var(--dq-fsz, 1))',
   cursor: 'pointer',
 }
 
@@ -2916,7 +2917,7 @@ const titleItemStyle: CSSProperties = {
   borderRadius: 8,
   background: TONE.row,
   color: TONE.text,
-  fontSize: 11,
+  fontSize: 'calc(11px * var(--dq-fsz, 1))',
   cursor: 'pointer',
   textAlign: 'left',
 }
@@ -2930,9 +2931,9 @@ const titleItemLockedStyle: CSSProperties = { opacity: 0.45, cursor: 'not-allowe
 
 const titleItemNameStyle: CSSProperties = { flex: 1, minWidth: 0 }
 
-const titleItemActiveMarkStyle: CSSProperties = { fontSize: 9, color: TONE.gold, fontWeight: 600 }
+const titleItemActiveMarkStyle: CSSProperties = { fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.gold, fontWeight: 600 }
 
-const titleItemLockedMarkStyle: CSSProperties = { fontSize: 9, color: TONE.quiet }
+const titleItemLockedMarkStyle: CSSProperties = { fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.quiet }
 
 /** 存档管理。 */
 const saveBarStyle: CSSProperties = { display: 'flex', gap: 6 }
@@ -2944,7 +2945,7 @@ const saveButtonStyle: CSSProperties = {
   borderRadius: 8,
   background: TONE.row,
   color: TONE.muted,
-  fontSize: 10,
+  fontSize: 'calc(10px * var(--dq-fsz, 1))',
   cursor: 'pointer',
   textAlign: 'center',
   display: 'inline-flex',
@@ -2953,7 +2954,7 @@ const saveButtonStyle: CSSProperties = {
 }
 
 /** 周报回合数标注。 */
-const reportBarTurnStyle: CSSProperties = { fontSize: 8, color: TONE.quiet, fontVariantNumeric: 'tabular-nums' }
+const reportBarTurnStyle: CSSProperties = { fontSize: 'calc(8px * var(--dq-fsz, 1))', color: TONE.quiet, fontVariantNumeric: 'tabular-nums' }
 
 /** 成就悬浮简介卡（fixed 定位，pointer-events none 不挡鼠标）。 */
 const tooltipStyle: CSSProperties = {
@@ -2970,15 +2971,15 @@ const tooltipStyle: CSSProperties = {
 
 const tooltipHeadStyle: CSSProperties = { display: 'flex', gap: 8, alignItems: 'center' }
 
-const tooltipNameStyle: CSSProperties = { fontSize: 12, fontWeight: 600, color: TONE.text }
+const tooltipNameStyle: CSSProperties = { fontSize: 'calc(12px * var(--dq-fsz, 1))', fontWeight: 600, color: TONE.text }
 
 const tooltipStatusStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }
 
-const tooltipXpStyle: CSSProperties = { fontSize: 10, fontWeight: 700, color: TONE.gold }
+const tooltipXpStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', fontWeight: 700, color: TONE.gold }
 
-const tooltipDescStyle: CSSProperties = { fontSize: 11, color: TONE.muted, marginTop: 6, lineHeight: 1.5 }
+const tooltipDescStyle: CSSProperties = { fontSize: 'calc(11px * var(--dq-fsz, 1))', color: TONE.muted, marginTop: 6, lineHeight: 1.5 }
 
-const emptyStyle: CSSProperties = { fontSize: 11, color: TONE.quiet, padding: '8px 0' }
+const emptyStyle: CSSProperties = { fontSize: 'calc(11px * var(--dq-fsz, 1))', color: TONE.quiet, padding: '8px 0' }
 
 const toastStackStyle: CSSProperties = {
   position: 'fixed',
@@ -3004,18 +3005,18 @@ const toastStyle: CSSProperties = {
   pointerEvents: 'auto',
 }
 
-const toastTitleStyle: CSSProperties = { fontSize: 10, fontWeight: 700, color: TONE.gold, textTransform: 'uppercase', letterSpacing: 0.4 }
+const toastTitleStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', fontWeight: 700, color: TONE.gold, textTransform: 'uppercase', letterSpacing: 0.4 }
 
-const toastNameStyle: CSSProperties = { fontSize: 13, fontWeight: 600, color: TONE.text, marginTop: 2 }
+const toastNameStyle: CSSProperties = { fontSize: 'calc(13px * var(--dq-fsz, 1))', fontWeight: 600, color: TONE.text, marginTop: 2 }
 
-const toastDescStyle: CSSProperties = { fontSize: 11, color: TONE.muted, marginTop: 2 }
+const toastDescStyle: CSSProperties = { fontSize: 'calc(11px * var(--dq-fsz, 1))', color: TONE.muted, marginTop: 2 }
 
 const toastCloseStyle: CSSProperties = {
   border: 'none',
   background: 'transparent',
   color: TONE.quiet,
   cursor: 'pointer',
-  fontSize: 15,
+  fontSize: 'calc(15px * var(--dq-fsz, 1))',
   lineHeight: 1,
   marginLeft: 'auto',
   padding: 0,
@@ -3031,7 +3032,7 @@ const footerActionStyle: CSSProperties = {
   cursor: 'pointer',
   padding: '4px 8px',
   borderRadius: 8,
-  fontSize: 12,
+  fontSize: 'calc(12px * var(--dq-fsz, 1))',
 }
 
 /** 收起态（56px rail）入口按钮：紧凑纯图标，不与其他插件图标抢空间。 */
@@ -3051,10 +3052,10 @@ const railActionStyle: CSSProperties = {
 
 const footerActionActiveStyle: CSSProperties = { background: TONE.row, color: TONE.text }
 
-const footerLabelStyle: CSSProperties = { fontWeight: 600, fontSize: 12 }
+const footerLabelStyle: CSSProperties = { fontWeight: 600, fontSize: 'calc(12px * var(--dq-fsz, 1))' }
 
 const levelChipStyle: CSSProperties = {
-  fontSize: 9,
+  fontSize: 'calc(9px * var(--dq-fsz, 1))',
   fontWeight: 700,
   color: TONE.accent,
   background: 'color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 14%, transparent)',
