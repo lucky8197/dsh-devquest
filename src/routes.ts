@@ -37,6 +37,12 @@ export interface DevQuestRoutesConfig {
   useQuestSkip: () => Promise<{ ok: boolean; status: DevQuestStatus }>
   /** 领取赛季通行证档位奖励；返回是否成功、奖励 XP 与最新状态。 */
   claimPass: (tierId: string) => Promise<{ ok: boolean; gained: number; status: DevQuestStatus }>
+  /** v1.3.0 设定每日 XP 目标（0=关闭）；返回是否成功与最新状态。 */
+  setDailyGoal: (goal: number) => Promise<{ ok: boolean; status: DevQuestStatus }>
+  /** v1.3.0 领取每日目标奖励；返回是否成功、奖励 XP 与最新状态。 */
+  claimDailyGoal: () => Promise<{ ok: boolean; gained: number; status: DevQuestStatus }>
+  /** v1.3.0 领取每周 BOSS 掉落；返回是否成功、奖励货币与最新状态。 */
+  claimWeeklyBoss: () => Promise<{ ok: boolean; gained: number; status: DevQuestStatus }>
   /** 结果缓存时长（毫秒）。默认 60s。 */
   cacheTtlMs?: number
 }
@@ -277,6 +283,69 @@ export function makeDevQuestRoutes(config: DevQuestRoutesConfig): WebRoute[] {
         ok: false,
         error: error instanceof Error ? error.message : String(error),
       }))
+    },
+  }, {
+    kind: 'exact',
+    path: `${STATUS_API_PREFIX}/daily-goal/set`,
+    handler: (req: IncomingMessage, res: ServerResponse): void => {
+      if (req.method !== 'POST') {
+        json(res, 405, { ok: false, error: 'method-not-allowed' })
+        return
+      }
+      readBody(req).then(body => {
+        let goal = 0
+        try {
+          const parsed = JSON.parse(body) as { goal?: unknown }
+          if (typeof parsed.goal === 'number') goal = parsed.goal
+        } catch {
+          goal = 0
+        }
+        return config.setDailyGoal(goal).then((result) => {
+          invalidateCache()
+          json(res, 200, { ok: result.ok, status: result.status })
+        })
+      }).then(undefined, (error: unknown) => json(res, 500, {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      }))
+    },
+  }, {
+    kind: 'exact',
+    path: `${STATUS_API_PREFIX}/daily-goal/claim`,
+    handler: (req: IncomingMessage, res: ServerResponse): void => {
+      if (req.method !== 'POST') {
+        json(res, 405, { ok: false, error: 'method-not-allowed' })
+        return
+      }
+      config.claimDailyGoal().then(
+        (result) => {
+          invalidateCache()
+          json(res, 200, { ok: result.ok, gained: result.gained, status: result.status })
+        },
+        (error: unknown) => json(res, 500, {
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      )
+    },
+  }, {
+    kind: 'exact',
+    path: `${STATUS_API_PREFIX}/weekly-boss/claim`,
+    handler: (req: IncomingMessage, res: ServerResponse): void => {
+      if (req.method !== 'POST') {
+        json(res, 405, { ok: false, error: 'method-not-allowed' })
+        return
+      }
+      config.claimWeeklyBoss().then(
+        (result) => {
+          invalidateCache()
+          json(res, 200, { ok: result.ok, gained: result.gained, status: result.status })
+        },
+        (error: unknown) => json(res, 500, {
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      )
     },
   }, {
     kind: 'exact',

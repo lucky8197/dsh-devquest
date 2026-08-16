@@ -65,6 +65,13 @@ export interface Counters {
   /** 今日使用过的工具名（去重；jack_of_all / dq_distinct_8 用），跨天清零。 */
   todayTools: string[]
   todayToolsDay: string
+  /** v1.3.0 今日获得 XP（跨天归零；每日 XP 目标用）。 */
+  todayXp?: number
+  todayXpDay?: string
+  /** v1.3.0 累计击败每周 BOSS 次数（boss_slayer / boss_3 用，跨赛季累计）。 */
+  bossSlain?: number
+  /** v1.3.0 累计达成每日 XP 目标的次数（goal_done_3 用）。 */
+  goalDays?: number
 }
 
 /** 单个每日任务。 */
@@ -99,6 +106,20 @@ export interface PlayerState {
   seasonXp: number
   /** 当前等级起始时间（升级体验：面板展示升到本级的用时）。 */
   levelStartedAt?: number
+  /** v1.3.0 每日 XP 目标（0=关闭；达成一次性 +50 XP）。 */
+  dailyGoal?: number
+  /** v1.3.0 每日目标已领取的日期（'YYYY-MM-DD'，每天一次）。 */
+  dailyGoalClaimedDay?: string
+  /** v1.3.0 赛季结束结算报告（换季时自动生成，展示上赛季战绩）。 */
+  seasonSummary?: {
+    season: string
+    level: number
+    comboBest: number
+    seasonXp: number
+    achievements: number
+  }
+  /** v1.3.0 已发放过赛季纪念奖励的赛季 id（防换季重放重复发）。 */
+  seasonSettled?: Record<string, boolean>
 }
 
 /** 称号解锁状态（多称号系统：除等级称号外，条件解锁可切换）。 */
@@ -127,6 +148,8 @@ export interface WeeklyQuestState {
   quests: WeeklyQuest[]
   /** 全清奖励是否已领取（3 个全完成可领一次 +100 XP）。 */
   bonusClaimed?: boolean
+  /** v1.3.0 本周 BOSS 掉落是否已领取。 */
+  bossClaimed?: boolean
 }
 
 /** 每日历史记录（成长周报：按日累计 XP/回合）。 */
@@ -157,6 +180,8 @@ export interface ShopState {
   questSkips?: number
   /** 赛季通行证已领取档位 id 列表（v1.1，赛季内累积）。 */
   passClaimed?: string[]
+  /** v1.3.0 每周 BOSS 掉落的额外赛季货币（换季清零；shopBalance 计入）。 */
+  bossEarned?: number
 }
 
 /** 商店商品定义。 */
@@ -326,7 +351,21 @@ export interface DevQuestStatus {
     quests: { id: string; label: { zh: string; en: string }; goal: number; reward: number; progress: number; done: boolean }[]
     bonusReady: boolean
     bonusClaimed: boolean
+    /** v1.3.0 每周 BOSS（合成）。 */
+    boss: { icon: string; name: string; hp: number; damage: number; defeated: boolean; claimed: boolean; reward: number }
   }
+  /** v1.3.0 每日 XP 目标视图。 */
+  dailyGoal: {
+    goal: number
+    todayXp: number
+    claimed: boolean
+    options: number[]
+    rewardXp: number
+  }
+  /** v1.3.0 职业画像（无匹配时为 null）。 */
+  class: { id: string; icon: string; name: { zh: string; en: string } } | null
+  /** v1.3.0 赛季结束结算报告（换季自动生成）。 */
+  seasonSummary?: PlayerState['seasonSummary']
   /** 荣誉墙：历史赛季最佳（含当前赛季）。 */
   records: { season: string; level: number; combo: number; seasonXp: number }[]
   /** 多称号视图。 */

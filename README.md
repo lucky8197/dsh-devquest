@@ -5,7 +5,7 @@
 > DevQuest 是一个 DSH 插件：你在 agent 里做的回合、工具调用、待办、输出 tokens，都会按规则换算成 XP。XP 推等级，等级出称号，成就记录你走到哪一步。装好之后不用做任何额外操作，正常干活就会自动计分。
 
 <p align="center">
-  <strong>📅 每日任务+宝箱</strong> · <strong>🗓️ 每周挑战</strong> · <strong>🎁 每日幸运抽奖</strong> · <strong>🛒 赛季商店</strong> · <strong>🎨 主题皮肤</strong> · <strong>🏆 52 枚成就+稀有度</strong> · <strong>🏷️ 多称号</strong> · <strong>📊 统计+荣誉墙</strong>
+  <strong>📅 每日任务+宝箱</strong> · <strong>🗓️ 每周挑战</strong> · <strong>🐉 每周 BOSS</strong> · <strong>🎯 每日目标</strong> · <strong>🃏 职业专精</strong> · <strong>🎁 每日幸运抽奖</strong> · <strong>🛒 赛季商店</strong> · <strong>🎨 主题皮肤</strong> · <strong>🏆 58 枚成就+稀有度</strong> · <strong>🏷️ 多称号</strong> · <strong>📊 统计+荣誉墙</strong>
 </p>
 
 <p align="center">
@@ -14,8 +14,8 @@
   <a href="https://www.npmjs.com/package/dsh-devquest"><img src="https://img.shields.io/npm/v/dsh-devquest" alt="npm version"></a>
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen" alt="0 runtime dependencies">
   <a href="https://github.com/lucky8197/dsh-devquest/actions/workflows/test.yml"><img src="https://github.com/lucky8197/dsh-devquest/actions/workflows/test.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-92%20%E2%9C%93-brightgreen" alt="92 tests passing">
-  <img src="https://img.shields.io/badge/achievements-52-gold" alt="52 achievements">
+  <img src="https://img.shields.io/badge/tests-93%20%E2%9C%93-brightgreen" alt="93 tests passing">
+  <img src="https://img.shields.io/badge/achievements-58-gold" alt="58 achievements">
 </p>
 
 <p align="center">
@@ -189,7 +189,38 @@
 ⬜ 调用 200 次工具  142/200 +150 XP
 ✅ 输出 300k tokens  312k   +180 XP
 🎁 领取全清周奖励 +100 XP    ← 3 个全清后出现
+🐉 每周 BOSS「代码恶龙」 160/480  ← 3 个全清击败，掉落 +150 赛季货币
 ```
+
+### 🐉 每周 BOSS
+
+**本周 3 个周挑战合成为一只 BOSS**（血量 = 目标总和，Boss 名按周确定性生成），周挑战区显示血量条：
+- 每完成一个周挑战就对 BOSS 造成伤害
+- **3 个全清 = 击败 BOSS** → 领取 **+150 赛季货币**（每周一次，不影响周全清 +100 XP）
+- 成就「首杀讨伐」「猎龙者」记录你的狩猎战绩
+
+### 🎯 每日 XP 目标
+
+设置区可设定**今日 XP 目标**（200 / 400 / 800 / 1500 XP，可关闭）：
+- 面板 hero 区下方显示当日进度条（`今日已获 XP / 目标`）
+- **达成后领取 +50 XP**（每天一次）
+- 成就「今日达标」在首次达成时解锁
+
+### 🃏 职业/专精系统
+
+按你的**工具使用画像**自动识别职业（无需配置，正常干活就有）：
+- ✏️ 编辑大师（编辑/写入类 ≥200 次且 ≥2 种）
+- ⌨️ 命令行者（命令行类 ≥300 次）
+- 📚 档案管理员（阅读/搜索类 ≥400 次）
+- 🤝 协调使（子代理/协作类 ≥20 次且 ≥2 种）
+- 🧱 锻造师（技能/记忆/待办类 ≥50 次且 ≥2 种）
+- 🎭 多面手（单日使用 ≥12 种工具）
+
+称号区显示当前职业徽章，成就「编辑大师」「百变星君」在达成对应职业时解锁。
+
+### 📜 赛季结束结算
+
+**跨赛季首次活跃时**自动生成上赛季战绩卡（等级 / 最高连击 / 赛季 XP / 成就数）+ **一次性纪念奖励 +200 XP**（计入新赛季，不重复发放）。
 
 ### 🏷️ 多称号系统
 
@@ -201,7 +232,7 @@
 | 🗡️ 铸剑大师 | 累计 500 次编辑/写入 |
 | 🏇 百回战将 | 累计完成 100 个回合 |
 | 🌙 月之守护 | 连续 30 天活跃 |
-| 👑 全成就之主 | 解锁全部 52 枚成就 |
+| 👑 全成就之主 | 解锁全部 58 枚成就 |
 
 ```
 🏷️ 称号
@@ -270,7 +301,7 @@ Lv.20+     传说
 - 旧版按项目隔离的存档会在升级时**自动合并**进全局档
 - 事件水位去重，重启重放不会重复计分
 
-### 🏆 52 枚成就 · 六大门类
+### 🏆 58 枚成就 · 六大门类
 
 **旅程** 初出茅庐 → 百回合大师 → 两百五十回合 → 钢铁意志（连续 25 回合零失误）→ 百折不挠（10 次失败后爬起）
 
@@ -299,7 +330,7 @@ Lv.20+     传说
 
 **稀有度：成就也分三六九等** 🎨
 
-52 枚成就按达成难度分级，解锁 toast 与成就墙按稀有度**着色 + 光晕**：
+58 枚成就按达成难度分级，解锁 toast 与成就墙按稀有度**着色 + 光晕**：
 
 ```
 普通   常见、上手即有          （初出茅庐 / 首次编辑）
@@ -315,11 +346,11 @@ Lv.20+     传说
 | 分类 | 成就数 | 集齐奖励 |
 |---|---|---|
 | 旅程 | 10 | +300 XP |
-| 锻造 | 11 | +400 XP |
-| 使命 | 8 | +300 XP |
-| 时光 | 7 | +400 XP |
-| 传奇 | 7 | +800 XP |
-| 彩蛋 | 9 | +500 XP |
+| 锻造 | 12 | +400 XP |
+| 使命 | 10 | +300 XP |
+| 时光 | 8 | +400 XP |
+| 传奇 | 8 | +800 XP |
+| 彩蛋 | 10 | +500 XP |
 
 面板「分类收藏」区实时显示每分类进度（如 `7/9`），集齐变 🏅 金色高亮。
 
@@ -410,7 +441,7 @@ dsh plugin --profile web add "github:lucky8197/dsh-devquest#main"
 
 ```
 devquest_status        # 等级 / XP / 连击 / 今日任务
-devquest_achievements  # 52 枚成就全清单与解锁状态
+devquest_achievements  # 58 枚成就全清单与解锁状态
 devquest_shop          # 赛季商店：查余额/商品，buy=<商品id> 直接购买
 devquest_daily         # 今日任务+本周挑战简报（纯文本，可配 de_channel 推送到 IM）
 devquest_reset         # 重置存档（危险，需 confirm=true）

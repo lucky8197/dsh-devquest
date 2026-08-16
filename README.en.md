@@ -5,7 +5,7 @@
 > DevQuest is a DSH plugin: every turn, tool call, todo and token output in your agent is converted into XP by fixed rules. XP raises your level, levels unlock titles, and achievements track how far you've come. Install it and do nothing else — normal work scores automatically.
 
 <p align="center">
-  <strong>📅 Daily Quests + Chest</strong> · <strong>🗓️ Weekly Challenges</strong> · <strong>🎁 Daily Lucky Draw</strong> · <strong>🛒 Season Shop</strong> · <strong>🎨 Theme Skins</strong> · <strong>🏆 52 Achievements + Rarity</strong> · <strong>🏷️ Multiple Titles</strong> · <strong>📊 Stats + Hall of Fame</strong>
+  <strong>📅 Daily Quests + Chest</strong> · <strong>🗓️ Weekly Challenges</strong> · <strong>🐉 Weekly Boss</strong> · <strong>🎯 Daily Goal</strong> · <strong>🃏 Class System</strong> · <strong>🎁 Daily Lucky Draw</strong> · <strong>🛒 Season Shop</strong> · <strong>🎨 Theme Skins</strong> · <strong>🏆 58 Achievements + Rarity</strong> · <strong>🏷️ Multiple Titles</strong> · <strong>📊 Stats + Hall of Fame</strong>
 </p>
 
 <p align="center">
@@ -14,8 +14,8 @@
   <a href="https://www.npmjs.com/package/dsh-devquest"><img src="https://img.shields.io/npm/v/dsh-devquest" alt="npm version"></a>
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen" alt="0 runtime dependencies">
   <a href="https://github.com/lucky8197/dsh-devquest/actions/workflows/test.yml"><img src="https://github.com/lucky8197/dsh-devquest/actions/workflows/test.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-92%20%E2%9C%93-brightgreen" alt="92 tests passing">
-  <img src="https://img.shields.io/badge/achievements-52-gold" alt="52 achievements">
+  <img src="https://img.shields.io/badge/tests-93%20%E2%9C%93-brightgreen" alt="93 tests passing">
+  <img src="https://img.shields.io/badge/achievements-58-gold" alt="58 achievements">
 </p>
 
 ---
@@ -125,7 +125,7 @@ Level titles follow your level; conditional titles unlock through real effort �
 | 🗡️ Sword Smith | 500 edits/writes |
 | 🏇 Centurion | 100 turns completed |
 | 🌙 Month Warden | 30 consecutive active days |
-| 👑 All-Rounder | Unlock all 52 achievements |
+| 👑 All-Rounder | Unlock all 58 achievements |
 
 ### 📤 Share Card
 
@@ -159,7 +159,7 @@ Lv.20+     Legend
 
 **One player, one save** (`~/.dsh/devquest/player.json`): shared across all sessions/projects. Legacy per-project saves auto-merge on upgrade; event watermark dedup prevents double-counting on replay.
 
-### 🏆 52 Achievements · Six Categories
+### 🏆 58 Achievements · Six Categories
 
 **Journey** First Steps → Centurion → 250 turns → Iron Will → Never Give Up
 **Crafting** First Edit → Hundred Edits → SSH First → Sword Smith → Subagent Commander
@@ -171,7 +171,7 @@ Lv.20+     Legend
 
 - Quantifiable achievements show progress bars; the wall keeps a「Next milestone」guide
 - Rarity tiers color + glow the unlock toast and wall cells (common/rare/epic/legendary)
-- **Collections**: complete a category for a one-time XP bonus (Journey 10→+300, Crafting 11→+400, Quest 8→+300, Time 7→+400, Legend 7→+800, Egg 9→+500)
+- **Collections**: complete a category for a one-time XP bonus (Journey 10→+300, Crafting 12→+400, Quest 10→+300, Time 8→+400, Legend 8→+800, Egg 10→+500)
 
 ## 🖥️ Screenshot
 
@@ -204,7 +204,7 @@ Agents can query progress too:
 
 ```
 devquest_status        # level / XP / combo / daily quests
-devquest_achievements  # full achievement list & unlock state
+devquest_achievements  # full achievement list & unlock state (58)
 devquest_shop          # season shop: balance/items, buy=<itemId>
 devquest_daily         # daily+weekly brief (plain text, pushable to IM)
 devquest_reset         # reset save (dangerous, needs confirm=true)

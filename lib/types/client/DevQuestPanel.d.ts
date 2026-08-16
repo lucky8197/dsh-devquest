@@ -19,6 +19,10 @@ export interface DevQuestSettings {
     compact: boolean;
     /** toast 过滤：all=全部；rare=仅稀有及以上；off=关闭。 */
     toastFilter: 'all' | 'rare' | 'off';
+    /** v1.3.0 音效提示（成就/升级/宝箱/BOSS）。 */
+    sound: boolean;
+    /** v1.3.0 桌面通知（成就解锁）。 */
+    notify: boolean;
 }
 /** 面板卡片（overlay 内容，可拖拽定位）。refresh 由常驻 overlay 传入（页面加载即开始轮询）。 */
 export declare function DevQuestPanelCard(props: Pick<DevQuestFooterActionProps, 'useStore' | 'actions' | 't'> & {

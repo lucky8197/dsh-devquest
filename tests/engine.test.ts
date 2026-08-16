@@ -4,12 +4,12 @@
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { ACHIEVEMENTS, achievementById, ACHIEVEMENT_RARITY, rarityOf } from '../src/achievements.ts'
+import { ACHIEVEMENTS, achievementById, ACHIEVEMENT_RARITY, CLASSES, computeClass, rarityOf } from '../src/achievements.ts'
 import {
   activateTheme, addXp, applyDaily, applyTurn, applyTurnDetailed, applyWeekly, autoSeasonId, buildRecordsView, buyShopItem, checkAchievements, checkCollections, checkTitles,
-  checkTutorial, claimDailyChest, claimLucky, claimPassTier, claimWeeklyBonus, DAILY_CHEST_REWARD, DAILY_QUEST_POOL, dailyQuestsDone, dayKey, ensureDaily, ensureWeekly,
-  freshSave, freshShop, HISTORY_KEEP, mergeSaves, migrateSave, nextTitle, refreshDailyProgress, refreshWeeklyProgress, rollDailyQuests, rollWeeklyQuests, SEASON_PASS_TIERS, SETTLEMENT_KEEP, setActiveTitle, SHOP_ITEMS,
-  shopBalance, STREAK_REWARDS, titleFor, TITLE_POOL, trimHistory, trimRecords, TUTORIAL_STEPS, updateRecords, useQuestSkip, useReroll, weekKey, WEEKLY_BONUS_XP, WEEKLY_QUEST_POOL, xpToLevel, xpToNext,
+  checkTutorial, claimDailyChest, claimDailyGoal, claimLucky, claimPassTier, claimWeeklyBonus, claimWeeklyBoss, computeWeeklyBoss, DAILY_CHEST_REWARD, DAILY_GOAL_REWARD, DAILY_QUEST_POOL, dailyQuestsDone, dayKey, ensureDaily, ensureWeekly,
+  freshSave, freshShop, HISTORY_KEEP, mergeSaves, migrateSave, nextTitle, refreshDailyProgress, refreshWeeklyProgress, rollDailyQuests, rollWeeklyQuests, SEASON_PASS_TIERS, SETTLEMENT_KEEP, setActiveTitle, setDailyGoal, SHOP_ITEMS,
+  shopBalance, STREAK_REWARDS, titleFor, TITLE_POOL, todayXpOf, trimHistory, trimRecords, TUTORIAL_STEPS, updateRecords, useQuestSkip, useReroll, weekKey, WEEKLY_BONUS_XP, WEEKLY_BOSS_REWARD, WEEKLY_QUEST_POOL, xpToLevel, xpToNext,
 } from '../src/engine.ts'
 import type { Action, SaveData } from '../src/types.ts'
 
@@ -435,9 +435,9 @@ test('成就判定：daily_quest_10 与 level_15', () => {
   assert.ok(!unlocked.includes('level_20'))
 })
 
-test('成就总数：52 枚（含 10 枚隐藏）', () => {
-  assert.equal(ACHIEVEMENTS.length, 52)
-  assert.equal(ACHIEVEMENTS.filter(a => a.hidden === true).length, 10)
+test('成就总数：58 枚（含 11 枚隐藏）', () => {
+  assert.equal(ACHIEVEMENTS.length, 58)
+  assert.equal(ACHIEVEMENTS.filter(a => a.hidden === true).length, 11)
 })
 
 test('每日任务池：24 种类型', () => {
@@ -1003,8 +1003,8 @@ test('等级起点：升级时记录 levelStartedAt', () => {
 // v0.6.0：稀有度 / 分类收藏 / 每日抽奖 / 下一称号
 // ---------------------------------------------------------------------------
 
-test('稀有度：52 枚成就都有明确稀有度（映射完备）', () => {
-  assert.equal(ACHIEVEMENTS.length, 52)
+test('稀有度：58 枚成就都有明确稀有度（映射完备）', () => {
+  assert.equal(ACHIEVEMENTS.length, 58)
   for (const a of ACHIEVEMENTS) {
     const r = rarityOf(a.id)
     assert.ok(['common', 'rare', 'epic', 'legendary'].includes(r), `${a.id} 稀有度缺失`)
@@ -1252,13 +1252,22 @@ test('荣誉墙：trimRecords 只保留最近 RECORDS_KEEP 个赛季', () => {
   assert.ok(!seasons.includes('2000-S1')) // 最老的裁掉
 })
 
-test('成就总数：47 → 52（v1.2.0 新增 5 枚）', () => {
-  assert.equal(ACHIEVEMENTS.length, 52)
+test('成就总数：52 → 58（v1.3.0 新增 6 枚）', () => {
+  assert.equal(ACHIEVEMENTS.length, 58)
   const eggIds = ACHIEVEMENTS.filter(a => a.category === 'egg').map(a => a.id)
   assert.ok(eggIds.includes('keyboard_warrior'))
   assert.ok(eggIds.includes('midnight_bell'))
   assert.ok(eggIds.includes('combo_master'))
   assert.ok(eggIds.includes('lunch_break'))
+  assert.ok(eggIds.includes('egg_boss_dusk'))
+  // v1.3.0 新分类计数：journey10 / crafting12 / quest10 / time8 / legend8 / egg10
+  const byCat = (cat: string) => ACHIEVEMENTS.filter(a => a.category === cat).length
+  assert.equal(byCat('journey'), 10)
+  assert.equal(byCat('crafting'), 12)
+  assert.equal(byCat('quest'), 10)
+  assert.equal(byCat('time'), 8)
+  assert.equal(byCat('legend'), 8)
+  assert.equal(byCat('egg'), 10)
 })
 
 // ---------------------------------------------------------------------------
@@ -1345,4 +1354,121 @@ test('v1.1 经验加成卡：购买 +10 回合，回合结算 XP×1.5 并递减'
   // 基础 turn 10 + tool 2 = 12 → ×1.5 = 18；boost 回合 -1
   assert.equal(turned.save.player.xpTotal - before, 18)
   assert.equal(turned.save.shop!.xpBoostTurns, 9)
+})
+
+// ---------------------------------------------------------------------------
+// v1.3.0：每日 XP 目标 / 职业系统 / 每周 BOSS / 赛季结束结算
+// ---------------------------------------------------------------------------
+
+test('v1.3.0 每日目标：设定档位，今日 XP 累计，达标领取一次奖励', () => {
+  let save = fresh()
+  // 默认无目标
+  assert.equal(claimDailyGoal(save, NOW).ok, false)
+  // 设置目标 400
+  const set1 = setDailyGoal(save, 400, NOW)
+  assert.equal(set1.ok, true)
+  assert.equal(set1.save.player.dailyGoal, 400)
+  // 非法档位回退到最小档
+  const set2 = setDailyGoal(save, 9999, NOW)
+  assert.equal(set2.save.player.dailyGoal, 200)
+  // 关闭目标
+  assert.equal(setDailyGoal(save, 0, NOW).save.player.dailyGoal, 0)
+  // 今日 XP 累计：addXp 后 todayXp 累加
+  save = set1.save
+  save = addXp(save, 150, NOW)
+  assert.equal(todayXpOf(save, NOW), 150)
+  // 未达标不能领取
+  assert.equal(claimDailyGoal(save, NOW).ok, false)
+  // 达标领取 +50 XP 并计入 goalDays
+  save = addXp(save, 300, NOW)
+  assert.equal(todayXpOf(save, NOW), 450)
+  const r = claimDailyGoal(save, NOW)
+  assert.equal(r.ok, true)
+  assert.equal(r.gained, DAILY_GOAL_REWARD)
+  assert.equal(r.save.counters.goalDays, 1)
+  // 同一天不能重复领取
+  assert.equal(claimDailyGoal(r.save, NOW).ok, false)
+  // 跨天归零：t+1 天 todayXp 清零，可再次领取
+  const next = NOW + 86_400_000
+  const s2 = addXp(r.save, 500, next)
+  assert.equal(todayXpOf(s2, next), 500)
+  assert.equal(claimDailyGoal(s2, next).ok, true)
+})
+
+test('v1.3.0 职业系统：编辑大师 / 命令行者 / 多面手识别', () => {
+  let save = fresh()
+  // 无工具调用 → 无职业
+  assert.equal(computeClass(save.counters), null)
+  // 编辑大师：edit+write 各 100+（≥200 且 ≥2 种）
+  save.counters.toolCallsByTool = { edit: 120, write: 100 }
+  assert.equal(computeClass(save.counters)?.id, 'class-editor')
+  // 命令行者：pwsh 300+
+  save.counters.toolCallsByTool = { pwsh: 310 }
+  const clsCmd = computeClass(save.counters)
+  assert.equal(clsCmd?.id, 'class-commander')
+  // 多面手：单日 12 种工具
+  save.counters.toolCallsByTool = {}
+  save.counters.todayTools = Array.from({ length: 12 }, (_, i) => `tool_${i}`)
+  assert.equal(computeClass(save.counters)?.id, 'class-multitool')
+  // CLASSES 表结构完备
+  assert.ok(CLASSES.length >= 5)
+})
+
+test('v1.3.0 每周 BOSS：合成与掉落', () => {
+  let save = fresh()
+  // 手造本周 3 个周任务：2 未完成 1 完成 → 未击败
+  const weekDefs = WEEKLY_QUEST_POOL.slice(0, 3)
+  save.weekly = {
+    week: weekKey(NOW),
+    quests: weekDefs.map((d, i) => ({ id: d.id, label: d.label, goal: d.goal, reward: d.reward, progress: i === 0 ? d.goal : 0, done: i === 0 })),
+  }
+  const boss1 = computeWeeklyBoss(save, NOW)
+  assert.ok(boss1 !== null)
+  assert.equal(boss1.defeated, false)
+  // 未击败不能领取
+  assert.equal(claimWeeklyBoss(save, NOW).ok, false)
+  // 全部完成 → 可击败，领取 +150 赛季货币并计数 bossSlain
+  save.weekly!.quests = save.weekly!.quests.map(q => ({ ...q, progress: q.goal, done: true }))
+  const boss2 = computeWeeklyBoss(save, NOW)
+  assert.equal(boss2!.defeated, true)
+  const beforeBal = shopBalance(save)
+  const r = claimWeeklyBoss(save, NOW)
+  assert.equal(r.ok, true)
+  assert.equal(r.gained, WEEKLY_BOSS_REWARD)
+  assert.equal(r.save.shop!.bossEarned, WEEKLY_BOSS_REWARD)
+  assert.equal(shopBalance(r.save), beforeBal + WEEKLY_BOSS_REWARD)
+  assert.equal(r.save.counters.bossSlain, 1)
+  // 本周不能重复领
+  assert.equal(claimWeeklyBoss(r.save, NOW).ok, false)
+})
+
+test('v1.3.0 赛季结算：换季生成上赛季摘要 + 一次性纪念奖励', () => {
+  let save = fresh()
+  save.player.season = '2026-S2'
+  save.player.seasonXp = 0
+  save.counters.seasonTokensOut = 0
+  save.player.xpTotal = 5000
+  save.player.level = 12
+  save.player.title = titleFor(12).zh
+  save.counters.streakBest = 9
+  save.achievements = { first_turn: { acquiredAt: NOW, xp: 50 }, turns_10: { acquiredAt: NOW, xp: 100 } }
+  save.records = { '2026-S1': { level: 6, combo: 4, seasonXp: 800 } }
+  // 加入 2026-S2 已结算记录（模拟本赛季进行中）
+  save.records['2026-S2'] = { level: 12, combo: 9, seasonXp: 5000 }
+  // 换季到 2026-S3：生成上赛季（2026-S2）摘要 + 纪念奖励 +200 XP（计入新赛季）
+  const nextSeason = autoSeasonId(NOW + 200 * 86_400_000)
+  const r = addXp(save, 10, NOW + 200 * 86_400_000)
+  assert.equal(r.player.season, nextSeason)
+  const sum = r.player.seasonSummary
+  assert.ok(sum !== undefined)
+  assert.equal(sum.season, '2026-S2')
+  assert.equal(sum.level, 12)
+  assert.equal(sum.comboBest, 9)
+  assert.equal(sum.seasonXp, 5000)
+  assert.equal(sum.achievements, 2)
+  // 新赛季 XP = 10（基础）+ 200（纪念奖励）
+  assert.equal(r.player.seasonXp, 210)
+  // 防重复：再次换季（同 S2→S3 场景）不再发纪念
+  const r2 = addXp(r, 10, NOW + 201 * 86_400_000)
+  assert.equal(r2.player.seasonXp, 10 + 200 + 10)
 })
