@@ -215,6 +215,7 @@ export function DevQuestPanelCard(
   const [shopOpen, setShopOpen] = useState(false)
   const [reportOpen, setReportOpen] = useState(false)
   const [buying, setBuying] = useState<string | null>(null)
+  const [confirmBuyId, setConfirmBuyId] = useState<string | null>(null)
   const [shopMsg, setShopMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [rerolling, setRerolling] = useState(false)
   // 面板位置：null = 默认右上角；拖拽后保存到 localStorage。
@@ -318,9 +319,17 @@ export function DevQuestPanelCard(
     }
   }, [claiming, actions])
 
-  /** 购买商店商品。 */
+  /** 购买商店商品：两步确认防误触（第一次点击进确认态，3 秒内再点才真买）。 */
   const buy = useCallback(async (itemId: string): Promise<void> => {
     if (buying !== null) return
+    // 第一次点击：进入确认态（显示「确认购买？」）
+    if (confirmBuyId !== itemId) {
+      setConfirmBuyId(itemId)
+      setShopMsg(null)
+      window.setTimeout(() => setConfirmBuyId(cur => (cur === itemId ? null : cur)), 3000)
+      return
+    }
+    setConfirmBuyId(null)
     setBuying(itemId)
     setShopMsg(null)
     try {
@@ -339,7 +348,7 @@ export function DevQuestPanelCard(
     } finally {
       setBuying(null)
     }
-  }, [buying, actions, t])
+  }, [buying, confirmBuyId, actions, t])
 
   /** 使用任务重掷。 */
   const rerollQuests = useCallback(async (): Promise<void> => {
@@ -510,8 +519,21 @@ export function DevQuestPanelCard(
                   <div style={shopItemDescStyle}>{item.description.zh}</div>
                   {item.owned
                     ? <div style={shopOwnedStyle}>{t('dq.shopOwned')}</div>
-                    : <button type="button" onClick={() => void buy(item.id)} disabled={buying !== null || !canAfford} style={{ ...shopBuyButtonStyle, ...(!canAfford ? shopBuyDisabledStyle : {}) }}>
-                      {buying === item.id ? '…' : t('dq.shopBuy')}
+                    : <button
+                      type="button"
+                      onClick={() => void buy(item.id)}
+                      disabled={buying !== null || !canAfford}
+                      style={{
+                        ...shopBuyButtonStyle,
+                        ...(confirmBuyId === item.id ? shopConfirmButtonStyle : {}),
+                        ...(!canAfford ? shopBuyDisabledStyle : {}),
+                      }}
+                    >
+                      {buying === item.id
+                        ? '…'
+                        : confirmBuyId === item.id
+                          ? `⚠️ ${t('dq.shopConfirm')}`
+                          : t('dq.shopBuy')}
                     </button>}
                 </div>
               )
@@ -1215,19 +1237,28 @@ const shopItemDescStyle: CSSProperties = { fontSize: 10, color: TONE.muted, marg
 
 const shopOwnedStyle: CSSProperties = { marginTop: 5, fontSize: 10, color: TONE.green }
 
+/** 购买按钮：金色高对比（任何主题下都清晰可点，不再是暗色「黑块」）。 */
 const shopBuyButtonStyle: CSSProperties = {
   marginTop: 5,
-  padding: '3px 10px',
-  border: 'none',
+  padding: '4px 12px',
+  border: '1px solid color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 55%, transparent)',
   borderRadius: 7,
-  background: TONE.accent,
-  color: '#0b1220',
+  background: 'linear-gradient(180deg, color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 92%, white), var(--dsw-alias-state-warn-primary, #f6c652))',
+  color: '#2b1d00',
   fontSize: 10,
   fontWeight: 700,
   cursor: 'pointer',
+  boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
 }
 
-const shopBuyDisabledStyle: CSSProperties = { opacity: 0.45, cursor: 'not-allowed' }
+/** 确认态：红色高亮，提示「再点一次才真买」。 */
+const shopConfirmButtonStyle: CSSProperties = {
+  border: '1px solid color-mix(in srgb, var(--dsw-alias-state-error-primary, #ff8592) 60%, transparent)',
+  background: 'linear-gradient(180deg, color-mix(in srgb, var(--dsw-alias-state-error-primary, #ff8592) 88%, white), var(--dsw-alias-state-error-primary, #ff8592))',
+  color: '#3a0609',
+}
+
+const shopBuyDisabledStyle: CSSProperties = { opacity: 0.4, cursor: 'not-allowed' }
 
 const rerollButtonStyle: CSSProperties = {
   marginTop: 4,

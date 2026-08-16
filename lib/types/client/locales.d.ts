@@ -58,6 +58,7 @@ declare const zh: {
     readonly 'dq.shop': "商店";
     readonly 'dq.shopBalance': "赛季货币 {balance}";
     readonly 'dq.shopBuy': "购买";
+    readonly 'dq.shopConfirm': "确认购买？";
     readonly 'dq.shopOwned': "已拥有";
     readonly 'dq.shopNoBalance': "赛季货币不足";
     readonly 'dq.shopBought': "购买成功";
