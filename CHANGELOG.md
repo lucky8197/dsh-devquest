@@ -20,6 +20,11 @@
 
 ---
 
+## [1.0.3] - 2026-08-16
+
+### Added
+- **npm 安装方式**：插件已准备发布到 npm（`dsh-devquest`）——移除 `private` 标记、新增 `prepublishOnly` 发布前自检（typecheck + 测试 + 构建）、补充 keywords；安装可用 `dshpm install dsh-devquest --profile web` 或 `dsh plugin add dsh-devquest`
+
 ## [1.0.2] - 2026-08-16
 
 ### Added

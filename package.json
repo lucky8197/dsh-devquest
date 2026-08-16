@@ -1,6 +1,6 @@
 {
   "name": "dsh-devquest",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "把开发变成 RPG：回合/工具/todo 积累 XP、成就徽章、等级与赛季。事件流驱动，纯函数计分。",
   "type": "module",
   "main": "./lib/index.js",
@@ -39,7 +39,8 @@
     "build": "node scripts/build.mjs",
     "build:bash": "./scripts/build.sh",
     "typecheck": "node scripts/setup-dsh-deps.mjs && tsc -p tsconfig.json --noEmit --pretty false",
-    "test": "node --test 'tests/*.test.ts'"
+    "test": "node --test 'tests/*.test.ts'",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1-rc.1"
@@ -48,7 +49,14 @@
     "node": ">=22.19"
   },
   "license": "BSD-3-Clause",
-  "private": true,
+  "keywords": [
+    "dsh",
+    "plugin",
+    "game",
+    "rpg",
+    "gamification",
+    "productivity"
+  ],
   "devDependencies": {
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.18",

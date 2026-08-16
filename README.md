@@ -372,6 +372,16 @@ Lv.20+     传说
 
 ## ⚙️ 安装
 
+**方式一：npm（推荐）**
+
+```sh
+dshpm install dsh-devquest --profile web
+# 或
+dsh plugin --profile web add "dsh-devquest"
+```
+
+**方式二：GitHub 源**
+
 ```sh
 dsh plugin --profile web add "github:lucky8197/dsh-devquest#main"
 ```
