@@ -330,6 +330,7 @@ export function freshSave(cwd: string, seasonOverride: string | undefined, now: 
     lucky: { date: '', claimed: false },
     weekly: rollWeeklyQuests(now),
     titles: { unlocked: [], active: '' },
+    records: {},
     updatedAt: now,
   }
 }
@@ -432,7 +433,7 @@ export const TITLE_POOL: TitleDef[] = [
     description: { zh: '连续 30 天活跃', en: 'Stay active 30 days in a row' },
     check: s => s.counters.streakDays >= 30 },
   { id: 't-allachs', name: { zh: '全成就之主', en: 'All-Rounder' }, icon: '👑',
-    description: { zh: '解锁全部 44 枚成就', en: 'Unlock all 44 achievements' },
+    description: { zh: '解锁全部成就', en: 'Unlock every achievement' },
     check: (_s, _now) => false }, // 动态：由 host 注入全部成就数
 ]
 
@@ -577,6 +578,48 @@ export const COLLECTION_REWARDS: Record<string, number> = {
   egg: 500,
 }
 
+// ---------------------------------------------------------------------------
+// 荣誉墙：记录每个赛季达到的最高等级 / 最高连击 / 赛季 XP。
+// ---------------------------------------------------------------------------
+
+/** 更新当前赛季纪录（纯函数，返回副本）。换季时旧纪录保留在 records 里。 */
+export function updateRecords(save: SaveData, now: number = Date.now()): SaveData {
+  const s = structuredClone(save)
+  const season = s.player.season
+  const records: Record<string, { level: number; combo: number; seasonXp: number }> = { ...(s.records ?? {}) }
+  const cur = records[season] ?? { level: 0, combo: 0, seasonXp: 0 }
+  if (s.player.level > cur.level) cur.level = s.player.level
+  if (s.counters.consecutiveSuccess > cur.combo) cur.combo = s.counters.consecutiveSuccess
+  if (s.player.seasonXp > cur.seasonXp) cur.seasonXp = s.player.seasonXp
+  records[season] = cur
+  s.records = records
+  return s
+}
+
+/** 组装荣誉墙（按赛季倒序，最近在前）。 */
+export function buildRecordsView(save: SaveData): { season: string; level: number; combo: number; seasonXp: number }[] {
+  const records = save.records ?? {}
+  return Object.entries(records)
+    .map(([season, r]) => ({ season, level: r.level, combo: r.combo, seasonXp: r.seasonXp }))
+    .sort((a, b) => (a.season < b.season ? 1 : -1))
+}
+
+/** 存档保留的历史赛季数（荣誉墙只展示最近 N 个赛季）。 */
+export const RECORDS_KEEP = 8
+
+/** 裁剪荣誉墙：只保留最近 RECORDS_KEEP 个赛季。 */
+export function trimRecords(save: SaveData): SaveData {
+  const s = structuredClone(save)
+  if (s.records === undefined) return s
+  const seasons = Object.keys(s.records).sort().reverse()
+  if (seasons.length <= RECORDS_KEEP) return s
+  const keep = new Set(seasons.slice(0, RECORDS_KEEP))
+  for (const season of seasons) {
+    if (!keep.has(season)) delete s.records![season]
+  }
+  return s
+}
+
 /**
  * 检查分类收藏：返回新完成的分类（含奖励 XP 的存档副本）。
  * completed 记录集齐时间；奖励计入累计 XP。
@@ -612,7 +655,7 @@ const ACHIEVEMENTS_BY_CATEGORY: Record<string, string[]> = {
   quest: ['first_todo', 'todos_10', 'todos_50', 'todos_100', 'clean_sweep', 'daily_quest_10', 'daily_quest_30'],
   time: ['night_owl', 'early_bird', 'night_owl_10', 'seven_days', 'streak_30', 'grinder'],
   legend: ['level_5', 'level_10', 'level_15', 'level_20', 'level_25', 'level_30', 'season_100k'],
-  egg: ['devil_hour', 'self_aware', 'oops', 'thinker', 'jack_of_all'],
+  egg: ['devil_hour', 'self_aware', 'oops', 'thinker', 'jack_of_all', 'keyboard_warrior', 'midnight_bell', 'combo_master'],
 }
 
 /** 分类 id 列表。 */
@@ -902,24 +945,26 @@ export function applyTurnDetailed(
   const questGain = applyDaily(s, now) + applyWeekly(s, now)
   const next = addXp(s, gain + questGain, now, seasonOverride)
   const turnsDone = completed || failed ? 1 : 0
+  // 荣誉墙：更新当前赛季最高等级/连击/赛季 XP，并裁剪历史赛季。
+  const withRecords = trimRecords(updateRecords(next, now))
   // 每日历史：完成回合数累计（XP 已在 addXp 内累计）。
   if (completed) {
     const today = dayKey(now)
-    const history: Record<string, DayHistory> = next.history ?? {}
+    const history: Record<string, DayHistory> = withRecords.history ?? {}
     const h = history[today] ?? { xp: 0, turns: 0 }
     h.turns += 1
     history[today] = h
-    next.history = trimHistory(history, now)
+    withRecords.history = trimHistory(history, now)
   }
   return {
-    save: next,
+    save: withRecords,
     settlement: {
       xp: gain + questGain,
       combo,
       questXp: questGain,
       levelBefore,
-      levelAfter: next.player.level,
-      leveledUp: next.player.level > levelBefore,
+      levelAfter: withRecords.player.level,
+      leveledUp: withRecords.player.level > levelBefore,
       turnsDone,
     },
   }
@@ -962,6 +1007,7 @@ export function migrateSave(raw: Partial<SaveData>, cwd: string, seasonOverride:
     lucky: { date: '', claimed: false, ...(raw.lucky ?? {}) },
     weekly: raw.weekly ?? rollWeeklyQuests(raw.updatedAt ?? Date.now()),
     titles: { unlocked: [], active: '', ...(raw.titles ?? {}) },
+    records: raw.records ?? {},
   }
   out.version = Math.max(1, raw.version ?? 1)
   // 派生字段一致性：称号跟等级走；每日任务日期过期由 ensureDaily 重滚。
@@ -1082,6 +1128,18 @@ export function mergeSaves(saves: SaveData[], now: number = Date.now()): SaveDat
     }
   }
   out.titles!.active = latest.titles?.active ?? ''
+  // 荣誉墙：各赛季取合并后的最大值（本赛季来自最新存档）。
+  const mergedRecords: Record<string, { level: number; combo: number; seasonXp: number }> = {}
+  for (const s of saves) {
+    for (const [season, r] of Object.entries(s.records ?? {})) {
+      const cur = mergedRecords[season] ?? { level: 0, combo: 0, seasonXp: 0 }
+      cur.level = Math.max(cur.level, r.level)
+      cur.combo = Math.max(cur.combo, r.combo)
+      cur.seasonXp = Math.max(cur.seasonXp, r.seasonXp)
+      mergedRecords[season] = cur
+    }
+  }
+  out.records = mergedRecords
   // 每日任务：保留最新存档的（日期过期由 ensureDaily 重滚）
   out.daily = latest.daily
   out.history = trimHistory(out.history ?? {}, now)

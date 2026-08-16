@@ -270,6 +270,7 @@ export function DevQuestPanelCard(
   const [titlesOpen, setTitlesOpen] = useState(false)
   const [weeklyClaiming, setWeeklyClaiming] = useState(false)
   const [sharing, setSharing] = useState(false)
+  const [statsOpen, setStatsOpen] = useState(false)
   // 面板位置：null = 默认右上角；拖拽后保存到 localStorage。
   const [pos, setPos] = useState<{ left: number; top: number } | null>(loadPanelPos)
   const [dragging, setDragging] = useState(false)
@@ -1044,6 +1045,71 @@ export function DevQuestPanelCard(
           </div>
         )}
       </div>
+
+      {/* 活跃日历：近 30 天热力图 */}
+      <div style={sectionStyle}>
+        <div style={sectionHeadStyle}>
+          <span style={sectionTitleStyle}>🗓️ {t('dq.calendar')}</span>
+          <span style={updatedStyle}>{t('dq.calendarDays')}</span>
+        </div>
+        <div style={calendarGridStyle}>
+          {(status.history ?? []).slice(-30).map(h => {
+            const intensity = h.xp > 0 ? Math.min(4, 1 + Math.floor(h.xp / 100)) : 0
+            return <span
+              key={h.date}
+              title={`${h.date} · ${t('dq.reportXp', { xp: h.xp })} · ${h.turns} 回合`}
+              style={{ ...calendarCellStyle, ...(calendarIntensityStyle(intensity)) }}
+            />
+          })}
+        </div>
+        <div style={reportLegendStyle}>少 ▓▓▓▓ 多</div>
+      </div>
+
+      {/* 统计 + 荣誉墙 */}
+      <div style={sectionStyle}>
+        <div style={sectionHeadStyle}>
+          <span style={sectionTitleStyle}>📊 {t('dq.stats')}</span>
+          <button type="button" onClick={() => setStatsOpen(v => !v)} style={linkButtonStyle}>
+            {statsOpen ? '▾' : '▸'}
+          </button>
+        </div>
+        {statsOpen && (
+          <div style={statsWrapStyle}>
+            {/* 核心纪录 */}
+            <div style={statsRowStyle}>
+              <span style={statsChipStyle}>🏆 {t('dq.statsBestCombo')}: {Math.max(c.consecutiveSuccess, ...(status.records ?? []).map(r => r.combo))}</span>
+              <span style={statsChipStyle}>⬆️ {t('dq.statsBestLevel')}: {Math.max(status.level, ...(status.records ?? []).map(r => r.level))}</span>
+            </div>
+            {/* 工具 TOP5 */}
+            <div style={statsSubTitleStyle}>{t('dq.statsTopTools')}</div>
+            <div style={toolRankStyle}>
+              {Object.entries(c.toolCallsByTool)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5)
+                .map(([tool, n], i) => (
+                  <div key={tool} style={toolRankRowStyle}>
+                    <span style={toolRankNumStyle}>{i + 1}</span>
+                    <span style={toolRankNameStyle}>{tool}</span>
+                    <span style={toolRankCountStyle}>{n}</span>
+                  </div>
+                ))}
+            </div>
+            {/* 荣誉墙：历史赛季纪录 */}
+            {(status.records ?? []).length > 0 && (
+              <>
+                <div style={statsSubTitleStyle}>🏛️ {t('dq.records')}</div>
+                <div style={recordRowStyle}>
+                  {(status.records ?? []).map(r => (
+                    <span key={r.season} style={recordChipStyle} title={t('dq.recordsCombo', { combo: r.combo })}>
+                      {t('dq.recordsSeason', { season: r.season })} · Lv.{r.level}
+                    </span>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   </section>
 }
@@ -1191,6 +1257,9 @@ export function DevQuestOverlay(props: DevQuestOverlayProps): ReactElement {
   const { useStore, actions, t } = props
   const state: DevQuestUiState = useStore(snapshot => snapshot)
   const controllerRef = useRef<AbortController | null>(null)
+  // 里程碑庆祝：等级升到 5 的倍数时全屏金色庆祝。
+  const [celebration, setCelebration] = useState<{ level: number; title: string; days: number; turns: number } | null>(null)
+  const prevLevelRef = useRef<number | null>(null)
 
   // v0.3 起状态是全局玩家档，与 cwd/session 无关：直接拉取不带 session 参数。
   const refresh = useCallback(() => {
@@ -1219,6 +1288,35 @@ export function DevQuestOverlay(props: DevQuestOverlayProps): ReactElement {
     }
   }, [refresh])
 
+  // 里程碑检测：等级提升且新等级是 5 的倍数 → 庆祝（只触发一次）。
+  useEffect(() => {
+    const level = state.status?.level
+    if (level === undefined) return
+    const prev = prevLevelRef.current
+    prevLevelRef.current = level
+    if (prev !== null && level > prev && level % 5 === 0 && state.status !== null) {
+      const startedAt = state.status.levelStartedAt
+      const days = startedAt !== undefined ? Math.max(0, Math.floor((Date.now() - startedAt) / 86_400_000)) : 0
+      setCelebration({
+        level,
+        title: state.status.title.zh,
+        days,
+        turns: state.status.counters.turnsCompleted,
+      })
+      window.setTimeout(() => setCelebration(null), 4000)
+    }
+  }, [state.status])
+
+  // 注入庆祝动画 keyframes（只注入一次）。
+  useEffect(() => {
+    if (document.getElementById('dsh-devquest-kf') !== null) return
+    const style = document.createElement('style')
+    style.id = 'dsh-devquest-kf'
+    style.textContent = '@keyframes dshCelebrateFade { 0% { opacity: 0; transform: scale(0.92); } 12% { opacity: 1; transform: scale(1); } 85% { opacity: 1; } 100% { opacity: 0; } }'
+    document.head.appendChild(style)
+    return () => { document.getElementById('dsh-devquest-kf')?.remove() }
+  }, [])
+
   return <>
     {state.open && (
       <DevQuestPanelCard useStore={useStore} actions={actions} t={t} refresh={refresh} />
@@ -1228,6 +1326,16 @@ export function DevQuestOverlay(props: DevQuestOverlayProps): ReactElement {
         {state.toasts.map(toast => (
           <DevQuestToast key={toast.id} toast={toast} status={state.status!} actions={actions} t={t} />
         ))}
+      </div>
+    )}
+    {celebration !== null && (
+      <div style={celebrationOverlayStyle} role="alert">
+        <div style={celebrationInnerStyle}>
+          <div style={{ fontSize: 64, lineHeight: 1 }}>🏆</div>
+          <div style={celebrationTitleStyle}>{t('dq.celebration')}</div>
+          <div style={celebrationLevelStyle}>{t('dq.celebrationLevel', { level: celebration.level, title: celebration.title })}</div>
+          <div style={celebrationStatsStyle}>{t('dq.celebrationStats', { days: celebration.days, turns: celebration.turns })}</div>
+        </div>
       </div>
     )}
   </>
@@ -1653,6 +1761,83 @@ const reportBarStyle: CSSProperties = { width: '70%', borderRadius: 3, backgroun
 const reportBarDateStyle: CSSProperties = { fontSize: 8, color: TONE.quiet, overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }
 
 const reportLegendStyle: CSSProperties = { marginTop: 4, fontSize: 9, color: TONE.quiet, textAlign: 'center' }
+
+// ---- v0.8.0 样式：庆祝动效 / 活跃日历 / 统计 / 荣誉墙 ----
+
+/** 全屏里程碑庆祝。 */
+const celebrationOverlayStyle: CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  zIndex: 2000,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: 'radial-gradient(circle at 50% 40%, rgba(246,198,82,0.22), rgba(10,14,22,0.75) 70%)',
+  pointerEvents: 'none',
+  animation: 'dshCelebrateFade 4s ease forwards',
+}
+
+const celebrationInnerStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: 8,
+  padding: '28px 44px',
+  borderRadius: 18,
+  background: 'rgba(23,31,43,0.92)',
+  border: '2px solid rgba(246,198,82,0.6)',
+  boxShadow: '0 0 60px rgba(246,198,82,0.35)',
+}
+
+const celebrationTitleStyle: CSSProperties = { fontSize: 20, fontWeight: 800, color: TONE.gold, letterSpacing: 1 }
+
+const celebrationLevelStyle: CSSProperties = { fontSize: 16, fontWeight: 600, color: TONE.text }
+
+const celebrationStatsStyle: CSSProperties = { fontSize: 12, color: TONE.muted }
+
+/** 活跃日历。 */
+const calendarGridStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 3, marginTop: 4 }
+
+const calendarCellStyle: CSSProperties = {
+  aspectRatio: '1 / 1',
+  borderRadius: 3,
+  background: TONE.row,
+}
+
+function calendarIntensityStyle(intensity: number): CSSProperties {
+  const colors = [
+    'var(--dsw-alias-bg-layer-2, #1d2735)',
+    'color-mix(in srgb, var(--dsw-alias-state-success-primary, #78dda0) 22%, transparent)',
+    'color-mix(in srgb, var(--dsw-alias-state-success-primary, #78dda0) 42%, transparent)',
+    'color-mix(in srgb, var(--dsw-alias-state-success-primary, #78dda0) 62%, transparent)',
+    'var(--dsw-alias-state-success-primary, #78dda0)',
+  ]
+  return { background: colors[Math.min(intensity, 4)] ?? colors[0] }
+}
+
+/** 统计页。 */
+const statsWrapStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6 }
+
+const statsRowStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 6 }
+
+const statsChipStyle: CSSProperties = { fontSize: 10, color: TONE.text, background: TONE.row, padding: '4px 8px', borderRadius: 7 }
+
+const statsSubTitleStyle: CSSProperties = { fontSize: 10, fontWeight: 600, color: TONE.muted, marginTop: 2 }
+
+const toolRankStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 2 }
+
+const toolRankRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, padding: '3px 6px', borderRadius: 6, background: TONE.row }
+
+const toolRankNumStyle: CSSProperties = { width: 16, fontSize: 9, color: TONE.quiet, fontWeight: 700 }
+
+const toolRankNameStyle: CSSProperties = { flex: 1, fontSize: 10, color: TONE.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
+
+const toolRankCountStyle: CSSProperties = { fontSize: 10, color: TONE.gold, fontVariantNumeric: 'tabular-nums' }
+
+/** 荣誉墙。 */
+const recordRowStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 5 }
+
+const recordChipStyle: CSSProperties = { fontSize: 9, color: TONE.gold, background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 30%, transparent)', padding: '3px 7px', borderRadius: 6 }
 
 /** 下一称号预览行 + 幸运抽奖。 */
 const nextTitleRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }

@@ -6,10 +6,10 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { ACHIEVEMENTS, achievementById, ACHIEVEMENT_RARITY, rarityOf } from '../src/achievements.ts'
 import {
-  addXp, applyDaily, applyTurn, applyTurnDetailed, applyWeekly, autoSeasonId, buyShopItem, checkAchievements, checkCollections, checkTitles,
+  addXp, applyDaily, applyTurn, applyTurnDetailed, applyWeekly, autoSeasonId, buildRecordsView, buyShopItem, checkAchievements, checkCollections, checkTitles,
   checkTutorial, claimDailyChest, claimLucky, claimWeeklyBonus, DAILY_CHEST_REWARD, DAILY_QUEST_POOL, dailyQuestsDone, dayKey, ensureDaily, ensureWeekly,
   freshSave, freshShop, HISTORY_KEEP, mergeSaves, migrateSave, nextTitle, rollDailyQuests, rollWeeklyQuests, SETTLEMENT_KEEP, setActiveTitle, SHOP_ITEMS,
-  shopBalance, titleFor, TITLE_POOL, trimHistory, TUTORIAL_STEPS, useReroll, weekKey, WEEKLY_BONUS_XP, WEEKLY_QUEST_POOL, xpToLevel, xpToNext,
+  shopBalance, titleFor, TITLE_POOL, trimHistory, trimRecords, TUTORIAL_STEPS, updateRecords, useReroll, weekKey, WEEKLY_BONUS_XP, WEEKLY_QUEST_POOL, xpToLevel, xpToNext,
 } from '../src/engine.ts'
 import type { Action, SaveData } from '../src/types.ts'
 
@@ -414,9 +414,9 @@ test('成就判定：daily_quest_10 与 level_15', () => {
   assert.ok(!unlocked.includes('level_20'))
 })
 
-test('成就总数：44 枚（含 6 枚隐藏）', () => {
-  assert.equal(ACHIEVEMENTS.length, 44)
-  assert.equal(ACHIEVEMENTS.filter(a => a.hidden === true).length, 6)
+test('成就总数：47 枚（含 9 枚隐藏）', () => {
+  assert.equal(ACHIEVEMENTS.length, 47)
+  assert.equal(ACHIEVEMENTS.filter(a => a.hidden === true).length, 9)
 })
 
 test('每日任务池：21 种类型', () => {
@@ -926,8 +926,8 @@ test('等级起点：升级时记录 levelStartedAt', () => {
 // v0.6.0：稀有度 / 分类收藏 / 每日抽奖 / 下一称号
 // ---------------------------------------------------------------------------
 
-test('稀有度：44 枚成就都有明确稀有度（映射完备）', () => {
-  assert.equal(ACHIEVEMENTS.length, 44)
+test('稀有度：47 枚成就都有明确稀有度（映射完备）', () => {
+  assert.equal(ACHIEVEMENTS.length, 47)
   for (const a of ACHIEVEMENTS) {
     const r = rarityOf(a.id)
     assert.ok(['common', 'rare', 'epic', 'legendary'].includes(r), `${a.id} 稀有度缺失`)
@@ -1085,4 +1085,80 @@ test('存档迁移：weekly/titles 字段补全', () => {
   assert.deepEqual(migrated.titles, { unlocked: [], active: '' })
   // 称号池完备
   assert.ok(TITLE_POOL.length >= 5)
+})
+
+// ---------------------------------------------------------------------------
+// v0.8.0：新彩蛋 / 荣誉墙
+// ---------------------------------------------------------------------------
+
+test('v0.8.0 新彩蛋：键盘侠 / 午夜钟声 / 连击大师 判定', () => {
+  // 键盘侠：任一工具 ≥100 次
+  let s1 = fresh()
+  s1.counters.toolCallsByTool['pwsh'] = 100
+  assert.ok(checkAchievements(ACHIEVEMENTS, s1, NOW).includes('keyboard_warrior'))
+  // 午夜钟声：23:58 完成回合
+  let s2 = fresh()
+  s2.counters.lastTurnCompletedAt = new Date(2026, 7, 15, 23, 58, 0).getTime()
+  assert.ok(checkAchievements(ACHIEVEMENTS, s2, NOW).includes('midnight_bell'))
+  // 连击大师：连击 40
+  let s3 = fresh()
+  s3.counters.consecutiveSuccess = 40
+  assert.ok(checkAchievements(ACHIEVEMENTS, s3, NOW).includes('combo_master'))
+})
+
+test('荣誉墙：updateRecords 记录赛季最高等级/连击/赛季XP', () => {
+  let save = fresh()
+  save.player.season = '2026-S3'
+  save.player.level = 12
+  save.player.seasonXp = 500
+  save.counters.consecutiveSuccess = 30
+  const r1 = updateRecords(save, NOW)
+  assert.equal(r1.records!['2026-S3']!.level, 12)
+  assert.equal(r1.records!['2026-S3']!.combo, 30)
+  assert.equal(r1.records!['2026-S3']!.seasonXp, 500)
+  // 提升后更新，降级不覆盖（基于 r1 副本修改）
+  const upgraded = structuredClone(r1)
+  upgraded.player.level = 15
+  upgraded.counters.consecutiveSuccess = 45
+  const r2 = updateRecords(upgraded, NOW)
+  assert.equal(r2.records!['2026-S3']!.level, 15)
+  assert.equal(r2.records!['2026-S3']!.combo, 45)
+  // 换季：旧纪录保留，新赛季新开
+  const newSeason = structuredClone(r2)
+  newSeason.player.season = '2026-S4'
+  newSeason.player.level = 3
+  const r3 = updateRecords(newSeason, NOW)
+  assert.equal(r3.records!['2026-S3']!.level, 15) // 保留
+  assert.equal(r3.records!['2026-S4']!.level, 3) // 新赛季
+})
+
+test('荣誉墙：applyTurn 自动更新纪录 + 视图按赛季倒序', () => {
+  let save = fresh()
+  save = applyTurn(save, [{ kind: 'turn-completed', turn: 1 }], NOW)
+  const season = save.player.season
+  assert.equal(save.records![season]!.level, 1)
+  assert.equal(save.records![season]!.combo, 1)
+  const view = buildRecordsView(save)
+  assert.equal(view.length, 1)
+  assert.equal(view[0]!.season, season)
+})
+
+test('荣誉墙：trimRecords 只保留最近 RECORDS_KEEP 个赛季', () => {
+  let save = fresh()
+  const rec: Record<string, { level: number; combo: number; seasonXp: number }> = {}
+  for (let i = 0; i < 12; i++) rec[`20${String(i).padStart(2, '0')}-S1`] = { level: i + 1, combo: i, seasonXp: 100 }
+  save.records = rec
+  const trimmed = trimRecords(save)
+  const seasons = Object.keys(trimmed.records!)
+  assert.equal(seasons.length, 8)
+  assert.ok(seasons.includes('2011-S1')) // 最近的保留
+  assert.ok(!seasons.includes('2000-S1')) // 最老的裁掉
+})
+
+test('成就总数：44 → 47（新增 3 枚彩蛋）', () => {
+  assert.equal(ACHIEVEMENTS.length, 47)
+  const eggIds = ACHIEVEMENTS.filter(a => a.category === 'egg').map(a => a.id)
+  assert.ok(eggIds.includes('keyboard_warrior'))
+  assert.ok(eggIds.includes('midnight_bell'))
+  assert.ok(eggIds.includes('combo_master'))
 })

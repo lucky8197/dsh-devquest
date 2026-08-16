@@ -192,6 +192,19 @@ export declare function claimWeeklyBonus(save: SaveData, now?: number, seasonOve
 };
 /** 各分类集齐奖励 XP（按分类含成就数/难度给）。 */
 export declare const COLLECTION_REWARDS: Record<string, number>;
+/** 更新当前赛季纪录（纯函数，返回副本）。换季时旧纪录保留在 records 里。 */
+export declare function updateRecords(save: SaveData, now?: number): SaveData;
+/** 组装荣誉墙（按赛季倒序，最近在前）。 */
+export declare function buildRecordsView(save: SaveData): {
+    season: string;
+    level: number;
+    combo: number;
+    seasonXp: number;
+}[];
+/** 存档保留的历史赛季数（荣誉墙只展示最近 N 个赛季）。 */
+export declare const RECORDS_KEEP = 8;
+/** 裁剪荣誉墙：只保留最近 RECORDS_KEEP 个赛季。 */
+export declare function trimRecords(save: SaveData): SaveData;
 /**
  * 检查分类收藏：返回新完成的分类（含奖励 XP 的存档副本）。
  * completed 记录集齐时间；奖励计入累计 XP。

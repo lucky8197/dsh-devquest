@@ -187,6 +187,8 @@ export interface SaveData {
   weekly?: WeeklyQuestState
   /** 多称号状态。 */
   titles?: TitlesState
+  /** 荣誉墙：历史赛季最高纪录（season id → 最佳成绩）。 */
+  records?: Record<string, { level: number; combo: number; seasonXp: number }>
   /** 最近回合结算事件（面板 toast 用，保留最近 N 条）。 */
   settlements?: TurnSettlementEvent[]
   /** 每日历史（成长周报），date → 当日累计，保留最近 HISTORY_KEEP 天。 */
@@ -310,6 +312,8 @@ export interface DevQuestStatus {
     bonusReady: boolean
     bonusClaimed: boolean
   }
+  /** 荣誉墙：历史赛季最佳（含当前赛季）。 */
+  records: { season: string; level: number; combo: number; seasonXp: number }[]
   /** 多称号视图。 */
   titles: {
     /** 当前展示称号（active 为空时显示等级称号）。 */

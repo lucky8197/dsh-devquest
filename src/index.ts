@@ -19,7 +19,7 @@ import type {} from '@deepseek-ai/dsh-host-webserver'
 import type { Session } from '@deepseek-ai/dsh-session'
 import { ACHIEVEMENTS, achievementById, rarityOf } from './achievements.ts'
 import {
-  applyTurnDetailed, buyShopItem, CATEGORY_IDS, checkAchievements, checkCollections, checkTitles, checkTutorial, claimDailyChest, claimLucky,
+  applyTurnDetailed, buildRecordsView, buyShopItem, CATEGORY_IDS, checkAchievements, checkCollections, checkTitles, checkTutorial, claimDailyChest, claimLucky,
   claimWeeklyBonus, COLLECTION_REWARDS, dailyQuestsDone, dayKey, ensureDaily, ensureWeekly, HISTORY_KEEP, migrateSave, nextTitle,
   SETTLEMENT_KEEP, setActiveTitle, SHOP_ITEMS, shopBalance, titleFor, TITLE_POOL, TUTORIAL_STEPS, TUTORIAL_TITLE, useReroll, xpToLevel, xpToNext,
 } from './engine.ts'
@@ -149,6 +149,7 @@ export function apply(ctx: Context, config: Config = {}): void {
       nextTitle: buildNextTitle(save),
       weekly: buildWeekly(save, Date.now()),
       titles: buildTitles(save),
+      records: buildRecordsView(save),
       updatedAt: save.updatedAt,
     }
   }
