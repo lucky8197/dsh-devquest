@@ -31,6 +31,11 @@
 
 ---
 
+## [1.1.1] - 2026-08-16
+
+### Fixed
+- **GitHub Actions CI 失败**：typecheck/build 需要本机 DSH 安装的私有 `@deepseek-ai/*` 类型（CI 无法提供），`setup-dsh-deps` 在 runner 上找不到 DSH 直接失败。CI 改为只跑**纯引擎测试**（engine.ts/achievements.ts 零 DSH 依赖，89 项可独立运行），typecheck/build 保留在本机执行
+
 ## [1.1.0] - 2026-08-16
 
 🎯 **粘性大版本**——围绕「让你每天想回来」的 7 项功能。
