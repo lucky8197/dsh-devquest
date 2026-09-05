@@ -102,7 +102,7 @@ test('host 集成：事件流 → XP/存档 → status 工具', async (t) => {
     emit(session, event('turn/end', { turn: 1, reason: { kind: 'completed' } }))
 
     // 等待异步结算
-    await new Promise(r => setTimeout(r, 200))
+    await new Promise(r => setTimeout(r, 300)) // 节流落盘窗口(250ms)
 
     // 存档已落盘
     const files = [...env.fs.files.keys()]
@@ -134,7 +134,7 @@ test('host 集成：事件流 → XP/存档 → status 工具', async (t) => {
     emit(session, event('turn/start', { turn: 2 }))
     emit(session, event('tool/call', { turn: 2, step: 1, callId: 'c2', name: 'edit', arguments: '{}' }))
     emit(session, event('turn/end', { turn: 2, reason: { kind: 'completed' } }))
-    await new Promise(r => setTimeout(r, 200))
+    await new Promise(r => setTimeout(r, 300)) // 节流落盘窗口(250ms)
     const replay = await statusTool!.execute({ detail: 'summary' } as never, { agent: { session: { header: { cwd: 'C:/proj' } } } } as never) as unknown as { xp: number; level: number; counters: { turnsCompleted: number } }
     // 回合 2 是新回合（seq 继续），仍计分：88 + 10 + 2 = 100，恰好升到 L2（xp 归零）
     assert.equal(replay.counters.turnsCompleted, 2)
@@ -165,7 +165,7 @@ test('host 集成：失败回合 + 幂等水位（重放跳过）', async (t) =>
     const emitA = [...envA.listeners.get('session/event')!][0]!
     const errorEvent = { type: 'turn/end', seq: 1, time: Date.now(), data: { turn: 1, reason: { kind: 'error', error: { name: 'LlmError', code: 'E1' } } } }
     emitA(session, errorEvent)
-    await new Promise(r => setTimeout(r, 200))
+    await new Promise(r => setTimeout(r, 300)) // 节流落盘窗口(250ms)
 
     const statusToolA = envA.tools.find(t => t.name === 'devquest_status')!
     const s1 = await statusToolA.execute({} as never, { agent: { session: { header: { cwd: 'C:/proj2' } } } } as never) as unknown as { counters: { turnsFailed: number; turnsCompleted: number } }
@@ -176,7 +176,7 @@ test('host 集成：失败回合 + 幂等水位（重放跳过）', async (t) =>
     const envB = await applyPlugin(makeEnv())
     const emitB = [...envB.listeners.get('session/event')!][0]!
     emitB(session, errorEvent)
-    await new Promise(r => setTimeout(r, 200))
+    await new Promise(r => setTimeout(r, 300)) // 节流落盘窗口(250ms)
 
     const statusToolB = envB.tools.find(t => t.name === 'devquest_status')!
     const s2 = await statusToolB.execute({} as never, { agent: { session: { header: { cwd: 'C:/proj2' } } } } as never) as unknown as { counters: { turnsFailed: number } }
@@ -184,7 +184,7 @@ test('host 集成：失败回合 + 幂等水位（重放跳过）', async (t) =>
 
     // 新事件（seq=2）正常计分
     emitB(session, { type: 'turn/end', seq: 2, time: Date.now(), data: { turn: 2, reason: { kind: 'error', error: { name: 'LlmError', code: 'E1' } } } })
-    await new Promise(r => setTimeout(r, 200))
+    await new Promise(r => setTimeout(r, 300)) // 节流落盘窗口(250ms)
     const s3 = await statusToolB.execute({} as never, { agent: { session: { header: { cwd: 'C:/proj2' } } } } as never) as unknown as { counters: { turnsFailed: number } }
     assert.equal(s3.counters.turnsFailed, 2)
   } finally {

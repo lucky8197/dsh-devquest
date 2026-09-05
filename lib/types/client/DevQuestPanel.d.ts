@@ -12,18 +12,10 @@ import type { createDevQuestStore } from './store.ts';
 import { NS } from './locales.ts';
 export type DevQuestFooterActionProps = PropsRuntime<'sidebar.footer.action'> & PropsStore<ReturnType<typeof createDevQuestStore>> & PropsLocale<typeof NS>;
 export type DevQuestOverlayProps = PropsRuntime<'shell.overlay'> & PropsStore<ReturnType<typeof createDevQuestStore>> & PropsLocale<typeof NS>;
-export interface DevQuestSettings {
-    /** 面板字号缩放（0.85 - 1.2）。 */
-    fontSize: number;
-    /** 紧凑模式：缩小间距/字号。 */
-    compact: boolean;
-    /** toast 过滤：all=全部；rare=仅稀有及以上；off=关闭。 */
-    toastFilter: 'all' | 'rare' | 'off';
-    /** v1.3.0 音效提示（成就/升级/宝箱/BOSS）。 */
-    sound: boolean;
-    /** v1.3.0 桌面通知（成就解锁）。 */
-    notify: boolean;
-}
+/**
+ * 通用分区卡片：带边框的背景块，标题栏可点击折叠/展开。
+ * collapsed 由父组件统一管理（section id → boolean）。
+ */
 /** 面板卡片（overlay 内容，可拖拽定位）。refresh 由常驻 overlay 传入（页面加载即开始轮询）。 */
 export declare function DevQuestPanelCard(props: Pick<DevQuestFooterActionProps, 'useStore' | 'actions' | 't'> & {
     refresh: () => void;

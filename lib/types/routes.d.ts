@@ -86,6 +86,10 @@ export interface DevQuestRoutesConfig {
         gained: number;
         status: DevQuestStatus;
     }>;
+    /** 读 UI 设置（host 权威存储；无文件返回 null）。 */
+    uiSettings: () => Promise<unknown | null>;
+    /** 保存 UI 设置（整体替换 + sanitize）；返回保存后的设置。 */
+    saveUiSettings: (raw: unknown) => Promise<unknown>;
     /** 结果缓存时长（毫秒）。默认 60s。 */
     cacheTtlMs?: number;
 }

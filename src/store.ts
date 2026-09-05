@@ -10,6 +10,7 @@ import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import type { Context } from '@deepseek-ai/cordis'
+import { log } from './logger.ts'
 import type {} from '@deepseek-ai/dsh-fs'
 import { freshSave, mergeSaves, migrateSave } from './engine.ts'
 import type { SaveData } from './types.ts'
@@ -66,7 +67,7 @@ async function migrateLegacySaves(ctx: Context, config: StoreConfig, now: number
     }
     if (legacy.length === 0) return null
     const merged = mergeSaves(legacy, now)
-    console.log(`[devquest] 已合并 ${legacy.length} 份旧存档 → 全局玩家存档`)
+    log.info(`已合并 ${legacy.length} 份旧存档 → 全局玩家存档`)
     return merged
   } catch {
     return null
@@ -89,7 +90,7 @@ export async function loadSave(ctx: Context, config: StoreConfig, _cwd?: string)
     return migrateSave(parsed as Partial<SaveData>, scopeKey(), config.season)
   } catch (error) {
     // 解析失败/IO 异常：退化为全新存档，绝不阻断会话。
-    console.error(`[devquest] load save failed (${file}):`, error)
+    log.error(`load save failed (${file}):`, error)
     return freshSave(scopeKey(), config.season)
   }
 }
@@ -98,6 +99,72 @@ export async function loadSave(ctx: Context, config: StoreConfig, _cwd?: string)
 export async function persistSave(ctx: Context, config: StoreConfig, save: SaveData): Promise<void> {
   const target = await ctx.fs.resolve(savePath(config))
   await ctx.fs.writeText(target, JSON.stringify(save, null, 2))
+}
+
+// ---------------------------------------------------------------------------
+// 节流写盘：高频改动合并为一次写，避免每回合全量 JSON 写盘。
+// 最终一致性：delayMs 窗口内只保留最新快照，flush() 强制立即落盘。
+// ---------------------------------------------------------------------------
+
+export interface SaveWriter {
+  /** 投递新的存档快照（合并节流，记录最新；不阻塞调用方）。 */
+  save(next: SaveData): void
+  /** 立即把最新快照落盘（含尚未到期的 pending），返回写完成。 */
+  flush(): Promise<void>
+  /** 丢弃未落盘的 pending 快照（reset 语义：不写旧档）。 */
+  discard(): void
+}
+
+/**
+ * 创建节流写盘器：多次 save 在 delayMs 内合并为最后一次写，
+ * 串行化写链（后写不越过前写）。写失败记录，快照回退待下次重试。
+ * 缺省 delayMs = 250（毫秒）。
+ */
+export function createSaveWriter(ctx: Context, config: StoreConfig, delayMs = 250): SaveWriter {
+  let latest: SaveData | null = null
+  let timer: NodeJS.Timeout | null = null
+  let chain: Promise<void> = Promise.resolve()
+
+  /** 单次落盘：写 latest 快照；失败时快照回退（无更新则下次重试）。 */
+  const writeOnce = async (): Promise<void> => {
+    if (latest === null) return
+    const snapshot = latest
+    latest = null
+    try {
+      await persistSave(ctx, config, snapshot)
+    } catch (error) {
+      log.error(`persist save failed (${savePath(config)}):`, error)
+      if (latest === null) latest = snapshot
+      throw error
+    }
+  }
+
+  /** 追加一次延迟写（已有定时器则合并——latest 已被覆盖，无需新调度）。 */
+  const schedule = (): void => {
+    if (timer !== null) return
+    timer = setTimeout(() => {
+      timer = null
+      chain = chain.then(writeOnce).catch(() => undefined)
+    }, delayMs)
+  }
+
+  return {
+    save(next: SaveData): void {
+      latest = next
+      schedule()
+    },
+    async flush(): Promise<void> {
+      if (timer !== null) {
+        clearTimeout(timer)
+        timer = null
+      }
+      chain = chain.then(writeOnce).catch(() => undefined)
+      await chain.catch(() => undefined)
+    },
+    discard(): void {
+      latest = null
+    },
+  }
 }
 
 /** 重置全局存档（reset 用）。不存在时静默成功。 */
@@ -111,7 +178,60 @@ export async function deleteSave(ctx: Context, config: StoreConfig): Promise<boo
     await ctx.fs.writeText(target, JSON.stringify(freshSave(scopeKey(), config.season), null, 2))
     return true
   } catch (error) {
-    console.error(`[devquest] reset save failed (${file}):`, error)
+    log.error(`reset save failed (${file}):`, error)
     return false
   }
+}
+
+// ---------------------------------------------------------------------------
+// UI 设置（host 侧权威存储）：面板字号/紧凑/toast 过滤/音效/通知。
+// 独立于玩家存档（settings.json），不随存档导入导出；浏览器 localStorage
+// 仅作 client 启动快照——重启 DSH 后设置由本文件恢复，不依赖浏览器存储。
+// ---------------------------------------------------------------------------
+
+export interface UiSettings {
+  fontSize: number
+  compact: boolean
+  toastFilter: 'all' | 'rare' | 'off'
+  sound: boolean
+  notify: boolean
+}
+
+export const DEFAULT_UI_SETTINGS: UiSettings = { fontSize: 1, compact: false, toastFilter: 'all', sound: true, notify: true }
+
+/** UI 设置文件绝对路径。 */
+export function settingsPath(config: StoreConfig): string {
+  return join(dataRoot(config), 'settings.json')
+}
+
+/** 校验并补全设置对象（未知/越界字段回落默认，保证写出的永远是合法形状）。 */
+export function sanitizeUiSettings(raw: unknown): UiSettings {
+  const p = (typeof raw === 'object' && raw !== null ? raw : {}) as Partial<UiSettings>
+  return {
+    fontSize: typeof p.fontSize === 'number' && p.fontSize >= 0.85 && p.fontSize <= 1.2 ? p.fontSize : DEFAULT_UI_SETTINGS.fontSize,
+    compact: p.compact === true,
+    toastFilter: p.toastFilter === 'rare' || p.toastFilter === 'off' ? p.toastFilter : 'all',
+    sound: p.sound !== false,
+    notify: p.notify !== false,
+  }
+}
+
+/** 读 UI 设置；文件不存在/损坏返回 null（调用方决定迁移或默认）。 */
+export async function loadUiSettings(ctx: Context, config: StoreConfig): Promise<UiSettings | null> {
+  try {
+    const target = await ctx.fs.resolve(settingsPath(config))
+    const info = await ctx.fs.stat(target)
+    if (info === undefined) return null
+    const text = await ctx.fs.readText(target)
+    return sanitizeUiSettings(JSON.parse(text) as unknown)
+  } catch (error) {
+    log.error(`load ui settings failed (${settingsPath(config)}):`, error)
+    return null
+  }
+}
+
+/** 写 UI 设置（原子替换）。 */
+export async function saveUiSettings(ctx: Context, config: StoreConfig, settings: UiSettings): Promise<void> {
+  const target = await ctx.fs.resolve(settingsPath(config))
+  await ctx.fs.writeText(target, JSON.stringify(settings, null, 2))
 }

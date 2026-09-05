@@ -10,6 +10,7 @@
  * - 引擎纯函数（engine.ts），listener 只做归一化与聚合
  * - 幂等：内存 seenSeq + 存档 lastSeqBySession 水位，重启重放不重复计分
  * - 事件处理绝不抛出，任何异常只记录不影响 session 提交
+ * - 所有改档操作统一走 mutateSave / runExclusive（按作用域串行化 + 节流落盘）
  */
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool, type JsonValue } from '@deepseek-ai/dsh-tools'
@@ -18,6 +19,7 @@ import type {} from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type { Session } from '@deepseek-ai/dsh-session'
 import { createRequire } from 'node:module'
+import { log, setGlobalLogLevel, type LogLevel } from './logger.ts'
 
 /** 插件版本号（读 package.json；面板头部展示，方便确认加载的代码版本）。 */
 function pluginVersion(): string {
@@ -38,7 +40,7 @@ import {
   SEASON_PASS_TIERS, SETTLEMENT_KEEP, setActiveTitle, setDailyGoal, SHOP_ITEMS, shopBalance, STREAK_REWARDS, titleFor, TITLE_POOL, todayXpOf, TUTORIAL_STEPS, TUTORIAL_TITLE, useQuestSkip, useReroll, WEEKLY_BOSS_REWARD, xpToLevel, xpToNext,
 } from './engine.ts'
 import { watchEvents, type SessionAggregate } from './listener.ts'
-import { loadSave, persistSave, deleteSave, scopeKey, type StoreConfig } from './store.ts'
+import { createSaveWriter, deleteSave, loadSave, loadUiSettings, sanitizeUiSettings, saveUiSettings, scopeKey, type SaveWriter, type StoreConfig, type UiSettings } from './store.ts'
 import { registerDevQuestTools } from './tools.ts'
 import { makeDevQuestRoutes } from './routes.ts'
 import type { Action, AchievementCategory, AchievementView, DevQuestStatus, SaveData, TurnSettlementEvent } from './types.ts'
@@ -54,9 +56,23 @@ export interface Config {
   season?: string
   /** 状态接口缓存时长（毫秒）。默认 60000。 */
   cacheTtlMs?: number
+  /** 日志级别（缺省 info；debug 打开引擎细节）。 */
+  logLevel?: LogLevel
 }
 
+/** 改档操作结果（mutateSave 的 pick 产物；ok=false 时不落盘）。 */
+interface MutateOutcome {
+  ok: boolean
+  reason?: string
+  gained?: number
+  reward?: { kind: string; amount?: number; count?: number; label: string }
+}
+
+/** 改档操作完整返回（路由/工具消费；gained 必填，无 gain 时为 0）。 */
+type MutateResult = MutateOutcome & { gained: number; status: DevQuestStatus }
+
 export function apply(ctx: Context, config: Config = {}): void {
+  if (config.logLevel !== undefined) setGlobalLogLevel(config.logLevel)
   const storeConfig: StoreConfig = {
     ...(config.dataDir !== undefined ? { dataDir: config.dataDir } : {}),
     ...(config.season !== undefined ? { season: config.season } : {}),
@@ -64,10 +80,11 @@ export function apply(ctx: Context, config: Config = {}): void {
   // 赛季：config.season 可选固定覆盖；缺省按日期自动推导季度赛季（见 autoSeasonId）。
   const seasonOverride = config.season
 
-  // ---- 引擎状态：存档缓存 + 每作用域串行化队列 ----
+  // ---- 引擎状态：存档缓存 + 每作用域串行化队列 + 节流写盘 ----
   const saveCache = new Map<string, SaveData>()
   const tails = new Map<string, Promise<void>>()
   let settlementSeq = 0
+  const writer: SaveWriter = createSaveWriter(ctx, storeConfig)
 
   /** 取存档（缓存优先，无则从盘读）。 */
   async function getSave(key: string): Promise<SaveData> {
@@ -84,6 +101,43 @@ export function apply(ctx: Context, config: Config = {}): void {
     const prev = tails.get(key) ?? Promise.resolve()
     const next = prev.catch(() => undefined).then(task)
     tails.set(key, next.catch(() => undefined))
+  }
+
+  /** 串行执行任意读写任务（工具/路由改档的公共骨架）。 */
+  async function runExclusive<T>(task: () => Promise<T>): Promise<T> {
+    const key = scopeKey()
+    return new Promise<T>((resolve, reject) => {
+      enqueue(key, async () => {
+        try {
+          resolve(await task())
+        } catch (error) {
+          reject(error)
+        }
+      })
+    })
+  }
+
+  /**
+   * 串行改档：读 → 纯函数改 → 缓存 + 节流落盘 → 返回最新状态。
+   * pick 决定结果（ok=false 时只读不写；返回失败原因供调用方展示）。
+   */
+  async function mutateSave<T extends { save: SaveData }>(
+    mutate: (save: SaveData) => T,
+    pick: (result: T) => MutateOutcome,
+  ): Promise<MutateResult> {
+    let outcome: MutateOutcome = { ok: false }
+    let fresh: SaveData | undefined
+    await runExclusive(async () => {
+      const save = await getSave(scopeKey())
+      const result = mutate(save)
+      outcome = pick(result)
+      fresh = result.save
+      if (outcome.ok) {
+        saveCache.set(scopeKey(), result.save)
+        writer.save(result.save)
+      }
+    })
+    return { ...outcome, gained: outcome.gained ?? 0, status: buildStatus(fresh ?? (await getSave(scopeKey()))) }
   }
 
   /** 组装状态视图。 */
@@ -332,30 +386,30 @@ export function apply(ctx: Context, config: Config = {}): void {
       Object.assign(next, titles.save)
       next.lastSeqBySession[sessionId] = seq
       saveCache.set(key, next)
-      await persistSave(ctx, storeConfig, next)
+      writer.save(next)
       if (unlocked.length > 0) {
         const names = unlocked.map(id => {
           const def = achievementById(id)
           return def !== undefined ? `${def.icon} ${def.name.zh} ${def.name.en}` : id
         })
-        console.log(`[devquest] 🏆 成就解锁：${names.join('、')}`)
+        log.info(`🏆 成就解锁：${names.join('、')}`)
       }
       if (tut.stepIds.length > 0) {
         const names = tut.stepIds.map(id => {
           const def = TUTORIAL_STEPS.find(s => s.id === id)
           return def !== undefined ? `${def.icon} ${def.name.zh}` : id
         })
-        console.log(`[devquest] 🎓 新手任务：${names.join('、')}${tut.complete ? '（全部完成，解锁「见习冒险者」称号！）' : ''}`)
+        log.info(`🎓 新手任务：${names.join('、')}${tut.complete ? '（全部完成，解锁「见习冒险者」称号！）' : ''}`)
       }
       if (coll.completed.length > 0) {
-        console.log(`[devquest] 📚 分类收藏达成：${coll.completed.join('、')}（+${coll.completed.reduce((sum, c) => sum + (COLLECTION_REWARDS[c] ?? 0), 0)} XP）`)
+        log.info(`📚 分类收藏达成：${coll.completed.join('、')}（+${coll.completed.reduce((sum, c) => sum + (COLLECTION_REWARDS[c] ?? 0), 0)} XP）`)
       }
       if (titles.unlocked.length > 0) {
         const names = titles.unlocked.map(id => {
           const def = TITLE_POOL.find(t => t.id === id)
           return def !== undefined ? `${def.icon} ${def.name.zh}` : id
         })
-        console.log(`[devquest] 🏅 新称号解锁：${names.join('、')}`)
+        log.info(`🏅 新称号解锁：${names.join('、')}`)
       }
     })
   })
@@ -365,13 +419,12 @@ export function apply(ctx: Context, config: Config = {}): void {
   ctx.on('session/created', (session: Session) => {
     const isSubagent = session.header?.origin === 'subagent' || (session.header?.delegationDepth ?? 0) > 0
     if (!isSubagent) return
-    const key = scopeKey()
-    enqueue(key, async () => {
-      const save = await getSave(key)
+    enqueue(scopeKey(), async () => {
+      const save = await getSave(scopeKey())
       save.counters.subagentsSpawned += 1
       save.updatedAt = Date.now()
-      saveCache.set(key, save)
-      await persistSave(ctx, storeConfig, save)
+      saveCache.set(scopeKey(), save)
+      writer.save(save)
     })
   })
 
@@ -381,254 +434,120 @@ export function apply(ctx: Context, config: Config = {}): void {
       const save = await getSave(scopeKey())
       return buildStatus(save)
     },
-    buy: async (itemId: string) => {
-      const key = scopeKey()
-      let result: { ok: boolean; reason?: string } = { ok: false }
-      let fresh: SaveData | undefined
-      await new Promise<void>((resolve, reject) => {
-        enqueue(key, async () => {
-          try {
-            const save = await getSave(key)
-            const r = buyShopItem(save, itemId, Date.now(), seasonOverride)
-            result = { ok: r.ok, ...(r.reason !== undefined ? { reason: r.reason } : {}) }
-            fresh = r.save
-            if (r.ok) {
-              saveCache.set(key, r.save)
-              await persistSave(ctx, storeConfig, r.save)
-            }
-          } catch (error) {
-            reject(error)
-            return
-          }
-          resolve()
-        })
-      })
-      return { ...result, status: buildStatus(fresh ?? (await getSave(key))) }
-    },
+    buy: async (itemId: string) => mutateSave(
+      save => buyShopItem(save, itemId, Date.now(), seasonOverride),
+      result => ({ ok: result.ok, ...(result.reason !== undefined ? { reason: result.reason } : {}) }),
+    ),
     reset: async (): Promise<{ ok: boolean; reset: boolean }> => {
       const key = scopeKey()
       saveCache.delete(key)
+      writer.discard() // 不写 pending 旧档
       try {
         const reset = await deleteSave(ctx, storeConfig)
         return { ok: true, reset }
       } catch (error) {
-        console.error('[devquest] reset failed:', error)
+        log.error('reset failed:', error)
         return { ok: false, reset: false }
       }
     },
   })
 
   // ---- 3. HTTP 路由（可选能力：headless 无 webServer 时自动跳过） ----
-  /** 串行执行一个改档操作：读 → 纯函数改 → 缓存/持久化 → 返回最新状态。 */
-  async function mutateSave<T extends { save: SaveData }>(
-    mutate: (save: SaveData) => T,
-    pick: (result: T) => { ok: boolean; reason?: string },
-  ): Promise<{ ok: boolean; reason?: string; status: DevQuestStatus }> {
-    const key = scopeKey()
-    let picked: { ok: boolean; reason?: string } = { ok: false }
-    let fresh: SaveData | undefined
-    await new Promise<void>((resolve, reject) => {
-      enqueue(key, async () => {
-        try {
-          const save = await getSave(key)
-          const result = mutate(save)
-          picked = pick(result)
-          fresh = result.save
-          if (picked.ok) {
-            saveCache.set(key, result.save)
-            await persistSave(ctx, storeConfig, result.save)
-          }
-        } catch (error) {
-          reject(error)
-          return
-        }
-        resolve()
-      })
-    })
-    return { ...picked, status: buildStatus(fresh ?? (await getSave(key))) }
-  }
-
   const routes = makeDevQuestRoutes({
     status: async (): Promise<DevQuestStatus> => {
       const save = await getSave(scopeKey())
       return buildStatus(save)
     },
-    claimChest: async (): Promise<{ ok: boolean; gained: number; status: DevQuestStatus }> => {
-      const key = scopeKey()
-      let result: { ok: boolean; gained: number } = { ok: false, gained: 0 }
-      let fresh: SaveData | undefined
-      await new Promise<void>((resolve, reject) => {
-        enqueue(key, async () => {
-          try {
-            const save = await getSave(key)
-            const claimed = claimDailyChest(save, Date.now(), seasonOverride)
-            result = { ok: claimed.ok, gained: claimed.gained }
-            fresh = claimed.save
-            if (claimed.ok) {
-              saveCache.set(key, claimed.save)
-              await persistSave(ctx, storeConfig, claimed.save)
-            }
-          } catch (error) {
-            reject(error)
-            return
-          }
-          resolve()
-        })
-      })
-      return { ...result, status: buildStatus(fresh ?? (await getSave(key))) }
-    },
-    buy: async (itemId: string) => mutateSave(save => buyShopItem(save, itemId, Date.now(), seasonOverride), result => ({ ok: result.ok, ...(result.reason !== undefined ? { reason: result.reason } : {}) })),
-    reroll: async () => mutateSave(save => useReroll(save, Date.now()), result => ({ ok: result.ok })),
-    lucky: async (): Promise<{ ok: boolean; reward?: { kind: string; amount?: number; count?: number; label: string }; status: DevQuestStatus }> => {
-      const key = scopeKey()
-      let reward: { kind: string; amount?: number; count?: number; label: string } | undefined
-      let ok = false
-      await new Promise<void>((resolve, reject) => {
-        enqueue(key, async () => {
-          try {
-            const save = await getSave(key)
-            const r = claimLucky(save, Date.now(), seasonOverride)
-            ok = r.ok
-            if (r.ok && r.reward !== undefined) {
-              reward = r.reward.kind === 'xp' || r.reward.kind === 'currency'
-                ? { kind: r.reward.kind, amount: r.reward.amount, label: r.reward.label }
-                : { kind: r.reward.kind, count: r.reward.kind === 'shield' ? r.reward.count : r.reward.count, label: r.reward.label }
-              saveCache.set(key, r.save)
-              await persistSave(ctx, storeConfig, r.save)
-            }
-          } catch (error) {
-            reject(error)
-            return
-          }
-          resolve()
-        })
-      })
-      return { ok, ...(reward !== undefined ? { reward } : {}), status: buildStatus(await getSave(key)) }
-    },
+    claimChest: async () => mutateSave(
+      save => claimDailyChest(save, Date.now(), seasonOverride),
+      result => ({ ok: result.ok, gained: result.gained }),
+    ),
+    buy: async (itemId: string) => mutateSave(
+      save => buyShopItem(save, itemId, Date.now(), seasonOverride),
+      result => ({ ok: result.ok, ...(result.reason !== undefined ? { reason: result.reason } : {}) }),
+    ),
+    reroll: async () => mutateSave(
+      save => useReroll(save, Date.now()),
+      result => ({ ok: result.ok }),
+    ),
+    lucky: async () => mutateSave(
+      save => claimLucky(save, Date.now(), seasonOverride),
+      result => {
+        if (!result.ok || result.reward === undefined) return { ok: result.ok }
+        const r = result.reward
+        const reward = r.kind === 'xp' || r.kind === 'currency'
+          ? { kind: r.kind, amount: r.amount, label: r.label }
+          : { kind: r.kind, count: r.count, label: r.label }
+        return { ok: true, reward }
+      },
+    ),
     exportSave: async (): Promise<object> => {
       const save = await getSave(scopeKey())
       return JSON.parse(JSON.stringify(save)) as object
     },
     importSave: async (raw: unknown): Promise<{ ok: boolean; error?: string; status: DevQuestStatus }> => {
-      const key = scopeKey()
-      if (typeof raw !== 'object' || raw === null) return { ok: false, error: 'invalid-save', status: buildStatus(await getSave(key)) }
-      const candidate = raw as Partial<SaveData>
-      if (typeof candidate.player !== 'object' || typeof candidate.counters !== 'object') {
-        return { ok: false, error: 'invalid-save', status: buildStatus(await getSave(key)) }
-      }
-      let imported: SaveData
-      try {
-        imported = migrateSave(candidate, scopeKey(), seasonOverride)
-      } catch {
-        return { ok: false, error: 'invalid-save', status: buildStatus(await getSave(key)) }
-      }
-      imported.updatedAt = Date.now()
-      saveCache.set(key, imported)
-      await persistSave(ctx, storeConfig, imported)
-      return { ok: true, status: buildStatus(imported) }
-    },
-    setTitle: async (titleId: string) => mutateSave(save => setActiveTitle(save, titleId), result => ({ ok: result.ok })),
-    setTheme: async (themeId: string) => mutateSave(save => activateTheme(save, themeId), result => ({ ok: result.ok })),
-    useQuestSkip: async () => mutateSave(save => useQuestSkip(save, Date.now()), result => ({ ok: result.ok })),
-    claimPass: async (tierId: string): Promise<{ ok: boolean; gained: number; status: DevQuestStatus }> => {
-      const key = scopeKey()
-      let result: { ok: boolean; gained: number } = { ok: false, gained: 0 }
-      let fresh: SaveData | undefined
-      await new Promise<void>((resolve, reject) => {
-        enqueue(key, async () => {
-          try {
-            const save = await getSave(key)
-            const claimed = claimPassTier(save, tierId, Date.now(), seasonOverride)
-            result = { ok: claimed.ok, gained: claimed.gained }
-            fresh = claimed.save
-            if (claimed.ok) {
-              saveCache.set(key, claimed.save)
-              await persistSave(ctx, storeConfig, claimed.save)
-            }
-          } catch (error) {
-            reject(error)
-            return
-          }
-          resolve()
-        })
+      return runExclusive(async () => {
+        const statusOf = async (s: SaveData): Promise<DevQuestStatus> => buildStatus(s)
+        if (typeof raw !== 'object' || raw === null) {
+          return { ok: false, error: 'invalid-save', status: await statusOf(await getSave(scopeKey())) }
+        }
+        const candidate = raw as Partial<SaveData>
+        if (typeof candidate.player !== 'object' || typeof candidate.counters !== 'object') {
+          return { ok: false, error: 'invalid-save', status: await statusOf(await getSave(scopeKey())) }
+        }
+        let imported: SaveData
+        try {
+          imported = migrateSave(candidate, scopeKey(), seasonOverride)
+        } catch {
+          return { ok: false, error: 'invalid-save', status: await statusOf(await getSave(scopeKey())) }
+        }
+        imported.updatedAt = Date.now()
+        saveCache.set(scopeKey(), imported)
+        writer.save(imported)
+        return { ok: true, status: await statusOf(imported) }
       })
-      return { ...result, status: buildStatus(fresh ?? (await getSave(key))) }
     },
-    claimWeeklyBonus: async (): Promise<{ ok: boolean; gained: number; status: DevQuestStatus }> => {
-      const key = scopeKey()
-      let result: { ok: boolean; gained: number } = { ok: false, gained: 0 }
-      let fresh: SaveData | undefined
-      await new Promise<void>((resolve, reject) => {
-        enqueue(key, async () => {
-          try {
-            const save = await getSave(key)
-            const claimed = claimWeeklyBonus(save, Date.now(), seasonOverride)
-            result = { ok: claimed.ok, gained: claimed.gained }
-            fresh = claimed.save
-            if (claimed.ok) {
-              saveCache.set(key, claimed.save)
-              await persistSave(ctx, storeConfig, claimed.save)
-            }
-          } catch (error) {
-            reject(error)
-            return
-          }
-          resolve()
-        })
-      })
-      return { ...result, status: buildStatus(fresh ?? (await getSave(key))) }
-    },
+    setTitle: async (titleId: string) => mutateSave(
+      save => setActiveTitle(save, titleId),
+      result => ({ ok: result.ok }),
+    ),
+    setTheme: async (themeId: string) => mutateSave(
+      save => activateTheme(save, themeId),
+      result => ({ ok: result.ok }),
+    ),
+    useQuestSkip: async () => mutateSave(
+      save => useQuestSkip(save, Date.now()),
+      result => ({ ok: result.ok }),
+    ),
+    claimPass: async (tierId: string) => mutateSave(
+      save => claimPassTier(save, tierId, Date.now(), seasonOverride),
+      result => ({ ok: result.ok, gained: result.gained }),
+    ),
+    claimWeeklyBonus: async () => mutateSave(
+      save => claimWeeklyBonus(save, Date.now(), seasonOverride),
+      result => ({ ok: result.ok, gained: result.gained }),
+    ),
     // v1.3.0 每日 XP 目标。
-    setDailyGoal: async (goal: number) => mutateSave(save => setDailyGoal(save, goal, Date.now()), result => ({ ok: result.ok })),
-    claimDailyGoal: async (): Promise<{ ok: boolean; gained: number; status: DevQuestStatus }> => {
-      const key = scopeKey()
-      let result: { ok: boolean; gained: number } = { ok: false, gained: 0 }
-      let fresh: SaveData | undefined
-      await new Promise<void>((resolve, reject) => {
-        enqueue(key, async () => {
-          try {
-            const save = await getSave(key)
-            const claimed = claimDailyGoal(save, Date.now(), seasonOverride)
-            result = { ok: claimed.ok, gained: claimed.gained }
-            fresh = claimed.save
-            if (claimed.ok) {
-              saveCache.set(key, claimed.save)
-              await persistSave(ctx, storeConfig, claimed.save)
-            }
-          } catch (error) {
-            reject(error)
-            return
-          }
-          resolve()
-        })
-      })
-      return { ...result, status: buildStatus(fresh ?? (await getSave(key))) }
-    },
+    setDailyGoal: async (goal: number) => mutateSave(
+      save => setDailyGoal(save, goal, Date.now()),
+      result => ({ ok: result.ok }),
+    ),
+    claimDailyGoal: async () => mutateSave(
+      save => claimDailyGoal(save, Date.now(), seasonOverride),
+      result => ({ ok: result.ok, gained: result.gained }),
+    ),
     // v1.3.0 每周 BOSS 掉落。
-    claimWeeklyBoss: async (): Promise<{ ok: boolean; gained: number; status: DevQuestStatus }> => {
-      const key = scopeKey()
-      let result: { ok: boolean; gained: number } = { ok: false, gained: 0 }
-      let fresh: SaveData | undefined
-      await new Promise<void>((resolve, reject) => {
-        enqueue(key, async () => {
-          try {
-            const save = await getSave(key)
-            const claimed = claimWeeklyBoss(save, Date.now())
-            result = { ok: claimed.ok, gained: claimed.gained }
-            fresh = claimed.save
-            if (claimed.ok) {
-              saveCache.set(key, claimed.save)
-              await persistSave(ctx, storeConfig, claimed.save)
-            }
-          } catch (error) {
-            reject(error)
-            return
-          }
-          resolve()
-        })
-      })
-      return { ...result, status: buildStatus(fresh ?? (await getSave(key))) }
-    },
+    claimWeeklyBoss: async () => mutateSave(
+      save => claimWeeklyBoss(save, Date.now()),
+      result => ({ ok: result.ok, gained: result.gained }),
+    ),
+    // UI 设置：host 侧权威存储（面板重启不丢；localStorage 仅启动快照）。
+    uiSettings: async (): Promise<UiSettings | null> => loadUiSettings(ctx, storeConfig),
+    saveUiSettings: async (raw: unknown): Promise<UiSettings> => runExclusive(async () => {
+      const settings = sanitizeUiSettings(raw)
+      await saveUiSettings(ctx, storeConfig, settings)
+      return settings
+    }),
     ...(config.cacheTtlMs !== undefined ? { cacheTtlMs: config.cacheTtlMs } : {}),
   })
   ctx.inject(['webServer'], (httpCtx) => {

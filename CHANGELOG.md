@@ -31,6 +31,24 @@
 
 ---
 
+## [1.3.1] - 2026-09-05
+
+🔧 **设置持久化修复 + 工程重构**（行为向后兼容，旧档/旧设置无缝迁移）。
+
+### Fixed
+- **重启 DSH 后面板设置恢复默认**：字号/紧凑模式/toast 过滤/音效/桌面通知此前仅存浏览器 localStorage，浏览器存储失效即丢失；现改为 **host 侧权威存储**（`~/.dsh/devquest/settings.json`，独立于玩家存档），client 启动自动拉取，浏览器旧值一次性迁移上报，新增 `GET/POST /api/devquest/ui-settings` 路由
+
+### Changed
+- **客户端拆分重构**（行为不变）：`DevQuestPanel.tsx` 3356 → 968 行，按职责拆为 `panel/theme|icons|util|styles|sections` 5 个模块（20 个分区组件）；顺带修复分区折叠状态互覆盖的潜在 bug
+- **host 样板收敛**：`index.ts` 统一 `mutateSave`/`runExclusive`（642 → 554 行）；`routes.ts` 表驱动工厂收敛 15 个路由（418 → 241 行）
+- **存档写盘节流**：250ms 窗口合并写 + 串行写链 + 失败快照回退（`createSaveWriter`，flush/discard 语义），`importSave` 补上串行化
+- **日志通道**：新增 `src/logger.ts`（级别门控 + `[devquest]` 前缀，`Config.logLevel` 可调），散落 console 全部收编
+
+### Docs
+- 集成测试适配节流写盘窗口（96/96 全绿）
+
+---
+
 ## [1.3.0] - 2026-08-16
 
 🎯 **职业与挑战大版本**——6 项新功能，全部向后兼容（旧档无缝升级）。

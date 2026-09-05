@@ -10,8 +10,10 @@
  * - 引擎纯函数（engine.ts），listener 只做归一化与聚合
  * - 幂等：内存 seenSeq + 存档 lastSeqBySession 水位，重启重放不重复计分
  * - 事件处理绝不抛出，任何异常只记录不影响 session 提交
+ * - 所有改档操作统一走 mutateSave / runExclusive（按作用域串行化 + 节流落盘）
  */
 import type { Context } from '@deepseek-ai/cordis';
+import { type LogLevel } from './logger.ts';
 export declare const name = "devquest";
 export declare const inject: readonly ["fs", "sessions", "tools"];
 /** 插件配置。 */
@@ -22,5 +24,7 @@ export interface Config {
     season?: string;
     /** 状态接口缓存时长（毫秒）。默认 60000。 */
     cacheTtlMs?: number;
+    /** 日志级别（缺省 info；debug 打开引擎细节）。 */
+    logLevel?: LogLevel;
 }
 export declare function apply(ctx: Context, config?: Config): void;

@@ -6,6 +6,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session'
+import { log } from './logger.ts'
 import type { Action } from './types.ts'
 
 /** 单会话聚合上下文：动作缓冲 + 已见水位（内存，防同进程重复投递）。 */
@@ -46,7 +47,7 @@ export function watchEvents(
       onAction(session, agg, action)
     } catch (error) {
       // 监听器绝不抛出：只记录，不影响 session 提交。
-      console.error('[devquest] event error:', error)
+      log.error('event error:', error)
     }
   })
 
