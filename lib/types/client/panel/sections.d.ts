@@ -32,6 +32,8 @@ export declare function RitualSection(props: {
     status: DevQuestStatus;
     t: TFunc;
     questReminderMsg: string | null;
+    collapsedMap: Record<string, boolean>;
+    toggle: (id: string) => void;
 }): ReactElement;
 export declare function LuckyRow(props: {
     status: DevQuestStatus;
@@ -45,6 +47,8 @@ export declare function DailySection(props: {
     t: TFunc;
     claiming: boolean;
     claimChest: () => unknown;
+    collapsedMap: Record<string, boolean>;
+    toggle: (id: string) => void;
 }): ReactElement;
 export declare function WeeklySection(props: {
     status: DevQuestStatus;
@@ -52,6 +56,8 @@ export declare function WeeklySection(props: {
     weeklyClaiming: boolean;
     claimBossF: () => unknown;
     claimWeekly: () => unknown;
+    collapsedMap: Record<string, boolean>;
+    toggle: (id: string) => void;
 }): ReactElement;
 export declare function ShopSection(props: {
     status: DevQuestStatus;
@@ -62,6 +68,8 @@ export declare function ShopSection(props: {
     rerolling: boolean;
     rerollQuests: () => unknown;
     useQuestSkipCard: () => unknown;
+    collapsedMap: Record<string, boolean>;
+    toggle: (id: string) => void;
 }): ReactElement;
 export declare function SkinsSection(props: {
     status: DevQuestStatus;
@@ -70,10 +78,14 @@ export declare function SkinsSection(props: {
     confirmBuyId: string | null;
     buy: (itemId: string) => unknown;
     activateTheme: (themeId: string) => unknown;
+    collapsedMap: Record<string, boolean>;
+    toggle: (id: string) => void;
 }): ReactElement;
 export declare function TutorialSection(props: {
     status: DevQuestStatus;
     t: TFunc;
+    collapsedMap: Record<string, boolean>;
+    toggle: (id: string) => void;
 }): ReactElement;
 export declare function TitlesSection(props: {
     status: DevQuestStatus;
@@ -82,6 +94,8 @@ export declare function TitlesSection(props: {
     shareCard: () => unknown;
     shareSeason: () => unknown;
     switchTitle: (titleId: string) => unknown;
+    collapsedMap: Record<string, boolean>;
+    toggle: (id: string) => void;
 }): ReactElement;
 export declare function CollectionsSection(props: {
     status: DevQuestStatus;
@@ -89,17 +103,23 @@ export declare function CollectionsSection(props: {
     importing: boolean;
     exportSave: () => unknown;
     importSave: (file: File) => unknown;
+    collapsedMap: Record<string, boolean>;
+    toggle: (id: string) => void;
 }): ReactElement;
 export declare function PokedexSection(props: {
     status: DevQuestStatus;
     t: TFunc;
     unlocked: DevQuestStatus['achievements'];
+    collapsedMap: Record<string, boolean>;
+    toggle: (id: string) => void;
 }): ReactElement;
 export declare function RecentSection(props: {
     status: DevQuestStatus;
     t: TFunc;
     state: DevQuestUiState;
     recent: DevQuestStatus['achievements'];
+    collapsedMap: Record<string, boolean>;
+    toggle: (id: string) => void;
 }): ReactElement;
 export declare function WallSection(props: {
     status: DevQuestStatus;
@@ -128,19 +148,27 @@ export declare function WallSection(props: {
         ratio: number;
     } | undefined;
     unlocked: DevQuestStatus['achievements'];
+    collapsedMap: Record<string, boolean>;
+    toggle: (id: string) => void;
 }): ReactElement;
 export declare function ReportSection(props: {
     status: DevQuestStatus;
     t: TFunc;
+    collapsedMap: Record<string, boolean>;
+    toggle: (id: string) => void;
 }): ReactElement;
 export declare function CalendarSection(props: {
     status: DevQuestStatus;
     t: TFunc;
+    collapsedMap: Record<string, boolean>;
+    toggle: (id: string) => void;
 }): ReactElement;
 export declare function StatsSection(props: {
     status: DevQuestStatus;
     t: TFunc;
     c: DevQuestStatus['counters'];
+    collapsedMap: Record<string, boolean>;
+    toggle: (id: string) => void;
 }): ReactElement;
 export declare function SettingsSection(props: {
     status: DevQuestStatus;
@@ -148,4 +176,6 @@ export declare function SettingsSection(props: {
     settings: DevQuestSettings;
     updateSettings: (patch: Partial<DevQuestSettings>) => void;
     setGoalF: (goal: number) => unknown;
+    collapsedMap: Record<string, boolean>;
+    toggle: (id: string) => void;
 }): ReactElement;

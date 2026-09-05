@@ -2,7 +2,7 @@
  * DevQuest 面板分区组件（从 DevQuestPanelCard 机械拆分，纯展示：
  * 状态与回调由 DevQuestPanel.tsx 持有并经 props 传入——行为不变）。
  */
-import { useState, type ReactElement, type ReactNode } from 'react'
+import { type ReactElement, type ReactNode } from 'react'
 import type { DevQuestStatus } from '../../types.ts'
 import type { DevQuestUiState } from '../store.ts'
 import type { DevQuestSettings } from './util.ts'
@@ -10,7 +10,7 @@ import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { NS } from '../locales.ts'
 import { CATEGORY_KEYS, SKIN_PALETTES, TONE } from './theme.ts'
 import { RefreshIcon } from './icons.tsx'
-import { SEASON_GOAL_TOKENS, categoryIcon, comboMultiplier, dayKeyLocal, formatNumber, formatTime, levelPercent, loadCollapsed, rarityCellStyle, saveCollapsed, seasonDaysLeft, titleToneStyle, updatedLabel } from './util.ts'
+import { SEASON_GOAL_TOKENS, categoryIcon, comboMultiplier, dayKeyLocal, formatNumber, formatTime, levelPercent, rarityCellStyle, seasonDaysLeft, titleToneStyle, updatedLabel } from './util.ts'
 import { boostStockStyle, bossCardStyle, bossFillStyle, bossHeadRowStyle, bossHintStyle, bossHpStyle, bossNameStyle, bossTrackStyle, calendarCellStyle, calendarGridStyle, calendarIntensityStyle, calendarLegendBlockStyle, calendarLegendLabelStyle, calendarLegendStyle, chestButtonStyle, chestClaimedStyle, classBadgeLabelStyle, classBadgeNameStyle, classBadgeStyle, collNameStyle, collProgressStyle, collRewardStyle, collRowStyle, comboStyle, dailyGoalCardStyle, dailyGoalClaimButtonStyle, dailyGoalDoneStyle, dailyGoalFillStyle, dailyGoalLabelStyle, dailyGoalNumStyle, dailyGoalRowStyle, dailyGoalTrackStyle, emptyStyle, heroStyle, iconButtonStyle, itemEnStyle, itemNameStyle, itemTimeStyle, levelBadgeStyle, levelNumStyle, levelSinceStyle, levelSubStyle, listItemStyle, listStyle, luckyButtonStyle, luckyMsgStyle, metaRowStyle, metaStyle, milestoneFillStyle, milestoneIconStyle, milestoneNameStyle, milestoneNumStyle, milestoneStyle, milestoneTopStyle, milestoneTrackStyle, nextTitleRowStyle, nextTitleStyle, passRowStyle, passTierStyle, passTrackStyle, pokedexFillStyle, pokedexGridStyle, pokedexIconStyle, pokedexItemStyle, pokedexNameStyle, pokedexNumStyle, pokedexTrackStyle, questFillDoneStyle, questFillStyle, questLabelStyle, questRewardStyle, questRowStyle, questTopStyle, questTrackStyle, recordChipStyle, recordRowStyle, reportBarColStyle, reportBarDateStyle, reportBarStyle, reportBarTurnStyle, reportBarWrapStyle, reportBarsStyle, reportLegendStyle, reportStyle, rerollButtonStyle, ritualGoalStyle, ritualGoalsStyle, ritualGreetingStyle, ritualReminderStyle, ritualStyle, ritualSummaryStyle, saveBarStyle, saveButtonStyle, seasonStyle, seasonSummaryCardStyle, seasonSummaryHeadStyle, seasonSummaryMetaStyle, seasonSummaryRewardStyle, sectionCardArrowStyle, sectionCardBodyHiddenStyle, sectionCardBodyStyle, sectionCardHeadStyle, sectionCardStyle, sectionCardTitleStyle, settingsBtnStyle, settingsControlStyle, settingsLabelStyle, settingsRowStyle, settingsToggleOnStyle, settingsToggleStyle, settingsValueStyle, shareButtonStyle, shopBarStyle, shopBuyButtonStyle, shopBuyDisabledStyle, shopConfirmButtonStyle, shopGridStyle, shopItemDescStyle, shopItemHeadStyle, shopItemNameStyle, shopItemPriceStyle, shopItemStyle, shopOwnedStyle, shopStockStyle, shopThemeUseButtonStyle, skinGridStyle, skinHeadActiveStyle, skinItemActiveStyle, skinSwatchBorderStyle, skinSwatchRowStyle, skinSwatchStyle, sprintDaysStyle, sprintFillStyle, sprintLabelStyle, sprintRowStyle, sprintTrackStyle, statsChipStyle, statsRowStyle, statsSubTitleStyle, statsWrapStyle, streakBadgeStyle, streakNextStyle, streakRowStyle, tabActiveStyle, tabStyle, tabsStyle, titleBadgeStyle, titleCurrentNameStyle, titleCurrentRowStyle, titleHeadCurrentStyle, titleItemActiveMarkStyle, titleItemActiveStyle, titleItemLockedMarkStyle, titleItemLockedStyle, titleItemNameStyle, titleItemStyle, titleListStyle, titleRowStyle, titleTextStyle, toolRankCountStyle, toolRankNameStyle, toolRankNumStyle, toolRankRowStyle, toolRankStyle, tooltipDescStyle, tooltipHeadStyle, tooltipNameStyle, tooltipProgressFillStyle, tooltipProgressLabelStyle, tooltipProgressNumStyle, tooltipProgressTopStyle, tooltipProgressTrackStyle, tooltipProgressWrapStyle, tooltipStatusStyle, tooltipStyle, tooltipXpStyle, tutorialNameStyle, tutorialRowStyle, tutorialTitleStyle, tutorialXpStyle, updatedStyle, wallCellHiddenLockedStyle, wallCellLockedStyle, wallCellStyle, wallCellUnlockedStyle, wallCheckStyle, wallCountStyle, wallFilterRowStyle, wallGridStyle, wallProgressFillStyle, wallProgressTrackStyle, wallSearchInputStyle, wallSelectStyle, wallXpStyle, wallXpUnlockedStyle, weeklyBonusButtonStyle, weeklyBonusClaimedStyle, weeklyQuestFillStyle, weeklyQuestLabelStyle, weeklyQuestRewardStyle, weeklyQuestRowStyle, weeklyQuestTopStyle, weeklyQuestTrackStyle, xpFillStyle, xpRowStyle, xpTextStyle, xpTrackStyle } from './styles.ts'
 
 /** 翻译函数（与主面板一致）。 */
@@ -205,16 +205,8 @@ export function DailyGoalCard(props: { status: DevQuestStatus; t: TFunc; claimDa
   </>
 }
 
-export function RitualSection(props: { status: DevQuestStatus; t: TFunc; questReminderMsg: string | null }): ReactElement {
-  const { status, t, questReminderMsg } = props
-  const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>(loadCollapsed)
-  const toggle = (id: string): void => {
-    // 从 localStorage 读最新再合并：多个分区各自持 map，避免旧 map 覆盖他区新保存。
-    const latest = loadCollapsed()
-    const next = { ...latest, [id]: !(latest[id] ?? false) }
-    saveCollapsed(next)
-    setCollapsedMap(next)
-  }
+export function RitualSection(props: { status: DevQuestStatus; t: TFunc; questReminderMsg: string | null ; collapsedMap: Record<string, boolean>; toggle: (id: string) => void }): ReactElement {
+  const { status, t, questReminderMsg, collapsedMap, toggle } = props
   return <>
       {/* 每日开工仪式：问候 + 昨日总结 + 今日目标 */}
       <SectionCard
@@ -268,16 +260,8 @@ export function LuckyRow(props: { status: DevQuestStatus; t: TFunc; claimingLuck
   </>
 }
 
-export function DailySection(props: { status: DevQuestStatus; t: TFunc; claiming: boolean; claimChest: () => unknown }): ReactElement {
-  const { status, t, claiming, claimChest } = props
-  const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>(loadCollapsed)
-  const toggle = (id: string): void => {
-    // 从 localStorage 读最新再合并：多个分区各自持 map，避免旧 map 覆盖他区新保存。
-    const latest = loadCollapsed()
-    const next = { ...latest, [id]: !(latest[id] ?? false) }
-    saveCollapsed(next)
-    setCollapsedMap(next)
-  }
+export function DailySection(props: { status: DevQuestStatus; t: TFunc; claiming: boolean; claimChest: () => unknown ; collapsedMap: Record<string, boolean>; toggle: (id: string) => void }): ReactElement {
+  const { status, t, claiming, claimChest, collapsedMap, toggle } = props
   return <>
       {/* 每日任务 */}
       <SectionCard
@@ -314,16 +298,8 @@ export function DailySection(props: { status: DevQuestStatus; t: TFunc; claiming
   </>
 }
 
-export function WeeklySection(props: { status: DevQuestStatus; t: TFunc; weeklyClaiming: boolean; claimBossF: () => unknown; claimWeekly: () => unknown }): ReactElement {
-  const { status, t, weeklyClaiming, claimBossF, claimWeekly } = props
-  const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>(loadCollapsed)
-  const toggle = (id: string): void => {
-    // 从 localStorage 读最新再合并：多个分区各自持 map，避免旧 map 覆盖他区新保存。
-    const latest = loadCollapsed()
-    const next = { ...latest, [id]: !(latest[id] ?? false) }
-    saveCollapsed(next)
-    setCollapsedMap(next)
-  }
+export function WeeklySection(props: { status: DevQuestStatus; t: TFunc; weeklyClaiming: boolean; claimBossF: () => unknown; claimWeekly: () => unknown ; collapsedMap: Record<string, boolean>; toggle: (id: string) => void }): ReactElement {
+  const { status, t, weeklyClaiming, claimBossF, claimWeekly, collapsedMap, toggle } = props
   return <>
       {/* 每周挑战：独立分区 */}
       <SectionCard
@@ -386,16 +362,8 @@ export function WeeklySection(props: { status: DevQuestStatus; t: TFunc; weeklyC
   </>
 }
 
-export function ShopSection(props: { status: DevQuestStatus; t: TFunc; buying: string | null; confirmBuyId: string | null; buy: (itemId: string) => unknown; rerolling: boolean; rerollQuests: () => unknown; useQuestSkipCard: () => unknown }): ReactElement {
-  const { status, t, buying, confirmBuyId, buy, rerolling, rerollQuests, useQuestSkipCard } = props
-  const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>(loadCollapsed)
-  const toggle = (id: string): void => {
-    // 从 localStorage 读最新再合并：多个分区各自持 map，避免旧 map 覆盖他区新保存。
-    const latest = loadCollapsed()
-    const next = { ...latest, [id]: !(latest[id] ?? false) }
-    saveCollapsed(next)
-    setCollapsedMap(next)
-  }
+export function ShopSection(props: { status: DevQuestStatus; t: TFunc; buying: string | null; confirmBuyId: string | null; buy: (itemId: string) => unknown; rerolling: boolean; rerollQuests: () => unknown; useQuestSkipCard: () => unknown ; collapsedMap: Record<string, boolean>; toggle: (id: string) => void }): ReactElement {
+  const { status, t, buying, confirmBuyId, buy, rerolling, rerollQuests, useQuestSkipCard, collapsedMap, toggle } = props
   return <>
       {/* 商店：赛季货币消费（连击保险 / 任务重掷 / 徽章） */}
       <SectionCard
@@ -458,16 +426,8 @@ export function ShopSection(props: { status: DevQuestStatus; t: TFunc; buying: s
   </>
 }
 
-export function SkinsSection(props: { status: DevQuestStatus; t: TFunc; buying: string | null; confirmBuyId: string | null; buy: (itemId: string) => unknown; activateTheme: (themeId: string) => unknown }): ReactElement {
-  const { status, t, buying, confirmBuyId, buy, activateTheme } = props
-  const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>(loadCollapsed)
-  const toggle = (id: string): void => {
-    // 从 localStorage 读最新再合并：多个分区各自持 map，避免旧 map 覆盖他区新保存。
-    const latest = loadCollapsed()
-    const next = { ...latest, [id]: !(latest[id] ?? false) }
-    saveCollapsed(next)
-    setCollapsedMap(next)
-  }
+export function SkinsSection(props: { status: DevQuestStatus; t: TFunc; buying: string | null; confirmBuyId: string | null; buy: (itemId: string) => unknown; activateTheme: (themeId: string) => unknown ; collapsedMap: Record<string, boolean>; toggle: (id: string) => void }): ReactElement {
+  const { status, t, buying, confirmBuyId, buy, activateTheme, collapsedMap, toggle } = props
   return <>
       {/* 主题皮肤：已购可切换，未购可购买（独立功能） */}
       <SectionCard
@@ -543,16 +503,8 @@ export function SkinsSection(props: { status: DevQuestStatus; t: TFunc; buying: 
   </>
 }
 
-export function TutorialSection(props: { status: DevQuestStatus; t: TFunc }): ReactElement {
-  const { status, t } = props
-  const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>(loadCollapsed)
-  const toggle = (id: string): void => {
-    // 从 localStorage 读最新再合并：多个分区各自持 map，避免旧 map 覆盖他区新保存。
-    const latest = loadCollapsed()
-    const next = { ...latest, [id]: !(latest[id] ?? false) }
-    saveCollapsed(next)
-    setCollapsedMap(next)
-  }
+export function TutorialSection(props: { status: DevQuestStatus; t: TFunc ; collapsedMap: Record<string, boolean>; toggle: (id: string) => void }): ReactElement {
+  const { status, t, collapsedMap, toggle } = props
   return <>
       {/* 新手任务链 */}
       <SectionCard
@@ -577,16 +529,8 @@ export function TutorialSection(props: { status: DevQuestStatus; t: TFunc }): Re
   </>
 }
 
-export function TitlesSection(props: { status: DevQuestStatus; t: TFunc; sharing: boolean; shareCard: () => unknown; shareSeason: () => unknown; switchTitle: (titleId: string) => unknown }): ReactElement {
-  const { status, t, sharing, shareCard, shareSeason, switchTitle } = props
-  const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>(loadCollapsed)
-  const toggle = (id: string): void => {
-    // 从 localStorage 读最新再合并：多个分区各自持 map，避免旧 map 覆盖他区新保存。
-    const latest = loadCollapsed()
-    const next = { ...latest, [id]: !(latest[id] ?? false) }
-    saveCollapsed(next)
-    setCollapsedMap(next)
-  }
+export function TitlesSection(props: { status: DevQuestStatus; t: TFunc; sharing: boolean; shareCard: () => unknown; shareSeason: () => unknown; switchTitle: (titleId: string) => unknown ; collapsedMap: Record<string, boolean>; toggle: (id: string) => void }): ReactElement {
+  const { status, t, sharing, shareCard, shareSeason, switchTitle, collapsedMap, toggle } = props
   return <>
       {/* 多称号：条件解锁称号可切换展示 */}
       <SectionCard
@@ -657,16 +601,8 @@ export function TitlesSection(props: { status: DevQuestStatus; t: TFunc; sharing
   </>
 }
 
-export function CollectionsSection(props: { status: DevQuestStatus; t: TFunc; importing: boolean; exportSave: () => unknown; importSave: (file: File) => unknown }): ReactElement {
-  const { status, t, importing, exportSave, importSave } = props
-  const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>(loadCollapsed)
-  const toggle = (id: string): void => {
-    // 从 localStorage 读最新再合并：多个分区各自持 map，避免旧 map 覆盖他区新保存。
-    const latest = loadCollapsed()
-    const next = { ...latest, [id]: !(latest[id] ?? false) }
-    saveCollapsed(next)
-    setCollapsedMap(next)
-  }
+export function CollectionsSection(props: { status: DevQuestStatus; t: TFunc; importing: boolean; exportSave: () => unknown; importSave: (file: File) => unknown ; collapsedMap: Record<string, boolean>; toggle: (id: string) => void }): ReactElement {
+  const { status, t, importing, exportSave, importSave, collapsedMap, toggle } = props
   return <>
       {/* 分类收藏 + 存档管理 */}
       <SectionCard
@@ -709,16 +645,8 @@ export function CollectionsSection(props: { status: DevQuestStatus; t: TFunc; im
   </>
 }
 
-export function PokedexSection(props: { status: DevQuestStatus; t: TFunc; unlocked: DevQuestStatus['achievements'] }): ReactElement {
-  const { status, t, unlocked } = props
-  const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>(loadCollapsed)
-  const toggle = (id: string): void => {
-    // 从 localStorage 读最新再合并：多个分区各自持 map，避免旧 map 覆盖他区新保存。
-    const latest = loadCollapsed()
-    const next = { ...latest, [id]: !(latest[id] ?? false) }
-    saveCollapsed(next)
-    setCollapsedMap(next)
-  }
+export function PokedexSection(props: { status: DevQuestStatus; t: TFunc; unlocked: DevQuestStatus['achievements'] ; collapsedMap: Record<string, boolean>; toggle: (id: string) => void }): ReactElement {
+  const { status, t, unlocked, collapsedMap, toggle } = props
   return <>
       {/* 收藏图鉴总览：成就 / 皮肤 / 称号 完成度 */}
       <SectionCard
@@ -764,16 +692,8 @@ export function RecentSection(props: {
   t: TFunc
   state: DevQuestUiState
   recent: DevQuestStatus['achievements']
-}): ReactElement {
-  const { status, t, state, recent } = props
-  const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>(loadCollapsed)
-  const toggle = (id: string): void => {
-    // 从 localStorage 读最新再合并：多个分区各自持 map，避免旧 map 覆盖他区新保存。
-    const latest = loadCollapsed()
-    const next = { ...latest, [id]: !(latest[id] ?? false) }
-    saveCollapsed(next)
-    setCollapsedMap(next)
-  }
+; collapsedMap: Record<string, boolean>; toggle: (id: string) => void }): ReactElement {
+  const { status, t, state, recent, collapsedMap, toggle } = props
   return <>
       {/* 最近成就 */}
       <SectionCard
@@ -817,16 +737,8 @@ export function WallSection(props: {
   wallItems: DevQuestStatus['achievements']
   milestone: { a: DevQuestStatus['achievements'][number]; ratio: number } | undefined
   unlocked: DevQuestStatus['achievements']
-}): ReactElement {
-  const { status, t, category, setCategory, wallSearch, setWallSearch, wallRarity, setWallRarity, wallStatus, setWallStatus, hover, setHover, wallItems, milestone, unlocked } = props
-  const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>(loadCollapsed)
-  const toggle = (id: string): void => {
-    // 从 localStorage 读最新再合并：多个分区各自持 map，避免旧 map 覆盖他区新保存。
-    const latest = loadCollapsed()
-    const next = { ...latest, [id]: !(latest[id] ?? false) }
-    saveCollapsed(next)
-    setCollapsedMap(next)
-  }
+; collapsedMap: Record<string, boolean>; toggle: (id: string) => void }): ReactElement {
+  const { status, t, category, setCategory, wallSearch, setWallSearch, wallRarity, setWallRarity, wallStatus, setWallStatus, hover, setHover, wallItems, milestone, unlocked, collapsedMap, toggle } = props
   return <>
       {/* 成就墙 */}
       <SectionCard
@@ -938,16 +850,8 @@ export function WallSection(props: {
   </>
 }
 
-export function ReportSection(props: { status: DevQuestStatus; t: TFunc }): ReactElement {
-  const { status, t } = props
-  const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>(loadCollapsed)
-  const toggle = (id: string): void => {
-    // 从 localStorage 读最新再合并：多个分区各自持 map，避免旧 map 覆盖他区新保存。
-    const latest = loadCollapsed()
-    const next = { ...latest, [id]: !(latest[id] ?? false) }
-    saveCollapsed(next)
-    setCollapsedMap(next)
-  }
+export function ReportSection(props: { status: DevQuestStatus; t: TFunc ; collapsedMap: Record<string, boolean>; toggle: (id: string) => void }): ReactElement {
+  const { status, t, collapsedMap, toggle } = props
   return <>
       {/* 成长周报：最近 7 天 XP 柱状图 */}
       <SectionCard
@@ -979,16 +883,8 @@ export function ReportSection(props: { status: DevQuestStatus; t: TFunc }): Reac
   </>
 }
 
-export function CalendarSection(props: { status: DevQuestStatus; t: TFunc }): ReactElement {
-  const { status, t } = props
-  const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>(loadCollapsed)
-  const toggle = (id: string): void => {
-    // 从 localStorage 读最新再合并：多个分区各自持 map，避免旧 map 覆盖他区新保存。
-    const latest = loadCollapsed()
-    const next = { ...latest, [id]: !(latest[id] ?? false) }
-    saveCollapsed(next)
-    setCollapsedMap(next)
-  }
+export function CalendarSection(props: { status: DevQuestStatus; t: TFunc ; collapsedMap: Record<string, boolean>; toggle: (id: string) => void }): ReactElement {
+  const { status, t, collapsedMap, toggle } = props
   return <>
       {/* 活跃日历：近 30 天热力图 */}
       <SectionCard
@@ -1021,16 +917,8 @@ export function CalendarSection(props: { status: DevQuestStatus; t: TFunc }): Re
   </>
 }
 
-export function StatsSection(props: { status: DevQuestStatus; t: TFunc; c: DevQuestStatus['counters'] }): ReactElement {
-  const { status, t, c } = props
-  const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>(loadCollapsed)
-  const toggle = (id: string): void => {
-    // 从 localStorage 读最新再合并：多个分区各自持 map，避免旧 map 覆盖他区新保存。
-    const latest = loadCollapsed()
-    const next = { ...latest, [id]: !(latest[id] ?? false) }
-    saveCollapsed(next)
-    setCollapsedMap(next)
-  }
+export function StatsSection(props: { status: DevQuestStatus; t: TFunc; c: DevQuestStatus['counters'] ; collapsedMap: Record<string, boolean>; toggle: (id: string) => void }): ReactElement {
+  const { status, t, c, collapsedMap, toggle } = props
   return <>
       {/* 统计 + 荣誉墙 */}
       <SectionCard
@@ -1078,16 +966,8 @@ export function StatsSection(props: { status: DevQuestStatus; t: TFunc; c: DevQu
   </>
 }
 
-export function SettingsSection(props: { status: DevQuestStatus; t: TFunc; settings: DevQuestSettings; updateSettings: (patch: Partial<DevQuestSettings>) => void; setGoalF: (goal: number) => unknown }): ReactElement {
-  const { status, t, settings, updateSettings, setGoalF } = props
-  const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>(loadCollapsed)
-  const toggle = (id: string): void => {
-    // 从 localStorage 读最新再合并：多个分区各自持 map，避免旧 map 覆盖他区新保存。
-    const latest = loadCollapsed()
-    const next = { ...latest, [id]: !(latest[id] ?? false) }
-    saveCollapsed(next)
-    setCollapsedMap(next)
-  }
+export function SettingsSection(props: { status: DevQuestStatus; t: TFunc; settings: DevQuestSettings; updateSettings: (patch: Partial<DevQuestSettings>) => void; setGoalF: (goal: number) => unknown ; collapsedMap: Record<string, boolean>; toggle: (id: string) => void }): ReactElement {
+  const { status, t, settings, updateSettings, setGoalF, collapsedMap, toggle } = props
   return <>
       {/* 设置：字号 / 紧凑模式 / toast 过滤 */}
       <SectionCard

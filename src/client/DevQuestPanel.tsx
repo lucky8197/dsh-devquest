@@ -739,22 +739,22 @@ export function DevQuestPanelCard(
       )}
 
 
-      <RitualSection status={status} t={t} questReminderMsg={questReminderMsg} />
+      <RitualSection collapsedMap={collapsed} toggle={toggleSection} status={status} t={t} questReminderMsg={questReminderMsg} />
       <LuckyRow status={status} t={t} claimingLucky={claimingLucky} luckyMsg={luckyMsg} claimLuckyDraw={claimLuckyDraw} />
-      <DailySection status={status} t={t} claiming={claiming} claimChest={claimChest} />
-      <WeeklySection status={status} t={t} weeklyClaiming={weeklyClaiming} claimBossF={claimBossF} claimWeekly={claimWeekly} />
-      <ShopSection status={status} t={t} buying={buying} confirmBuyId={confirmBuyId} buy={buy} rerolling={rerolling} rerollQuests={rerollQuests} useQuestSkipCard={useQuestSkipCard} />
-      <SkinsSection status={status} t={t} buying={buying} confirmBuyId={confirmBuyId} buy={buy} activateTheme={activateTheme} />
-      <TutorialSection status={status} t={t} />
-      <TitlesSection status={status} t={t} sharing={sharing} shareCard={shareCard} shareSeason={shareSeason} switchTitle={switchTitle} />
-      <CollectionsSection status={status} t={t} importing={importing} exportSave={exportSave} importSave={importSave} />
-      <PokedexSection status={status} t={t} unlocked={unlocked} />
-      <RecentSection status={status} t={t} state={state} recent={recent} />
-      <WallSection status={status} t={t} category={category} setCategory={setCategory} wallSearch={wallSearch} setWallSearch={setWallSearch} wallRarity={wallRarity} setWallRarity={setWallRarity} wallStatus={wallStatus} setWallStatus={setWallStatus} hover={hover} setHover={setHover} wallItems={wallItems} milestone={milestone} unlocked={unlocked} />
-      <ReportSection status={status} t={t} />
-      <CalendarSection status={status} t={t} />
-      <StatsSection status={status} t={t} c={c} />
-      <SettingsSection status={status} t={t} settings={settings} updateSettings={updateSettings} setGoalF={setGoalF} />
+      <DailySection collapsedMap={collapsed} toggle={toggleSection} status={status} t={t} claiming={claiming} claimChest={claimChest} />
+      <WeeklySection collapsedMap={collapsed} toggle={toggleSection} status={status} t={t} weeklyClaiming={weeklyClaiming} claimBossF={claimBossF} claimWeekly={claimWeekly} />
+      <ShopSection collapsedMap={collapsed} toggle={toggleSection} status={status} t={t} buying={buying} confirmBuyId={confirmBuyId} buy={buy} rerolling={rerolling} rerollQuests={rerollQuests} useQuestSkipCard={useQuestSkipCard} />
+      <SkinsSection collapsedMap={collapsed} toggle={toggleSection} status={status} t={t} buying={buying} confirmBuyId={confirmBuyId} buy={buy} activateTheme={activateTheme} />
+      <TutorialSection collapsedMap={collapsed} toggle={toggleSection} status={status} t={t} />
+      <TitlesSection collapsedMap={collapsed} toggle={toggleSection} status={status} t={t} sharing={sharing} shareCard={shareCard} shareSeason={shareSeason} switchTitle={switchTitle} />
+      <CollectionsSection collapsedMap={collapsed} toggle={toggleSection} status={status} t={t} importing={importing} exportSave={exportSave} importSave={importSave} />
+      <PokedexSection collapsedMap={collapsed} toggle={toggleSection} status={status} t={t} unlocked={unlocked} />
+      <RecentSection collapsedMap={collapsed} toggle={toggleSection} status={status} t={t} state={state} recent={recent} />
+      <WallSection collapsedMap={collapsed} toggle={toggleSection} status={status} t={t} category={category} setCategory={setCategory} wallSearch={wallSearch} setWallSearch={setWallSearch} wallRarity={wallRarity} setWallRarity={setWallRarity} wallStatus={wallStatus} setWallStatus={setWallStatus} hover={hover} setHover={setHover} wallItems={wallItems} milestone={milestone} unlocked={unlocked} />
+      <ReportSection collapsedMap={collapsed} toggle={toggleSection} status={status} t={t} />
+      <CalendarSection collapsedMap={collapsed} toggle={toggleSection} status={status} t={t} />
+      <StatsSection collapsedMap={collapsed} toggle={toggleSection} status={status} t={t} c={c} />
+      <SettingsSection collapsedMap={collapsed} toggle={toggleSection} status={status} t={t} settings={settings} updateSettings={updateSettings} setGoalF={setGoalF} />
     </div>
   </section>
 }
