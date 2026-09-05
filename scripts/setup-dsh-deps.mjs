@@ -48,6 +48,7 @@ const LINKS = {
   'node_modules/@deepseek-ai/dsh-client-ui-conversation': 'packages/client/ui-conversation',
   'node_modules/@deepseek-ai/dsh-client-locale': 'packages/client/locale',
   'node_modules/@deepseek-ai/dsh-client-connection': 'packages/client/connection',
+  'node_modules/@deepseek-ai/dsh-util-values': 'packages/util/values',
   'node_modules/@deepseek-ai/dsh-llm': 'packages/llm/llm',
   'node_modules/@deepseek-ai/dsh-session': 'packages/core/session',
   'node_modules/@deepseek-ai/dsh-scope': 'packages/core/scope',
@@ -87,18 +88,38 @@ function fail(message) {
   process.exit(1)
 }
 
-/** 从 `dsh` bin 反推安装根（Windows: where.exe；POSIX: bash command -v）。 */
+/** 从 `dsh` bin 反推安装根（Windows: where.exe；POSIX: bash command -v）。
+ * 支持两种全局安装布局：
+ * - 平铺布局：<npmroot>/node_modules/@deepseek-ai/*（npx 缓存 / pnpm store 根）
+ * - 嵌套布局：<npmroot>/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/*
+ *   （npm i -g 的 dsh 自带内部包）→ 返回 dsh 包目录自身。
+ */
 function checkoutFromDshBin() {
   try {
+    let binPath
     if (process.platform === 'win32') {
       const out = execFileSync('where.exe', ['dsh'], { encoding: 'utf8' }).trim().split(/\r?\n/)[0]
       if (out === undefined || out === '') return undefined
-      // dsh.cmd/dsh.ps1 位于 <root>/node_modules/.bin/
-      return resolve(out, '..', '..')
+      binPath = out
+    } else {
+      const out = execFileSync('bash', ['-lc', 'command -v dsh'], { encoding: 'utf8' }).trim()
+      if (out === '') return undefined
+      binPath = out
     }
-    const out = execFileSync('bash', ['-lc', 'command -v dsh'], { encoding: 'utf8' }).trim()
-    if (out === '') return undefined
-    return resolve(out, '..', '..')
+    // bin 位于 <root>/node_modules/.bin/dsh.cmd，或 npm 全局 shim <prefix>/dsh.cmd
+    const binDir = dirname(binPath)
+    // npm 全局 shim：包在 <prefix>/node_modules/@deepseek-ai/dsh（内部自带 node_modules/@deepseek-ai/*）
+    const prefixPkg = join(binDir, 'node_modules', '@deepseek-ai', 'dsh')
+    if (isValidCheckout(prefixPkg)) return prefixPkg
+    const prefixFlat = join(binDir, 'node_modules')
+    if (isValidCheckout(prefixFlat)) return prefixFlat
+    const root = resolve(binDir, '..', '..')
+    // 嵌套布局：dsh 包自带内部包
+    const dshPkg = join(root, '@deepseek-ai', 'dsh')
+    if (isValidCheckout(dshPkg)) return dshPkg
+    // 平铺布局
+    if (isValidCheckout(root)) return root
+    return undefined
   } catch {
     return undefined
   }

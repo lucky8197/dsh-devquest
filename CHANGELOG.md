@@ -31,6 +31,20 @@
 
 ---
 
+## [1.4.1] - 2026-09-05
+
+🔌 **DSH 0.1.2-rc.1 兼容修复**（111/111 测试全绿）。
+
+### Fixed
+- **`JsonValue` 类型搬家**：新版本从 `@deepseek-ai/dsh-tools` 移出到 `@deepseek-ai/dsh-util-values`（新包）——index/tools 的 import 改源，`setup-dsh-deps` 的软链表与 tsconfig paths 新增该包
+- **`user/message` 载荷语义更新**：新版 `source` 是 `MessageSource` 判别对象（`kind: 'user'|'plugin'|...`），旧版字符串判定为死代码——会话计数改用 `source.kind === 'user'`（保留旧版字符串兼容）
+- **`setup-dsh-deps` 定位新全局安装**：npm 全局 dsh 是嵌套布局（`<prefix>/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/*`），此前被跳过、回退到 npx 缓存旧版类型；现在优先解析 dsh shim 反推全局安装（新版本类型），并支持 shim/嵌套/平铺三种布局
+
+### Changed
+- 开发依赖类型从 npx 缓存 0.1.0-rc.7 升至 0.1.2-rc.1（tsconfig paths 重指），tsc 在最新 API 下零错误
+
+---
+
 ## [1.4.0] - 2026-09-05
 
 🎴 **冒险大版本**——6 项新玩法，全部向后兼容（111/111 测试全绿）。

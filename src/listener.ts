@@ -122,7 +122,13 @@ function normalize(event: SessionEvent, agg: SessionAggregate): Action | null {
       return { kind: 'tokens', tokens }
     }
     case 'user/message': {
+      // v0.1.2+：source 是 MessageSource 判别对象（{ kind: 'user'|'plugin'|'model'|'tool' }）。
+      // 会话计数只认真人 prompt（kind='user'）；agent.inject/目标轮等系统注入不算。
       const source = event.data.source
+      if (typeof source === 'object' && source !== null && source.kind === 'user') {
+        return { kind: 'session-start', hourOfDay: new Date(event.time).getHours(), source: 'user' }
+      }
+      // 兼容旧版字符串载荷（'agent.inject' 排除）
       if (typeof source === 'string' && source !== 'agent.inject') {
         return { kind: 'session-start', hourOfDay: new Date(event.time).getHours(), source }
       }

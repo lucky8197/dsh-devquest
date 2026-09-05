@@ -2,7 +2,8 @@
  * DevQuest 模型工具：devquest_status / devquest_achievements / devquest_reset。
  * 依赖通过 deps 注入（index.ts 装配），保持本文件无引擎直接耦合。
  */
-import { defineTool, type JsonValue } from '@deepseek-ai/dsh-tools'
+import { defineTool } from '@deepseek-ai/dsh-tools'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { Context } from '@deepseek-ai/cordis'
 import type { DevQuestStatus } from './types.ts'
 
