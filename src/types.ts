@@ -72,6 +72,8 @@ export interface Counters {
   bossSlain?: number
   /** v1.3.0 累计达成每日 XP 目标的次数（goal_done_3 用）。 */
   goalDays?: number
+  /** v1.4.0 距上次随机事件卡的已完成回合数（每 EVENT_EVERY_TURNS 触发一次）。 */
+  turnsSinceEvent?: number
 }
 
 /** 单个每日任务。 */
@@ -242,7 +244,69 @@ export interface SaveData {
   collections?: CollectionState
   /** 每日幸运抽奖状态（每天一次）。 */
   lucky?: { date: string; claimed: boolean }
+  // ---- v1.4.0 冒险扩展 ----
+  /** 活跃冒险事件（随机事件卡生效中的 buff/诅咒；choice 型即时结算不入驻）。 */
+  events?: ActiveEvent[]
+  /** 开发者圣物收藏（掉落收集，跨赛季保留）。 */
+  relics?: RelicRecord[]
+  /** 史诗任务链（跨天剧情任务）状态。 */
+  questChain?: QuestChainState
+  /** 幽灵竞速（本周 vs 上周自己的数据对决）。 */
+  ghostRace?: GhostRaceState
   updatedAt: number
+}
+
+// ---------------------------------------------------------------------------
+// v1.4.0 冒险扩展类型：随机事件卡 / 连击姿态（派生）/ 圣物 / 史诗任务链 / 幽灵竞速
+// ---------------------------------------------------------------------------
+
+/** 活跃冒险事件（随机事件卡的持续型效果）。 */
+export interface ActiveEvent {
+  /** 实例 id（触发时刻生成，防重复结算）。 */
+  id: string
+  /** 效果 id（EVENT_POOL 键）。 */
+  effectId: string
+  gainedAt: number
+  /** 到期时刻（时间窗口；未设置 = 回合窗口）。 */
+  expiresAt?: number
+  /** 剩余有效回合数（回合窗口；引擎每逢 completed 回合递减）。 */
+  expiresTurns?: number
+  /** 一次性效果是否已消费（如「下次失败不扣连击」）。 */
+  consumed?: boolean
+}
+
+/** 开发者圣物（掉落收集）。 */
+export interface RelicRecord {
+  id: string
+  acquiredAt: number
+}
+
+/** 史诗任务链（跨天剧情任务）状态。 */
+export interface QuestChainState {
+  /** 当前链 id（CHAIN_QUESTS 键）。 */
+  id: string
+  /** 当前步骤下标（0-based；全部完成 = finished）。 */
+  step: number
+  /** 链条接取的日期（'YYYY-MM-DD'）。 */
+  dayKeyStarted: string
+  /** 上次推进日期（断天检查：非连续则重置）。 */
+  lastProgressDay: string
+  /** 终章奖励已领取。 */
+  finished?: boolean
+  /** 终章奖励已领取（领取后 finished 复位，链不再推进）。 */
+  claimed?: boolean
+}
+
+/** 幽灵竞速（本周 vs 上周自己的数据）状态。 */
+export interface GhostRaceState {
+  /** 对决所属周键（weekKey）。 */
+  week: string
+  /** 幽灵 XP 目标（上周每天 XP 之和）。 */
+  ghostXp: number
+  /** 幽灵回合目标（上周完成回合数）。 */
+  ghostTurns: number
+  /** 奖励是否已领取。 */
+  claimed: boolean
 }
 
 /** 单回合结算事件（host 每回合推一条，client 轮询 diff 出 toast）。 */
@@ -261,6 +325,10 @@ export interface TurnSettlementEvent {
   leveledUp: boolean
   /** 本轮完成/失败回合数。 */
   turnsDone: number
+  /** v1.4.0 本轮触发的随机事件卡（client 弹卡用；defId 对 events.EVENT_POOL）。 */
+  eventCard?: { id: string; defId: string }
+  /** v1.4.0 本轮掉落的圣物（id 对 relics.RELIC_POOL）。 */
+  relicId?: string
 }
 
 /** 成就分类（面板成就墙分主题 tab）。 */
@@ -381,5 +449,34 @@ export interface DevQuestStatus {
     /** 全部条件称号（含解锁状态）。 */
     items: { id: string; name: { zh: string; en: string }; icon: string; description: { zh: string; en: string }; unlocked: boolean; acquiredAt?: number }[]
   }
+  // ---- v1.4.0 冒险扩展视图 ----
+  /** 活跃事件（含待抉择的事件卡与生效 buff；client 弹卡/状态展示）。 */
+  events: { id: string; effectId: string; gainedAt: number; expiresTurns?: number; pendingChoice: boolean }[]
+  /** 圣物视图（收藏图鉴展示用）。 */
+  relics: { total: number; items: { id: string; icon: string; name: { zh: string; en: string }; rarity: string; acquiredAt: number }[] }
+  /** 史诗任务链视图（无链时 null）。 */
+  questChain: {
+    id: string
+    icon: string
+    name: { zh: string; en: string }
+    step: number
+    total: number
+    steps: { label: { zh: string; en: string }; met: boolean }[]
+    finished: boolean
+    claimed: boolean
+    rewardXp: number
+  } | null
+  /** 幽灵竞速进度（未激活时 active=false）。 */
+  ghostRace: {
+    active: boolean
+    ghostXp: number
+    ghostTurns: number
+    myXp: number
+    myTurns: number
+    beaten: boolean
+    claimed: boolean
+  }
+  /** v1.4.0 当前连击姿态（无达标姿态时 null）。 */
+  stance: { combo: number; id: string; icon: string; name: { zh: string; en: string } } | null
   updatedAt: number
 }

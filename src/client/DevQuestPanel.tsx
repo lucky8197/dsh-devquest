@@ -23,7 +23,7 @@ import { TONE, SKIN_PALETTES, themeVars, CATEGORY_KEYS } from './panel/theme.ts'
 import { SwordIcon, RefreshIcon, CloseIcon } from './panel/icons.tsx'
 import { STATUS_API, POLL_MS, levelPercent, comboMultiplier, SEASON_GOAL_TOKENS, seasonDaysLeft, formatNumber, apiErrorOf, playSfx, updatedLabel, titleTone, titleToneStyle, formatTime, dayKeyLocal, RARITY_COLOR, rarityToastStyle, rarityCellStyle, categoryIcon, PANEL_POS_KEY, MIN_VISIBLE, loadPanelPos, PANEL_COLLAPSED_KEY, REMINDER_KEY, loadCollapsed, saveCollapsed, PANEL_SETTINGS_KEY, DEFAULT_SETTINGS, loadSettings, saveSettings, fetchUiSettings, RARITY_WEIGHT, rarityWeight, clampPanelPos } from './panel/util.ts'
 import type { DevQuestSettings } from './panel/util.ts'
-import { HeroSection, SeasonSummaryCard, DailyGoalCard, RitualSection, LuckyRow, DailySection, WeeklySection, ShopSection, SkinsSection, TutorialSection, TitlesSection, CollectionsSection, PokedexSection, RecentSection, WallSection, ReportSection, CalendarSection, StatsSection, SettingsSection } from './panel/sections.tsx'
+import { HeroSection, SeasonSummaryCard, DailyGoalCard, RitualSection, LuckyRow, DailySection, WeeklySection, ShopSection, SkinsSection, TutorialSection, TitlesSection, CollectionsSection, PokedexSection, RecentSection, WallSection, ReportSection, CalendarSection, StatsSection, SettingsSection, AdventureSection, ChainSection, GhostSection, RelicsSection } from './panel/sections.tsx'
 import { cardStyle, cardHeaderStyle, cardDraggingStyle, cardTitleStyle, versionLabelStyle, iconButtonStyle, cardBodyStyle, sectionCardStyle, sectionCardHeadStyle, sectionCardTitleStyle, sectionCardArrowStyle, sectionCardBodyStyle, sectionCardBodyHiddenStyle, heroStyle, levelBadgeStyle, levelNumStyle, levelSubStyle, titleRowStyle, titleTextStyle, seasonStyle, xpTrackStyle, xpFillStyle, xpRowStyle, xpTextStyle, metaRowStyle, metaStyle, comboStyle, questRowStyle, questTopStyle, questLabelStyle, questRewardStyle, questTrackStyle, questFillStyle, questFillDoneStyle, wallCountStyle, updatedStyle, listStyle, listItemStyle, itemNameStyle, itemEnStyle, itemTimeStyle, linkButtonStyle, tabsStyle, wallFilterRowStyle, wallSearchInputStyle, wallSelectStyle, tabStyle, tabActiveStyle, wallGridStyle, wallCellStyle, wallCellUnlockedStyle, wallCellLockedStyle, wallCellHiddenLockedStyle, wallCheckStyle, wallXpStyle, wallXpUnlockedStyle, wallProgressTrackStyle, wallProgressFillStyle, milestoneStyle, milestoneIconStyle, milestoneTopStyle, milestoneNameStyle, milestoneNumStyle, milestoneTrackStyle, milestoneFillStyle, tooltipProgressWrapStyle, tooltipProgressTopStyle, tooltipProgressLabelStyle, tooltipProgressNumStyle, tooltipProgressTrackStyle, tooltipProgressFillStyle, chestButtonStyle, chestClaimedStyle, titleBadgeStyle, levelSinceStyle, sprintRowStyle, sprintLabelStyle, sprintTrackStyle, sprintFillStyle, sprintDaysStyle, streakRowStyle, streakBadgeStyle, streakNextStyle, boostStockStyle, passRowStyle, ritualStyle, ritualGreetingStyle, ritualSummaryStyle, ritualReminderStyle, ritualGoalsStyle, ritualGoalStyle, pokedexGridStyle, pokedexItemStyle, pokedexIconStyle, pokedexNameStyle, pokedexTrackStyle, pokedexFillStyle, pokedexNumStyle, settingsRowStyle, settingsLabelStyle, settingsControlStyle, settingsValueStyle, settingsBtnStyle, settingsToggleStyle, settingsToggleOnStyle, passTrackStyle, passTierStyle, shopBarStyle, shopBalanceStyle, shopStockStyle, shopGridStyle, shopItemStyle, shopItemHeadStyle, shopItemNameStyle, shopItemPriceStyle, shopItemDescStyle, shopOwnedStyle, shopBuyButtonStyle, shopConfirmButtonStyle, shopBuyDisabledStyle, shopThemeUseButtonStyle, skinGridStyle, skinSwatchRowStyle, skinSwatchStyle, skinSwatchBorderStyle, skinItemActiveStyle, skinHeadActiveStyle, rerollButtonStyle, panelMsgStyle, dailyGoalCardStyle, dailyGoalRowStyle, dailyGoalLabelStyle, dailyGoalNumStyle, dailyGoalTrackStyle, dailyGoalFillStyle, dailyGoalDoneStyle, dailyGoalClaimButtonStyle, bossCardStyle, bossHeadRowStyle, bossNameStyle, bossHpStyle, bossTrackStyle, bossFillStyle, bossHintStyle, classBadgeStyle, classBadgeNameStyle, classBadgeLabelStyle, seasonSummaryCardStyle, seasonSummaryHeadStyle, seasonSummaryMetaStyle, seasonSummaryRewardStyle, tutorialRowStyle, tutorialNameStyle, tutorialXpStyle, tutorialTitleStyle, reportStyle, reportBarsStyle, reportBarColStyle, reportBarWrapStyle, reportBarStyle, reportBarDateStyle, reportLegendStyle, celebrationOverlayStyle, celebrationInnerStyle, celebrationTitleStyle, celebrationLevelStyle, celebrationStatsStyle, calendarGridStyle, calendarCellStyle, calendarIntensityStyle, calendarLegendColor, calendarLegendStyle, calendarLegendLabelStyle, calendarLegendBlockStyle, statsWrapStyle, statsRowStyle, statsChipStyle, statsSubTitleStyle, toolRankStyle, toolRankRowStyle, toolRankNumStyle, toolRankNameStyle, toolRankCountStyle, recordRowStyle, recordChipStyle, nextTitleRowStyle, nextTitleStyle, luckyButtonStyle, luckyMsgStyle, collRowStyle, collNameStyle, collProgressStyle, collRewardStyle, weeklyQuestRowStyle, weeklyQuestTopStyle, weeklyQuestLabelStyle, weeklyQuestRewardStyle, weeklyQuestTrackStyle, weeklyQuestFillStyle, weeklyBonusButtonStyle, weeklyBonusClaimedStyle, titleCurrentRowStyle, titleCurrentNameStyle, titleHeadCurrentStyle, shareButtonStyle, titleListStyle, titleItemStyle, titleItemActiveStyle, titleItemLockedStyle, titleItemNameStyle, titleItemActiveMarkStyle, titleItemLockedMarkStyle, saveBarStyle, saveButtonStyle, reportBarTurnStyle, tooltipStyle, tooltipHeadStyle, tooltipNameStyle, tooltipStatusStyle, tooltipXpStyle, tooltipDescStyle, emptyStyle, toastStackStyle, toastStyle, toastTitleStyle, toastNameStyle, toastDescStyle, toastCloseStyle, footerActionStyle, railActionStyle, footerActionActiveStyle, footerLabelStyle, levelChipStyle } from './panel/styles.ts'
 
 export type DevQuestFooterActionProps =
@@ -108,7 +108,7 @@ export function DevQuestPanelCard(
   }
   const isCollapsed = (id: string): boolean => collapsed[id] === true
   /** 全部面板分区 id（一键折叠/展开用）。 */
-  const ALL_SECTION_IDS = ['ritual', 'daily', 'weekly', 'shop', 'skins', 'tutorial', 'titles', 'collections', 'pokedex', 'recent', 'wall', 'report', 'calendar', 'stats', 'settings']
+  const ALL_SECTION_IDS = ['ritual', 'daily', 'weekly', 'adventure', 'chain', 'ghost', 'shop', 'skins', 'tutorial', 'titles', 'collections', 'relics', 'pokedex', 'recent', 'wall', 'report', 'calendar', 'stats', 'settings']
   /** 全部展开。 */
   const expandAll = (): void => {
     const next: Record<string, boolean> = {}
@@ -507,6 +507,73 @@ export function DevQuestPanelCard(
     }
   }, [weeklyClaiming, actions, notify, t])
 
+  // ---- v1.4.0 冒险扩展：事件卡 / 任务链 / 幽灵竞速 ----
+  const [eventResolving, setEventResolving] = useState<string | null>(null)
+  /** 结算事件卡抉择（choice 型：选项 0/1）。 */
+  const resolveEventF = useCallback(async (eventId: string, option: number): Promise<void> => {
+    if (eventResolving !== null) return
+    setEventResolving(eventId)
+    try {
+      const response = await fetch('/api/devquest/event/resolve', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ eventId, option }),
+      })
+      const data = await response.json() as { ok: boolean; gained: number; label: string; error?: string; status: DevQuestStatus }
+      if (data.status !== null && data.status !== undefined) actions.setStatus(data.status)
+      if (data.ok) {
+        notify(true, data.label)
+        if (data.gained > 0) playSfx('goal')
+      } else {
+        notify(false, data.label ?? apiErrorOf(data) ?? t('dq.opFailed'))
+      }
+    } catch {
+      notify(false, t('dq.opFailed'))
+    } finally {
+      setEventResolving(null)
+    }
+  }, [eventResolving, actions, notify, t])
+
+  const [chainClaiming, setChainClaiming] = useState(false)
+  /** 领取史诗任务链终章奖励。 */
+  const claimChainF = useCallback(async (): Promise<void> => {
+    if (chainClaiming) return
+    setChainClaiming(true)
+    try {
+      const response = await fetch('/api/devquest/chain/claim', { method: 'POST' })
+      const data = await response.json() as { ok: boolean; gained: number; error?: string; status: DevQuestStatus }
+      if (data.status !== null && data.status !== undefined) actions.setStatus(data.status)
+      if (data.ok) {
+        notify(true, t('dq.chainClaimed', { xp: data.gained }))
+        playSfx('levelup')
+      } else notify(false, apiErrorOf(data) ?? t('dq.opFailed'))
+    } catch {
+      notify(false, t('dq.opFailed'))
+    } finally {
+      setChainClaiming(false)
+    }
+  }, [chainClaiming, actions, notify, t])
+
+  const [ghostClaiming, setGhostClaiming] = useState(false)
+  /** 领取幽灵竞速奖励（击败上周的自己）。 */
+  const claimGhostF = useCallback(async (): Promise<void> => {
+    if (ghostClaiming) return
+    setGhostClaiming(true)
+    try {
+      const response = await fetch('/api/devquest/ghost/claim', { method: 'POST' })
+      const data = await response.json() as { ok: boolean; gained: number; error?: string; status: DevQuestStatus }
+      if (data.status !== null && data.status !== undefined) actions.setStatus(data.status)
+      if (data.ok) {
+        notify(true, t('dq.ghostClaimed', { xp: data.gained }))
+        playSfx('boss')
+      } else notify(false, apiErrorOf(data) ?? t('dq.opFailed'))
+    } catch {
+      notify(false, t('dq.opFailed'))
+    } finally {
+      setGhostClaiming(false)
+    }
+  }, [ghostClaiming, actions, notify, t])
+
   /** 生成成就分享卡片（canvas → PNG 下载）。 */
   const shareCard = useCallback(async (): Promise<void> => {
     if (sharing || state.status === null) return
@@ -755,6 +822,10 @@ export function DevQuestPanelCard(
       <CalendarSection collapsedMap={collapsed} toggle={toggleSection} status={status} t={t} />
       <StatsSection collapsedMap={collapsed} toggle={toggleSection} status={status} t={t} c={c} />
       <SettingsSection collapsedMap={collapsed} toggle={toggleSection} status={status} t={t} settings={settings} updateSettings={updateSettings} setGoalF={setGoalF} />
+      <AdventureSection collapsedMap={collapsed} toggle={toggleSection} status={status} t={t} onResolve={(id, opt) => void resolveEventF(id, opt)} resolving={eventResolving} />
+      <ChainSection collapsedMap={collapsed} toggle={toggleSection} status={status} t={t} onClaim={claimChainF} claiming={chainClaiming} />
+      <GhostSection collapsedMap={collapsed} toggle={toggleSection} status={status} t={t} onClaim={claimGhostF} claiming={ghostClaiming} />
+      <RelicsSection collapsedMap={collapsed} toggle={toggleSection} status={status} t={t} />
     </div>
   </section>
 }

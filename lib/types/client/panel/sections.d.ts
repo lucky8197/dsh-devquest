@@ -179,3 +179,34 @@ export declare function SettingsSection(props: {
     collapsedMap: Record<string, boolean>;
     toggle: (id: string) => void;
 }): ReactElement;
+/** 🎴 冒险事件分区：待抉择事件卡 + 生效 buff/诅咒。 */
+export declare function AdventureSection(props: {
+    status: DevQuestStatus;
+    t: TFunc;
+    collapsedMap: Record<string, boolean>;
+    toggle: (id: string) => void;
+    onResolve: (eventId: string, option: number) => void;
+    resolving: string | null;
+}): ReactElement;
+export declare function RelicsSection(props: {
+    status: DevQuestStatus;
+    t: TFunc;
+    collapsedMap: Record<string, boolean>;
+    toggle: (id: string) => void;
+}): ReactElement;
+export declare function ChainSection(props: {
+    status: DevQuestStatus;
+    t: TFunc;
+    collapsedMap: Record<string, boolean>;
+    toggle: (id: string) => void;
+    onClaim: () => unknown;
+    claiming: boolean;
+}): ReactElement;
+export declare function GhostSection(props: {
+    status: DevQuestStatus;
+    t: TFunc;
+    collapsedMap: Record<string, boolean>;
+    toggle: (id: string) => void;
+    onClaim: () => unknown;
+    claiming: boolean;
+}): ReactElement;

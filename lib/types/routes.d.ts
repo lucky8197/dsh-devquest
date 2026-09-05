@@ -86,6 +86,25 @@ export interface DevQuestRoutesConfig {
         gained: number;
         status: DevQuestStatus;
     }>;
+    /** v1.4.0 结算随机事件卡抉择（eventId + option）；返回是否成功、XP 变化与最新状态。 */
+    resolveEvent: (eventId: string, option: number) => Promise<{
+        ok: boolean;
+        gained: number;
+        label: string;
+        status: DevQuestStatus;
+    }>;
+    /** v1.4.0 领史诗任务链终章奖励；返回是否成功、奖励 XP 与最新状态。 */
+    claimChainReward: () => Promise<{
+        ok: boolean;
+        gained: number;
+        status: DevQuestStatus;
+    }>;
+    /** v1.4.0 领幽灵竞速奖励（击败上周的自己）；返回是否成功、奖励 XP 与最新状态。 */
+    claimGhostReward: () => Promise<{
+        ok: boolean;
+        gained: number;
+        status: DevQuestStatus;
+    }>;
     /** 读 UI 设置（host 权威存储；无文件返回 null）。 */
     uiSettings: () => Promise<unknown | null>;
     /** 保存 UI 设置（整体替换 + sanitize）；返回保存后的设置。 */

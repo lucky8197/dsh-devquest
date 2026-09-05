@@ -45,6 +45,12 @@ export interface DevQuestRoutesConfig {
   claimDailyGoal: () => Promise<{ ok: boolean; gained: number; status: DevQuestStatus }>
   /** v1.3.0 领取每周 BOSS 掉落；返回是否成功、奖励货币与最新状态。 */
   claimWeeklyBoss: () => Promise<{ ok: boolean; gained: number; status: DevQuestStatus }>
+  /** v1.4.0 结算随机事件卡抉择（eventId + option）；返回是否成功、XP 变化与最新状态。 */
+  resolveEvent: (eventId: string, option: number) => Promise<{ ok: boolean; gained: number; label: string; status: DevQuestStatus }>
+  /** v1.4.0 领史诗任务链终章奖励；返回是否成功、奖励 XP 与最新状态。 */
+  claimChainReward: () => Promise<{ ok: boolean; gained: number; status: DevQuestStatus }>
+  /** v1.4.0 领幽灵竞速奖励（击败上周的自己）；返回是否成功、奖励 XP 与最新状态。 */
+  claimGhostReward: () => Promise<{ ok: boolean; gained: number; status: DevQuestStatus }>
   /** 读 UI 设置（host 权威存储；无文件返回 null）。 */
   uiSettings: () => Promise<unknown | null>
   /** 保存 UI 设置（整体替换 + sanitize）；返回保存后的设置。 */
@@ -283,5 +289,16 @@ export function makeDevQuestRoutes(config: DevQuestRoutesConfig): WebRoute[] {
     postJson(`${STATUS_API_PREFIX}/ui-settings`,
       (raw) => raw,
       (raw) => config.saveUiSettings(raw)),
+    // ---- v1.4.0 冒险扩展 ----
+    // 事件卡抉择：{ eventId: string; option: number }
+    postJson(`${STATUS_API_PREFIX}/event/resolve`,
+      (raw) => {
+        const obj = (raw ?? {}) as { eventId?: unknown; option?: unknown }
+        return typeof obj.eventId === 'string' && obj.eventId !== '' && typeof obj.option === 'number' ? { eventId: obj.eventId, option: obj.option } : null
+      },
+      (arg) => config.resolveEvent((arg as { eventId: string }).eventId, (arg as { option: number }).option),
+      { badRequestError: 'invalid-event' }),
+    post(`${STATUS_API_PREFIX}/chain/claim`, () => config.claimChainReward()),
+    post(`${STATUS_API_PREFIX}/ghost/claim`, () => config.claimGhostReward()),
   ]
 }

@@ -35,14 +35,16 @@ function pluginVersion(): string {
 const PLUGIN_VERSION = pluginVersion()
 import { ACHIEVEMENTS, achievementById, computeClass, rarityOf } from './achievements.ts'
 import {
-  activateTheme, applyTurnDetailed, buildRecordsView, buyShopItem, CATEGORY_IDS, checkAchievements, checkCollections, checkTitles, checkTutorial, claimDailyChest, claimDailyGoal, claimLucky,
-  claimPassTier, claimWeeklyBonus, claimWeeklyBoss, COLLECTION_REWARDS, computeWeeklyBoss, DAILY_GOAL_OPTIONS, DAILY_GOAL_REWARD, dailyQuestsDone, dayKey, ensureDaily, ensureWeekly, HISTORY_KEEP, migrateSave, nextTitle, refreshDailyProgress, refreshWeeklyProgress,
+  activateTheme, addXp, applyTurnDetailed, buildRecordsView, buyShopItem, CATEGORY_IDS, checkAchievements, checkCollections, checkTitles, checkTutorial, claimDailyChest, claimDailyGoal, claimLucky,
+  claimPassTier, claimWeeklyBonus, claimWeeklyBoss, COLLECTION_REWARDS, computeWeeklyBoss, DAILY_GOAL_OPTIONS, DAILY_GOAL_REWARD, DAILY_QUEST_POOL, dailyQuestsDone, dayKey, ensureDaily, ensureWeekly, HISTORY_KEEP, migrateSave, nextTitle, refreshDailyProgress, refreshWeeklyProgress,
   SEASON_PASS_TIERS, SETTLEMENT_KEEP, setActiveTitle, setDailyGoal, SHOP_ITEMS, shopBalance, STREAK_REWARDS, titleFor, TITLE_POOL, todayXpOf, TUTORIAL_STEPS, TUTORIAL_TITLE, useQuestSkip, useReroll, WEEKLY_BOSS_REWARD, xpToLevel, xpToNext,
 } from './engine.ts'
 import { watchEvents, type SessionAggregate } from './listener.ts'
 import { createSaveWriter, deleteSave, loadSave, loadUiSettings, sanitizeUiSettings, saveUiSettings, scopeKey, type SaveWriter, type StoreConfig, type UiSettings } from './store.ts'
 import { registerDevQuestTools } from './tools.ts'
 import { makeDevQuestRoutes } from './routes.ts'
+import { comboStance, resolveEvent as resolveEventPure, EVENT_POOL } from './events.ts'
+import { advanceQuestChain, bossMemeName, chainById, claimChainReward as claimChainRewardPure, claimGhostReward as claimGhostRewardPure, ensureGhostRace, ghostRaceProgress, memedDailyLabel, relicById, RELIC_POOL } from './relics.ts'
 import type { Action, AchievementCategory, AchievementView, DevQuestStatus, SaveData, TurnSettlementEvent } from './types.ts'
 
 export const name = 'devquest'
@@ -173,7 +175,17 @@ export function apply(ctx: Context, config: Config = {}): void {
         return view
       }),
       // 每日任务：跨天自动重滚 + 进度即时同步（不发奖，发奖由回合结算的 applyDaily 执行）。
-      daily: refreshDailyProgress(save, Date.now()),
+      // v1.4.0 文案梗化：标签按日期确定性抽取梗版（60%）。
+      daily: (() => {
+        const d = refreshDailyProgress(save, Date.now())
+        return {
+          ...d,
+          quests: d.quests.map(q => {
+            const def = DAILY_QUEST_POOL.find(x => x.id === q.id)
+            return def === undefined ? q : { ...q, label: memedDailyLabel(q.id, def, d.date) }
+          }),
+        }
+      })(),
       dailyChest: {
         ready: dailyQuestsDone(save.daily) && save.daily.chestClaimed !== true,
         claimed: save.daily.chestClaimed === true,
@@ -261,6 +273,52 @@ export function apply(ctx: Context, config: Config = {}): void {
         return cls === null ? null : { id: cls.id, icon: cls.icon, name: cls.name }
       })(),
       ...(save.player.seasonSummary !== undefined ? { seasonSummary: save.player.seasonSummary } : {}),
+      // ---- v1.4.0 冒险扩展视图 ----
+      events: (save.events ?? []).map(e => ({
+        id: e.id,
+        effectId: e.effectId,
+        gainedAt: e.gainedAt,
+        ...(e.expiresTurns !== undefined ? { expiresTurns: e.expiresTurns } : {}),
+        pendingChoice: EVENT_POOL.find(d => d.id === e.effectId)?.kind === 'choice',
+      })),
+      relics: {
+        total: RELIC_POOL.length,
+        items: (save.relics ?? []).map(r => {
+          const def = relicById(r.id)
+          return {
+            id: r.id,
+            icon: def?.icon ?? '❓',
+            name: def?.name ?? { zh: r.id, en: r.id },
+            rarity: def?.rarity ?? 'common',
+            acquiredAt: r.acquiredAt,
+          }
+        }),
+      },
+      questChain: (() => {
+        const ch = save.questChain
+        if (ch === undefined) return null
+        const def = chainById(ch.id)
+        if (def === undefined) return null
+        return {
+          id: def.id,
+          icon: def.icon,
+          name: def.name,
+          step: ch.step,
+          total: def.steps.length,
+          steps: def.steps.map((step, i) => ({ label: step.label, met: i < ch.step })),
+          finished: ch.finished === true,
+          claimed: ch.claimed === true,
+          rewardXp: def.rewardXp,
+        }
+      })(),
+      ghostRace: (() => {
+        const g = ghostRaceProgress(save, Date.now())
+        return g
+      })(),
+      stance: (() => {
+        const st = comboStance(save.counters.consecutiveSuccess)
+        return st === null ? null : { combo: st.combo, id: st.id, icon: st.icon, name: st.name }
+      })(),
       updatedAt: save.updatedAt,
     }
   }
@@ -303,7 +361,7 @@ export function apply(ctx: Context, config: Config = {}): void {
       bonusClaimed: weekly.bonusClaimed === true,
       boss: boss === null
         ? { icon: '🐉', name: '', hp: 1, damage: 0, defeated: false, claimed: false, reward: WEEKLY_BOSS_REWARD }
-        : { icon: boss.icon, name: boss.name, hp: boss.hp, damage: boss.damage, defeated: boss.defeated, claimed: boss.claimed, reward: WEEKLY_BOSS_REWARD },
+        : { ...boss, icon: boss.icon, name: bossMemeName(weekly.week).zh, hp: boss.hp, damage: boss.damage, defeated: boss.defeated, claimed: boss.claimed, reward: WEEKLY_BOSS_REWARD },
     }
   }
 
@@ -385,6 +443,13 @@ export function apply(ctx: Context, config: Config = {}): void {
       const titles = checkTitles(next, at)
       Object.assign(next, titles.save)
       next.lastSeqBySession[sessionId] = seq
+      // v1.4.0 每日推进：史诗任务链（跨天剧情）+ 幽灵竞速生成（纯函数，结果仅日志）。
+      // advance/ensure 返回 clone，取其新字段写回 next（其余字段与 next 一致）。
+      const chainR = advanceQuestChain(next, at, `chain-${key}`)
+      if (chainR.save.questChain !== undefined) next.questChain = chainR.save.questChain
+      const settled2 = ensureGhostRace(next, at)
+      if (settled2.ghostRace !== undefined) next.ghostRace = settled2.ghostRace
+      if (chainR.label !== null) log.info(chainR.label)
       saveCache.set(key, next)
       writer.save(next)
       if (unlocked.length > 0) {
@@ -549,6 +614,40 @@ export function apply(ctx: Context, config: Config = {}): void {
       save => claimWeeklyBoss(save, Date.now()),
       result => ({ ok: result.ok, gained: result.gained }),
     ),
+    // ---- v1.4.0 冒险扩展 ----
+    resolveEvent: async (eventId, option) => runExclusive(async () => {
+      const save = await getSave(scopeKey())
+      const at = Date.now()
+      const r = resolveEventPure(save, eventId, option, at, `${eventId}-${option}`)
+      if (!r.ok) return { ok: false, gained: 0, label: r.label, status: buildStatus(save) }
+      const next = addXp(r.save, r.gained, at, seasonOverride)
+      next.updatedAt = at
+      saveCache.set(scopeKey(), next)
+      writer.save(next)
+      return { ok: true, gained: r.gained, label: r.label, status: buildStatus(next) }
+    }),
+    claimChainReward: async () => runExclusive(async () => {
+      const save = await getSave(scopeKey())
+      const at = Date.now()
+      const r = claimChainRewardPure(save, at)
+      if (!r.ok) return { ok: false, gained: 0, status: buildStatus(save) }
+      const next = addXp(r.save, r.gained, at, seasonOverride)
+      next.updatedAt = at
+      saveCache.set(scopeKey(), next)
+      writer.save(next)
+      return { ok: true, gained: r.gained, status: buildStatus(next) }
+    }),
+    claimGhostReward: async () => runExclusive(async () => {
+      const save = await getSave(scopeKey())
+      const at = Date.now()
+      const r = claimGhostRewardPure(save, at)
+      if (!r.ok) return { ok: false, gained: 0, status: buildStatus(save) }
+      const next = addXp(r.save, r.gained, at, seasonOverride)
+      next.updatedAt = at
+      saveCache.set(scopeKey(), next)
+      writer.save(next)
+      return { ok: true, gained: r.gained, status: buildStatus(next) }
+    }),
     // UI 设置：host 侧权威存储（面板重启不丢；localStorage 仅启动快照）。
     uiSettings: async (): Promise<UiSettings | null> => loadUiSettings(ctx, storeConfig),
     saveUiSettings: async (raw: unknown): Promise<UiSettings> => runExclusive(async () => {

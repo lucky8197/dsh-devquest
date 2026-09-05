@@ -2,7 +2,7 @@
  * DevQuest 面板分区组件（从 DevQuestPanelCard 机械拆分，纯展示：
  * 状态与回调由 DevQuestPanel.tsx 持有并经 props 传入——行为不变）。
  */
-import { type ReactElement, type ReactNode } from 'react'
+import { type CSSProperties, type ReactElement, type ReactNode } from 'react'
 import type { DevQuestStatus } from '../../types.ts'
 import type { DevQuestUiState } from '../store.ts'
 import type { DevQuestSettings } from './util.ts'
@@ -10,6 +10,7 @@ import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { NS } from '../locales.ts'
 import { CATEGORY_KEYS, SKIN_PALETTES, TONE } from './theme.ts'
 import { RefreshIcon } from './icons.tsx'
+import { EVENT_POOL } from '../../events.ts' // v1.4.0 事件卡定义（纯数据，可内联）
 import { SEASON_GOAL_TOKENS, categoryIcon, comboMultiplier, dayKeyLocal, formatNumber, formatTime, levelPercent, rarityCellStyle, seasonDaysLeft, titleToneStyle, updatedLabel } from './util.ts'
 import { boostStockStyle, bossCardStyle, bossFillStyle, bossHeadRowStyle, bossHintStyle, bossHpStyle, bossNameStyle, bossTrackStyle, calendarCellStyle, calendarGridStyle, calendarIntensityStyle, calendarLegendBlockStyle, calendarLegendLabelStyle, calendarLegendStyle, chestButtonStyle, chestClaimedStyle, classBadgeLabelStyle, classBadgeNameStyle, classBadgeStyle, collNameStyle, collProgressStyle, collRewardStyle, collRowStyle, comboStyle, dailyGoalCardStyle, dailyGoalClaimButtonStyle, dailyGoalDoneStyle, dailyGoalFillStyle, dailyGoalLabelStyle, dailyGoalNumStyle, dailyGoalRowStyle, dailyGoalTrackStyle, emptyStyle, heroStyle, iconButtonStyle, itemEnStyle, itemNameStyle, itemTimeStyle, levelBadgeStyle, levelNumStyle, levelSinceStyle, levelSubStyle, listItemStyle, listStyle, luckyButtonStyle, luckyMsgStyle, metaRowStyle, metaStyle, milestoneFillStyle, milestoneIconStyle, milestoneNameStyle, milestoneNumStyle, milestoneStyle, milestoneTopStyle, milestoneTrackStyle, nextTitleRowStyle, nextTitleStyle, passRowStyle, passTierStyle, passTrackStyle, pokedexFillStyle, pokedexGridStyle, pokedexIconStyle, pokedexItemStyle, pokedexNameStyle, pokedexNumStyle, pokedexTrackStyle, questFillDoneStyle, questFillStyle, questLabelStyle, questRewardStyle, questRowStyle, questTopStyle, questTrackStyle, recordChipStyle, recordRowStyle, reportBarColStyle, reportBarDateStyle, reportBarStyle, reportBarTurnStyle, reportBarWrapStyle, reportBarsStyle, reportLegendStyle, reportStyle, rerollButtonStyle, ritualGoalStyle, ritualGoalsStyle, ritualGreetingStyle, ritualReminderStyle, ritualStyle, ritualSummaryStyle, saveBarStyle, saveButtonStyle, seasonStyle, seasonSummaryCardStyle, seasonSummaryHeadStyle, seasonSummaryMetaStyle, seasonSummaryRewardStyle, sectionCardArrowStyle, sectionCardBodyHiddenStyle, sectionCardBodyStyle, sectionCardHeadStyle, sectionCardStyle, sectionCardTitleStyle, settingsBtnStyle, settingsControlStyle, settingsLabelStyle, settingsRowStyle, settingsToggleOnStyle, settingsToggleStyle, settingsValueStyle, shareButtonStyle, shopBarStyle, shopBuyButtonStyle, shopBuyDisabledStyle, shopConfirmButtonStyle, shopGridStyle, shopItemDescStyle, shopItemHeadStyle, shopItemNameStyle, shopItemPriceStyle, shopItemStyle, shopOwnedStyle, shopStockStyle, shopThemeUseButtonStyle, skinGridStyle, skinHeadActiveStyle, skinItemActiveStyle, skinSwatchBorderStyle, skinSwatchRowStyle, skinSwatchStyle, sprintDaysStyle, sprintFillStyle, sprintLabelStyle, sprintRowStyle, sprintTrackStyle, statsChipStyle, statsRowStyle, statsSubTitleStyle, statsWrapStyle, streakBadgeStyle, streakNextStyle, streakRowStyle, tabActiveStyle, tabStyle, tabsStyle, titleBadgeStyle, titleCurrentNameStyle, titleCurrentRowStyle, titleHeadCurrentStyle, titleItemActiveMarkStyle, titleItemActiveStyle, titleItemLockedMarkStyle, titleItemLockedStyle, titleItemNameStyle, titleItemStyle, titleListStyle, titleRowStyle, titleTextStyle, toolRankCountStyle, toolRankNameStyle, toolRankNumStyle, toolRankRowStyle, toolRankStyle, tooltipDescStyle, tooltipHeadStyle, tooltipNameStyle, tooltipProgressFillStyle, tooltipProgressLabelStyle, tooltipProgressNumStyle, tooltipProgressTopStyle, tooltipProgressTrackStyle, tooltipProgressWrapStyle, tooltipStatusStyle, tooltipStyle, tooltipXpStyle, tutorialNameStyle, tutorialRowStyle, tutorialTitleStyle, tutorialXpStyle, updatedStyle, wallCellHiddenLockedStyle, wallCellLockedStyle, wallCellStyle, wallCellUnlockedStyle, wallCheckStyle, wallCountStyle, wallFilterRowStyle, wallGridStyle, wallProgressFillStyle, wallProgressTrackStyle, wallSearchInputStyle, wallSelectStyle, wallXpStyle, wallXpUnlockedStyle, weeklyBonusButtonStyle, weeklyBonusClaimedStyle, weeklyQuestFillStyle, weeklyQuestLabelStyle, weeklyQuestRewardStyle, weeklyQuestRowStyle, weeklyQuestTopStyle, weeklyQuestTrackStyle, xpFillStyle, xpRowStyle, xpTextStyle, xpTrackStyle } from './styles.ts'
 
@@ -145,6 +146,9 @@ export function HeroSection(props: {
             <span style={metaStyle}>{t('dq.tokens', { n: formatNumber(c.tokensOut) })}</span>
             {comboMultiplier(c.consecutiveSuccess) !== null && (
               <span style={comboStyle}>🔥 {t('dq.combo', { n: c.consecutiveSuccess })} ×{comboMultiplier(c.consecutiveSuccess)}</span>
+            )}
+            {status.stance !== null && (
+              <span style={stanceBadgeStyle} title={t('dq.stance')}>{status.stance.icon} {status.stance.name.zh}</span>
             )}
           </div>
         </div>
@@ -1071,4 +1075,247 @@ function AchievementTooltip(
       </div>
     )}
   </div>
+}
+
+// ---------------------------------------------------------------------------
+// v1.4.0 冒险扩展分区：事件卡 / 圣物 / 史诗任务链 / 幽灵竞速
+// ---------------------------------------------------------------------------
+
+/** 连击姿态徽章（hero meta 行）。 */
+const stanceBadgeStyle: CSSProperties = {
+  fontSize: 'calc(9px * var(--dq-fsz, 1))',
+  fontWeight: 700,
+  color: TONE.accent,
+  background: 'color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 14%, transparent)',
+  border: '1px solid color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 35%, transparent)',
+  padding: '2px 6px',
+  borderRadius: 5,
+}
+
+/** 事件卡弹层。 */
+const eventCardStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 6,
+  padding: '10px 12px',
+  borderRadius: 10,
+  background: 'linear-gradient(135deg, color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 16%, transparent), color-mix(in srgb, var(--dsw-alias-brand-primary, #8ec5ff) 12%, transparent))',
+  border: '1px solid color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f6c652) 45%, transparent)',
+}
+const eventCardHeadStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', fontWeight: 700, color: TONE.gold, letterSpacing: 0.3 }
+const eventCardNameStyle: CSSProperties = { fontSize: 'calc(12px * var(--dq-fsz, 1))', fontWeight: 600, color: TONE.text }
+const eventCardDescStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.muted, lineHeight: 1.5 }
+const eventCardOptsStyle: CSSProperties = { display: 'flex', gap: 6, marginTop: 2 }
+const eventOptButtonStyle: CSSProperties = { flex: 1, marginTop: 0, textAlign: 'center' }
+const buffRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 7, padding: '3px 0' }
+const buffNameStyle: CSSProperties = { flex: 1, fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.text }
+const buffRemainStyle: CSSProperties = { fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.gold }
+
+/** 🎴 冒险事件分区：待抉择事件卡 + 生效 buff/诅咒。 */
+export function AdventureSection(props: {
+  status: DevQuestStatus
+  t: TFunc
+  collapsedMap: Record<string, boolean>
+  toggle: (id: string) => void
+  onResolve: (eventId: string, option: number) => void
+  resolving: string | null
+}): ReactElement {
+  const { status, t, collapsedMap, toggle, onResolve, resolving } = props
+  const events = status.events ?? []
+  const choices = events.filter(e => e.pendingChoice)
+  const buffs = events.filter(e => !e.pendingChoice)
+  return (
+    <SectionCard
+      id="adventure"
+      title={`🎴 ${t('dq.adventure')}`}
+      right={buffs.length > 0 ? <span style={updatedStyle}>{t('dq.buffCount', { n: buffs.length })}</span> : undefined}
+      collapsed={collapsedMap['adventure'] === true}
+      onToggle={() => toggle('adventure')}
+    >
+      {choices.map(ev => {
+        const def = EVENT_POOL.find(d => d.id === ev.effectId)
+        if (def === undefined) return null
+        return (
+          <div key={ev.id} style={eventCardStyle}>
+            <div style={eventCardHeadStyle}>{def.icon} {t('dq.eventTitle')}</div>
+            <div style={eventCardNameStyle}>{def.name.zh}</div>
+            <div style={eventCardDescStyle}>{def.description.zh}</div>
+            <div style={eventCardOptsStyle}>
+              <button type="button" onClick={() => onResolve(ev.id, 0)} disabled={resolving !== null} style={{ ...shopBuyButtonStyle, ...eventOptButtonStyle }}>{t('dq.eventChoiceA')}</button>
+              <button type="button" onClick={() => onResolve(ev.id, 1)} disabled={resolving !== null} style={{ ...shopBuyButtonStyle, ...eventOptButtonStyle }}>{t('dq.eventChoiceB')}</button>
+            </div>
+          </div>
+        )
+      })}
+      {buffs.map(ev => {
+        const def = EVENT_POOL.find(d => d.id === ev.effectId)
+        if (def === undefined) return null
+        return (
+          <div key={ev.id} style={buffRowStyle}>
+            <span>{def.icon}</span>
+            <span style={buffNameStyle}>{def.name.zh}</span>
+            <span style={buffRemainStyle}>{ev.expiresTurns !== undefined ? `⏳${ev.expiresTurns}` : t('dq.buffActive')}</span>
+          </div>
+        )
+      })}
+      {events.length === 0 && <span style={emptyStyle}>{t('dq.adventureEmpty')}</span>}
+    </SectionCard>
+  )
+}
+
+/** 🪙 圣物收藏分区。 */
+const relicGridStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6 }
+const relicRarityLabelStyle: CSSProperties = { fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.quiet, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2 }
+const relicRowStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 4 }
+const relicCellStyle: CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  width: 30, height: 30, fontSize: 'calc(16px * var(--dq-fsz, 1))',
+  borderRadius: 8, background: TONE.row, border: `1px solid ${TONE.border}`,
+  cursor: 'default',
+}
+const relicRarityColor: Record<string, string> = {
+  common: 'var(--dsw-alias-label-tertiary, #718096)',
+  rare: 'var(--dsw-alias-brand-primary, #8ec5ff)',
+  epic: '#c5a3ff',
+  legendary: 'var(--dsw-alias-state-warn-primary, #f6c652)',
+}
+
+export function RelicsSection(props: {
+  status: DevQuestStatus
+  t: TFunc
+  collapsedMap: Record<string, boolean>
+  toggle: (id: string) => void
+}): ReactElement {
+  const { status, t, collapsedMap, toggle } = props
+  const relics = status.relics
+  const items = relics?.items ?? []
+  const order = ['common', 'rare', 'epic', 'legendary'] as const
+  const labels: Record<string, string> = {
+    common: t('dq.rarity.common'), rare: t('dq.rarity.rare'), epic: t('dq.rarity.epic'), legendary: t('dq.rarity.legendary'),
+  }
+  return (
+    <SectionCard
+      id="relics"
+      title={`🪙 ${t('dq.relics')}`}
+      right={<span style={updatedStyle}>{t('dq.relicsCount', { n: items.length, m: relics?.total ?? 0 })}</span>}
+      collapsed={collapsedMap['relics'] === true}
+      onToggle={() => toggle('relics')}
+    >
+      {items.length === 0
+        ? <span style={emptyStyle}>{t('dq.relicsEmpty')}</span>
+        : (
+          <div style={relicGridStyle}>
+            {order.map(r => {
+              const group = items.filter(x => x.rarity === r)
+              if (group.length === 0) return null
+              return (
+                <div key={r}>
+                  <div style={{ ...relicRarityLabelStyle, color: relicRarityColor[r] }}>{labels[r] ?? r} · {group.length}</div>
+                  <div style={relicRowStyle}>
+                    {group.map(x => (
+                      <span key={x.id} style={{ ...relicCellStyle, borderColor: `color-mix(in srgb, ${relicRarityColor[x.rarity] ?? '#718096'} 40%, transparent)` }} title={`${x.name.zh} ${x.name.en}`}>{x.icon}</span>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+    </SectionCard>
+  )
+}
+
+/** 📜 史诗任务链分区。 */
+const chainNameStyle: CSSProperties = { fontSize: 'calc(11px * var(--dq-fsz, 1))', fontWeight: 700, color: TONE.text, marginBottom: 4 }
+const chainStepStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0' }
+const chainStepLabelStyle: CSSProperties = { fontSize: 'calc(10px * var(--dq-fsz, 1))', color: TONE.muted, lineHeight: 1.4 }
+
+export function ChainSection(props: {
+  status: DevQuestStatus
+  t: TFunc
+  collapsedMap: Record<string, boolean>
+  toggle: (id: string) => void
+  onClaim: () => unknown
+  claiming: boolean
+}): ReactElement {
+  const { status, t, collapsedMap, toggle, onClaim, claiming } = props
+  const ch = status.questChain
+  if (ch === null) return <></>
+  return (
+    <SectionCard
+      id="chain"
+      title={`📜 ${t('dq.chain')}`}
+      right={<span style={updatedStyle}>{ch.finished ? t('dq.chainDone') : `${ch.step}/${ch.total}`}</span>}
+      collapsed={collapsedMap['chain'] === true}
+      onToggle={() => toggle('chain')}
+    >
+      <div style={chainNameStyle}>{ch.icon} {ch.name.zh}</div>
+      {ch.steps.map((s, i) => (
+        <div key={i} style={chainStepStyle}>
+          <span style={{ opacity: s.met ? 1 : 0.5 }}>{s.met ? '✅' : '⏳'}</span>
+          <span style={{ ...chainStepLabelStyle, ...(s.met ? { color: TONE.green } : {}) }}>{s.label.zh}</span>
+        </div>
+      ))}
+      {ch.finished && !ch.claimed && (
+        <button type="button" onClick={() => void onClaim()} disabled={claiming} style={weeklyBonusButtonStyle}>
+          {claiming ? '…' : t('dq.chainClaim', { xp: ch.rewardXp })}
+        </button>
+      )}
+      {ch.claimed && <div style={weeklyBonusClaimedStyle}>{t('dq.chainClaimedDone')}</div>}
+    </SectionCard>
+  )
+}
+
+/** 👻 幽灵竞速分区（本周 vs 上周的自己）。 */
+const ghostRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }
+const ghostLabelStyle: CSSProperties = { fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.quiet, width: 30, flexShrink: 0 }
+const ghostNumStyle: CSSProperties = { fontSize: 'calc(9px * var(--dq-fsz, 1))', color: TONE.muted, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }
+
+export function GhostSection(props: {
+  status: DevQuestStatus
+  t: TFunc
+  collapsedMap: Record<string, boolean>
+  toggle: (id: string) => void
+  onClaim: () => unknown
+  claiming: boolean
+}): ReactElement {
+  const { status, t, collapsedMap, toggle, onClaim, claiming } = props
+  const g = status.ghostRace
+  if (g === undefined || !g.active) return <></>
+  const xpPct = Math.min(100, Math.round((g.myXp / Math.max(g.ghostXp, 1)) * 100))
+  const turnPct = Math.min(100, Math.round((g.myTurns / Math.max(g.ghostTurns, 1)) * 100))
+  return (
+    <SectionCard
+      id="ghost"
+      title={`👻 ${t('dq.ghost')}`}
+      right={
+        g.beaten
+          ? <span style={weeklyBonusClaimedStyle}>{t('dq.ghostBeaten')}</span>
+          : <span style={updatedStyle}>{t('dq.ghostVs')}</span>
+      }
+      collapsed={collapsedMap['ghost'] === true}
+      onToggle={() => toggle('ghost')}
+    >
+      <div style={ghostRowStyle}>
+        <span style={ghostLabelStyle}>XP</span>
+        <div style={bossTrackStyle}>
+          <div style={{ ...bossFillStyle, width: `${xpPct}%`, ...(g.beaten ? questFillDoneStyle : {}) }} />
+        </div>
+        <span style={ghostNumStyle}>{formatNumber(g.myXp)}/{formatNumber(g.ghostXp)}</span>
+      </div>
+      <div style={ghostRowStyle}>
+        <span style={ghostLabelStyle}>{t('dq.ghostTurnsLabel')}</span>
+        <div style={bossTrackStyle}>
+          <div style={{ ...bossFillStyle, width: `${turnPct}%`, ...(g.beaten ? questFillDoneStyle : {}) }} />
+        </div>
+        <span style={ghostNumStyle}>{g.myTurns}/{g.ghostTurns}</span>
+      </div>
+      {g.beaten && !g.claimed && (
+        <button type="button" onClick={() => void onClaim()} disabled={claiming} style={weeklyBonusButtonStyle}>
+          {claiming ? '…' : t('dq.ghostClaim')}
+        </button>
+      )}
+      {g.claimed && <div style={weeklyBonusClaimedStyle}>{t('dq.ghostClaimedDone')}</div>}
+    </SectionCard>
+  )
 }
