@@ -169,7 +169,14 @@ export function ensureDaily(save: SaveData, now: number): DailyQuestState {
   return save.daily
 }
 
-/** 推进每日任务进度并自动结算奖励，返回本轮任务奖励 XP（在 turn 结算后调用）。 */
+/** 每日任务进度（含重掷基线：progress = counters 推进量 - base）。 */
+function dailyProgress(def: DailyQuestDef, counters: Counters, base: number | undefined): number {
+  return Math.max(0, def.progress(counters) - (base ?? 0))
+}
+
+/**
+ * 推进每日任务进度并自动结算奖励，返回本轮任务奖励 XP（在 turn 结算后调用）。
+ */
 export function applyDaily(save: SaveData, now: number): number {
   const daily = ensureDaily(save, now)
   let gain = 0
@@ -179,7 +186,7 @@ export function applyDaily(save: SaveData, now: number): number {
     if (q.claimedAt !== undefined) continue
     const def = DAILY_QUEST_POOL.find(d => d.id === q.id)
     if (def === undefined) continue
-    q.progress = Math.min(def.progress(save.counters), q.goal)
+    q.progress = Math.min(dailyProgress(def, save.counters, q.base), q.goal)
     if (q.progress >= q.goal) {
       q.done = true
       q.claimedAt = now
@@ -200,7 +207,7 @@ export function refreshDailyProgress(save: SaveData, now: number): DailyQuestSta
   for (const q of daily.quests) {
     const def = DAILY_QUEST_POOL.find(d => d.id === q.id)
     if (def === undefined) continue
-    q.progress = Math.min(def.progress(save.counters), q.goal)
+    q.progress = Math.min(dailyProgress(def, save.counters, q.base), q.goal)
     if (q.progress >= q.goal) q.done = true
   }
   return daily
@@ -341,7 +348,10 @@ export function activateTheme(save: SaveData, themeId: string): { ok: boolean; s
   return { ok: true, save: s }
 }
 
-/** 使用 1 次任务重掷：重新抽取今日任务（返回副本；库存不足返回 false）。 */
+/** 使用 1 次任务重掷：重新抽取今日任务（返回副本；库存不足返回 false）。
+ * 防刷（v1.3.3）：重掷只换「任务外形」，不放宽领取门——
+ * 已发过奖的任务按 id 继承 claimedAt（抽回不重发）、宝箱领取状态保留、
+ * 新任务记录重掷瞬间的进度基线（base），进度从基线重新计算，不因历史计数达标而白送奖励。 */
 export function useReroll(save: SaveData, now: number = Date.now()): { ok: boolean; save: SaveData } {
   const s = structuredClone(save)
   const shop: ShopState = { ...freshShop(), ...(s.shop ?? {}) }
@@ -349,7 +359,23 @@ export function useReroll(save: SaveData, now: number = Date.now()): { ok: boole
   shop.rerolls -= 1
   s.shop = shop
   // 重掷：基于「日期 + 重掷次数」抽取，保证与当天默认任务不同。
-  s.daily = rollDailyQuests(now, `reroll-${shop.rerolls}-${Date.now() % 86400_000}`)
+  const old = ensureDaily(s, now)
+  const next = rollDailyQuests(now, `reroll-${shop.rerolls}-${Date.now() % 86400_000}`)
+  const oldById = new Map(old.quests.map(q => [q.id, q]))
+  for (const q of next.quests) {
+    const prev = oldById.get(q.id)
+    if (prev?.claimedAt !== undefined) {
+      // 抽回当天已发过奖的任务：保持已领状态，不再发奖
+      q.claimedAt = prev.claimedAt
+      q.done = true
+    }
+    // 新任务（及未领的旧任务）：记录进度基线——从重掷时刻的计数器进度重新算起
+    const def = DAILY_QUEST_POOL.find(d => d.id === q.id)
+    if (def !== undefined) q.base = def.progress(s.counters)
+  }
+  // 宝箱领取状态保留（重掷不放宽当天宝箱门）
+  next.chestClaimed = old.chestClaimed === true
+  s.daily = next
   return { ok: true, save: s }
 }
 
@@ -1034,6 +1060,27 @@ export function xpToLevel(level: number, target: number): number {
 }
 
 /**
+ * 赛季换季结算（v1.3.3 统一三入口）：生成上赛季战绩摘要 + 一次性纪念奖励（防重放）。
+ * 返回纪念 XP；prevSeason 为空（全新档）或已结算过时返回 0。
+ * 注意：调用方需先完成赛季切换（s.player.season 已置新赛季、seasonXp 已清零）。
+ */
+function settleSeason(s: SaveData, prevSeason: string, now: number): number {
+  const settled = s.player.seasonSettled ?? {}
+  if (prevSeason === '' || settled[prevSeason] === true) return 0
+  settled[prevSeason] = true
+  s.player.seasonSettled = settled
+  const prevRec = s.records?.[prevSeason]
+  s.player.seasonSummary = {
+    season: prevSeason,
+    level: prevRec?.level ?? s.player.level,
+    comboBest: prevRec?.combo ?? s.counters.streakBest ?? 0,
+    seasonXp: prevRec?.seasonXp ?? s.player.seasonXp,
+    achievements: Object.keys(s.achievements ?? {}).length,
+  }
+  return 200 // 赛季纪念奖励（计入新赛季 XP）
+}
+
+/**
  * 加 XP 并处理升级、活跃日统计与赛季换季（返回副本；原存档不变）。
  * seasonOverride 缺省按日期自动推导季度赛季；设置后赛季固定不换季。
  */
@@ -1046,22 +1093,9 @@ export function addXp(save: SaveData, gain: number, now: number = Date.now(), se
     s.player.season = season
     s.player.seasonXp = 0
     s.counters.seasonTokensOut = 0
-    // v1.3.0 赛季结束结算：换季时自动生成上赛季战绩报告 + 一次性纪念奖励（防重放）。
-    const settled = s.player.seasonSettled ?? {}
-    if (prevSeason !== '' && settled[prevSeason] !== true) {
-      settled[prevSeason] = true
-      s.player.seasonSettled = settled
-      const prevRec = s.records?.[prevSeason]
-      s.player.seasonSummary = {
-        season: prevSeason,
-        level: prevRec?.level ?? s.player.level,
-        comboBest: prevRec?.combo ?? s.counters.streakBest ?? 0,
-        seasonXp: prevRec?.seasonXp ?? s.player.seasonXp,
-        achievements: Object.keys(s.achievements ?? {}).length,
-      }
-      gain += 200 // 赛季纪念奖励（计入新赛季 XP）
-    }
-    // 新赛季：商店余额重新累计（spent 清零，库存保留？不——赛季货币清零，库存也清零更公平）
+    // 赛季结束结算：换季时自动生成上赛季战绩报告 + 一次性纪念奖励（防重放）。
+    gain += settleSeason(s, prevSeason, now)
+    // 新赛季：商店余额重新累计（spent 清零，库存也清零更公平）
     // 但主题/徽章是永久解锁，跨赛季保留。
     s.shop = { ...freshShop(), theme: s.shop?.theme ?? '', themes: s.shop?.themes ?? [], badges: s.shop?.badges ?? [] }
   }
@@ -1169,16 +1203,23 @@ export function applyTurnDetailed(
   const s = structuredClone(save)
   const c = s.counters
   const levelBefore = s.player.level
-  // 赛季换季：先清零赛季统计再累计，保证新赛季首回合的 XP/tokens 归入新赛季。
-  const season = seasonOverride ?? autoSeasonId(now)
-  if (s.player.season !== season) {
-    s.player.season = season
-    s.player.seasonXp = 0
-    c.seasonTokensOut = 0
-  }
   let toolGain = 0
   let gain = 0
   let turnTokens = 0
+  // 赛季换季：先清零赛季统计再累计，保证新赛季首回合的 XP/tokens 归入新赛季。
+  // v1.3.3：与 addXp 入口一致执行赛季结算（战绩报告 + 纪念奖励 + 商店库存清零）；
+  // 纪念奖励不计入回合封顶（与 questGain 同待遇，封顶后加入）。
+  let seasonBonus = 0
+  const season = seasonOverride ?? autoSeasonId(now)
+  if (s.player.season !== season) {
+    const prevSeason = s.player.season
+    s.player.season = season
+    s.player.seasonXp = 0
+    c.seasonTokensOut = 0
+    seasonBonus = settleSeason(s, prevSeason, now)
+    // 新赛季：商店余额重新累计；主题/徽章永久解锁跨赛季保留。
+    s.shop = { ...freshShop(), theme: s.shop?.theme ?? '', themes: s.shop?.themes ?? [], badges: s.shop?.badges ?? [] }
+  }
 
   for (const a of actions) {
     if (a.kind === 'tool-call') {
@@ -1269,16 +1310,17 @@ export function applyTurnDetailed(
   }
 
   // 经验加成卡：剩余回合内 XP +50%（shop.xpBoostTurns > 0 时生效并递减）。
-  if ((s.shop?.xpBoostTurns ?? 0) > 0) {
+  // v1.3.3：0 XP 空回合（aborted 无产出）不消耗加成次数。
+  if (gain > 0 && (s.shop?.xpBoostTurns ?? 0) > 0) {
     gain = Math.round(gain * 1.5)
     s.shop = { ...(s.shop ?? { spent: 0, shields: 0, rerolls: 0, theme: '', themes: [], badges: [] }), xpBoostTurns: (s.shop?.xpBoostTurns ?? 0) - 1 }
   }
 
   // 单回合兜底上限（工具 10 + todo 15 + turn 基础 + tokens，宽松防刷）。
   gain = Math.min(gain, 125)
-  // 每日任务奖励不计入兜底上限（每天固定 3 个，天然防刷）；每周挑战同机制。
+  // 每日任务奖励不计入兜底上限（每天固定 3 个，天然防刷）；每周挑战/赛季纪念同机制。
   const questGain = applyDaily(s, now) + applyWeekly(s, now)
-  const next = addXp(s, gain + questGain, now, seasonOverride)
+  const next = addXp(s, gain + questGain + seasonBonus, now, seasonOverride)
   const turnsDone = completed || failed ? 1 : 0
   // 荣誉墙：更新当前赛季最高等级/连击/赛季 XP，并裁剪历史赛季。
   const withRecords = trimRecords(updateRecords(next, now))
@@ -1354,9 +1396,46 @@ export function migrateSave(raw: Partial<SaveData>, cwd: string, seasonOverride:
     records: raw.records ?? {},
   }
   out.version = Math.max(1, raw.version ?? 1)
+  // v1.3.3 数值消毒：损坏/手改档的数值字段（null/字符串/NaN 源）回退默认，
+  // 防计数器 NaN 污染计分链（本机 JSON 无法存 NaN，但 null/字符串可以）。
+  sanitizeMigratedNumbers(out, base)
   // 派生字段一致性：称号跟等级走；每日任务日期过期由 ensureDaily 重滚。
   out.player.title = titleFor(out.player.level).zh
   return out
+}
+
+/** migrateSave 的数值字段消毒（玩家/计数器/商店的数值字段非法时回退 base 默认）。 */
+function sanitizeMigratedNumbers(out: SaveData, base: SaveData): void {
+  const outPlayer = out.player as unknown as Record<string, unknown>
+  const basePlayer = base.player as unknown as Record<string, unknown>
+  const playerFields = ['level', 'xp', 'xpTotal', 'seasonXp'] as const
+  for (const f of playerFields) {
+    const v = outPlayer[f]
+    if (typeof v !== 'number' || !Number.isFinite(v)) outPlayer[f] = basePlayer[f]
+  }
+  const outCounters = out.counters as unknown as Record<string, unknown>
+  const baseCounters = base.counters as unknown as Record<string, unknown>
+  const counterFields = [
+    'turnsCompleted', 'turnsFailed', 'consecutiveSuccess', 'toolCalls', 'craftTools', 'todosCompleted', 'cleanSweeps',
+    'tokensOut', 'subagentsSpawned', 'devquestCalls', 'activeDays', 'streakDays', 'streakBest', 'completedToday',
+    'nightTurns', 'maxTokensTurn', 'seasonTokensOut', 'dailyQuestsDone', 'comebacks', 'todayXp', 'goalDays',
+    'bossSlain', 'lastErrorAt', 'lastSuccessAt',
+  ] as const
+  for (const f of counterFields) {
+    const v = outCounters[f]
+    if (v !== undefined && (typeof v !== 'number' || !Number.isFinite(v))) {
+      outCounters[f] = baseCounters[f]
+    }
+  }
+  if (out.shop !== undefined) {
+    const outShop = out.shop as unknown as Record<string, unknown>
+    const baseShop = base.shop as unknown as Record<string, unknown>
+    const shopFields = ['spent', 'shields', 'rerolls', 'xpBoostTurns', 'questSkips', 'bossEarned'] as const
+    for (const f of shopFields) {
+      const v = outShop[f]
+      if (typeof v !== 'number' || !Number.isFinite(v)) outShop[f] = baseShop[f]
+    }
+  }
 }
 
 /**
@@ -1389,6 +1468,11 @@ export function mergeSaves(saves: SaveData[], now: number = Date.now()): SaveDat
     c.nightTurns += sc.nightTurns
     c.dailyQuestsDone += sc.dailyQuestsDone
     c.maxTokensTurn = Math.max(c.maxTokensTurn, sc.maxTokensTurn)
+    // v1.3.3 补合并：连击阶梯历史最高 / BOSS 击杀 / 目标达成 / 今日 XP（旧版多档迁移防重复发奖与成就丢失）
+    c.streakBest = Math.max(c.streakBest ?? 0, sc.streakBest ?? 0)
+    c.bossSlain = (c.bossSlain ?? 0) + (sc.bossSlain ?? 0)
+    c.goalDays = (c.goalDays ?? 0) + (sc.goalDays ?? 0)
+    c.todayXp = (c.todayXp ?? 0) + (sc.todayXp ?? 0)
     for (const [tool, n] of Object.entries(sc.toolCallsByTool)) {
       c.toolCallsByTool[tool] = (c.toolCallsByTool[tool] ?? 0) + n
     }
@@ -1417,6 +1501,13 @@ export function mergeSaves(saves: SaveData[], now: number = Date.now()): SaveDat
       out.shop!.spent += shop.spent
       out.shop!.shields += shop.shields
       out.shop!.rerolls += shop.rerolls
+      // v1.3.3 补合并：消耗品/通行证领取记录（多档迁移后不重发、不丢库存）
+      out.shop!.xpBoostTurns = (out.shop!.xpBoostTurns ?? 0) + (shop.xpBoostTurns ?? 0)
+      out.shop!.questSkips = (out.shop!.questSkips ?? 0) + (shop.questSkips ?? 0)
+      out.shop!.bossEarned = (out.shop!.bossEarned ?? 0) + (shop.bossEarned ?? 0)
+      for (const p of shop.passClaimed ?? []) {
+        if (!(out.shop!.passClaimed ?? []).includes(p)) out.shop!.passClaimed = [...(out.shop!.passClaimed ?? []), p]
+      }
       for (const b of shop.badges) if (!out.shop!.badges.includes(b)) out.shop!.badges.push(b)
       for (const t of shop.themes ?? []) if (!out.shop!.themes.includes(t)) out.shop!.themes.push(t)
     }
@@ -1448,6 +1539,8 @@ export function mergeSaves(saves: SaveData[], now: number = Date.now()): SaveDat
   c.lastTurnCompletedAt = latest.counters.lastTurnCompletedAt
   c.todayToolsDay = latest.counters.todayToolsDay
   c.oopsFired = latest.counters.oopsFired
+  // v1.3.3：合并后保证历史最高不小于当前连击天数（防连击阶梯重复发奖）
+  if ((c.streakBest ?? 0) < c.streakDays) c.streakBest = c.streakDays
   if (latest.counters.lastErrorTool !== undefined) c.lastErrorTool = latest.counters.lastErrorTool
   if (latest.counters.lastErrorAt !== undefined) c.lastErrorAt = latest.counters.lastErrorAt
   if (latest.counters.lastSuccessTool !== undefined) c.lastSuccessTool = latest.counters.lastSuccessTool

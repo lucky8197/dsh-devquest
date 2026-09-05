@@ -104,6 +104,12 @@ export interface DailyQuest {
     progress: number;
     done: boolean;
     claimedAt?: number;
+    /**
+     * 重掷起点（v1.3.3 防刷）：重掷引入的新任务记录重掷瞬间的进度基线，
+     * 进度从基线重新计算——换任务不白送"历史计数已达标"的奖励。
+     * 默认任务无此字段（progress 从 0 起算）。
+     */
+    base?: number;
 }
 /** 每日任务状态（每天按日期确定性刷新）。 */
 export interface DailyQuestState {

@@ -585,9 +585,18 @@ test('赛季换季：跨季度自动开启新赛季，赛季 XP/tokens 清零重
     { kind: 'turn-completed', turn: 3 },
   ], q3)
   assert.equal(save.player.season, '2026-S3')
-  assert.equal(save.player.seasonXp, 10 + 1) // 新赛季从 0 开始：回合 10 + tokens 1
+  // v1.3.3：回合路径换季与直调 addXp 统一——新赛季从 0 开始 + 赛季纪念 200：
+  // 回合 10 + tokens 1 + 纪念 200 = 211
+  assert.equal(save.player.seasonXp, 211)
   assert.equal(save.counters.seasonTokensOut, 10_000)
-  assert.equal(save.player.xpTotal, xpTotalBefore + 11) // 累计 XP 保留并继续增长
+  assert.equal(save.player.xpTotal, xpTotalBefore + 211) // 累计 XP 保留并继续增长
+  // v1.3.3：换季结算报告生成（此前回合路径跳过）
+  assert.ok(save.player.seasonSummary !== undefined)
+  assert.equal(save.player.seasonSummary!.season, '2026-S1')
+  assert.equal(save.player.seasonSummary!.seasonXp, 26)
+  // 防重放：同一旧赛季不再重复结算
+  save = applyTurn(save, [{ kind: 'turn-completed', turn: 4 }], q3 + 1000)
+  assert.equal(save.player.seasonSummary!.seasonXp, 26) // 不重复生成
 })
 
 test('season_100k：按本赛季 tokens 判定', () => {
@@ -1471,4 +1480,113 @@ test('v1.3.0 赛季结算：换季生成上赛季摘要 + 一次性纪念奖励'
   // 防重复：再次换季（同 S2→S3 场景）不再发纪念
   const r2 = addXp(r, 10, NOW + 201 * 86_400_000)
   assert.equal(r2.player.seasonXp, 10 + 200 + 10)
+})
+
+// ---------------------------------------------------------------------------
+// v1.3.3 修复回归测试
+// ---------------------------------------------------------------------------
+
+test('v1.3.3 reroll 防刷：换任务不改已领门、新任务进度从基线起算', () => {
+  // 构造：当日任务含 dq_turns_5（计数已达 5）→ 完成发奖
+  let save = freshSave('C:/proj', undefined, NOW)
+  save.counters.turnsCompleted = 5
+  save.daily = rollDailyQuests(NOW)
+  // 手动把当日全部任务换成 dq_turns_5，使其必然达成
+  save.daily.quests = save.daily.quests.map(q => ({ ...q, id: 'dq_turns_5', label: DAILY_QUEST_POOL.find(d => d.id === 'dq_turns_5')!.label, goal: 5, reward: 30, progress: 0, done: false }))
+  // 回合结算：发任务奖 + 宝箱
+  save = applyTurn(save, [{ kind: 'turn-completed', turn: 1 }], NOW)
+  const questXpAfterFirst = save.counters.dailyQuestsDone
+  assert.ok(questXpAfterFirst >= 3, '3 个任务应全部完成发奖')
+  assert.ok(claimDailyChest(save, NOW).ok, '宝箱应可领')
+  save = claimDailyChest(save, NOW).save
+  const xpBefore = save.player.seasonXp
+
+  // 重掷（有库存）→ 整档换任务
+  save.shop = { ...freshShop(), rerolls: 2, passClaimed: [] }
+  const rerolled = useReroll(save, NOW)
+  assert.ok(rerolled.ok)
+  save = rerolled.save
+  assert.equal(save.daily.chestClaimed, true, '宝箱领取状态应保留')
+  // 抽回已领 id 的任务保持已领
+  for (const q of save.daily.quests) {
+    if (q.id === 'dq_turns_5') assert.ok(q.claimedAt !== undefined, '抽回已领任务不应重置领取门')
+    else assert.ok(q.base !== undefined, '新任务应记录进度基线')
+  }
+
+  // 重掷后再结算：已领任务不重复发奖；新任务 progress 从基线起算（turnsCompleted 仍 5 → 0 新增）
+  save = applyTurn(save, [{ kind: 'turn-completed', turn: 2 }], NOW + 1000)
+  assert.equal(save.player.seasonXp, xpBefore + 10, '重掷后回合只算基础 XP，不重复发任务奖')
+  assert.equal(save.counters.dailyQuestsDone, questXpAfterFirst, '任务完成计数不重复')
+  // 宝箱不可重复领
+  assert.equal(claimDailyChest(save, NOW + 1000).ok, false)
+  // 新任务真实推进后才发奖：把未领任务统一换成 dq_turns_5（保留基线）再推进 10 回合
+  for (const q of save.daily.quests) {
+    if (q.claimedAt !== undefined) continue // 已领任务跳过
+    q.id = 'dq_turns_5'
+    q.label = DAILY_QUEST_POOL.find(d => d.id === 'dq_turns_5')!.label
+    q.goal = 5
+    q.reward = 30
+    q.base = 5 // 重掷基线：5 次已完成 → 需再完成 5 次
+  }
+  save.counters.turnsCompleted = 15 // 重掷后又完成 10 次 → 新进度 10 ≥ 5
+  save = applyTurn(save, [{ kind: 'turn-completed', turn: 3 }], NOW + 2000)
+  const reEarned = save.counters.dailyQuestsDone
+  assert.ok(reEarned >= questXpAfterFirst + 2, '重掷任务在真实推进后应正常发奖')
+})
+
+test('v1.3.3 加成卡：0 XP 空回合不消耗加成次数', () => {
+  let save = fresh()
+  save.shop = { ...freshShop(), xpBoostTurns: 3, passClaimed: [] }
+  // aborted 空回合（无工具/无 tokens）→ 0 XP，不扣卡
+  save = applyTurn(save, [{ kind: 'turn-aborted', turn: 1 }], NOW)
+  assert.equal(save.shop!.xpBoostTurns, 3)
+  // 有产出的回合才扣卡并加成
+  save = applyTurn(save, [{ kind: 'tool-call', tool: 'edit' }, { kind: 'turn-completed', turn: 2 }], NOW)
+  assert.equal(save.shop!.xpBoostTurns, 2)
+  assert.equal(save.player.xp, Math.round(12 * 1.5)) // (10 + 2) × 1.5
+})
+
+test('v1.3.3 migrateSave 数值消毒：损坏数值回退默认，不污染计分', () => {
+  const migrated = migrateSave({
+    player: { level: 'abc', xp: null, xpTotal: Number.NaN as unknown as number, seasonXp: 100 },
+    counters: { turnsCompleted: '很多', toolCalls: null, tokensOut: Number.NaN as unknown as number, streakDays: 7 },
+    shop: { spent: 'x', shields: null, rerolls: 3 },
+  } as never, 'C:/proj', undefined)
+  assert.equal(migrated.player.level, 1)
+  assert.equal(migrated.player.xp, 0)
+  assert.equal(migrated.player.xpTotal, 0)
+  assert.equal(migrated.player.seasonXp, 100) // 合法值保留
+  assert.equal(migrated.counters.turnsCompleted, 0)
+  assert.equal(migrated.counters.toolCalls, 0)
+  assert.equal(migrated.counters.tokensOut, 0)
+  assert.equal(migrated.counters.streakDays, 7) // 合法值保留
+  assert.equal(migrated.shop!.spent, 0)
+  assert.equal(migrated.shop!.shields, 0)
+  assert.equal(migrated.shop!.rerolls, 3)
+})
+
+test('v1.3.3 mergeSaves 字段补全：streakBest/bossSlain/passClaimed 不丢', () => {
+  const a = freshSave('a', undefined, NOW)
+  a.counters.streakDays = 30
+  a.counters.streakBest = 30
+  a.counters.bossSlain = 2
+  a.shop = { ...freshShop(), passClaimed: ['pass-5k'], xpBoostTurns: 5, bossEarned: 300 }
+  a.updatedAt = NOW
+  const b = freshSave('b', undefined, NOW)
+  b.counters.bossSlain = 1
+  b.counters.goalDays = 4
+  b.shop = { ...freshShop(), passClaimed: ['pass-10k'], rerolls: 2 }
+  b.updatedAt = NOW + 1000
+  const merged = mergeSaves([a, b], NOW + 2000)
+  assert.equal(merged.counters.streakBest, 30)
+  assert.equal(merged.counters.bossSlain, 3)
+  assert.equal(merged.counters.goalDays, 4)
+  assert.ok(merged.shop!.passClaimed!.includes('pass-5k'))
+  assert.ok(merged.shop!.passClaimed!.includes('pass-10k'))
+  assert.equal(merged.shop!.xpBoostTurns, 5)
+  assert.equal(merged.shop!.rerolls, 2)
+  assert.equal(merged.shop!.bossEarned, 300)
+  // 再次发奖视角：streakBest >= streakDays 保证连击阶梯不再重复发放
+  const after = addXp(merged, 10, NOW + 2000)
+  assert.equal(after.player.seasonXp, 10) // 无额外阶梯奖励
 })

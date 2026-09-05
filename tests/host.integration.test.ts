@@ -192,6 +192,52 @@ test('host 集成：失败回合 + 幂等水位（重放跳过）', async (t) =>
   }
 })
 
+test('host 集成：todo/write 全量快照按增量计数（防重复计分）', async (t) => {
+  const module = await loadLib()
+  if (module === null) {
+    t.skip('缺少 lib/index.js 或其 DSH 依赖（先 npm run build）')
+    return
+  }
+  const dir = mkdtempSync(join(tmpdir(), 'devquest-test-'))
+  try {
+    const env = fakeCtx()
+    module.apply(env.ctx, { dataDir: dir, season: 'TEST-S1' })
+
+    const session = { id: 'session-todo-1', header: { cwd: 'C:/proj' } }
+    const emit = [...env.listeners.get('session/event')!][0]!
+    let seq = 0
+    const event = (type: string, data: unknown) => ({ type, seq: ++seq, time: Date.now(), data })
+
+    emit(session, event('turn/start', { turn: 1 }))
+    // 快照 1：a 已完成（新增 1）
+    emit(session, event('todo/write', { todos: [
+      { content: 'a', status: 'completed' },
+      { content: 'b', status: 'pending' },
+    ] }))
+    // 快照 2：b 也完成（新增 1）；a 重复出现不计
+    emit(session, event('todo/write', { todos: [
+      { content: 'a', status: 'completed' },
+      { content: 'b', status: 'completed' },
+    ] }))
+    // 快照 3：相同全量重发（新增 0）
+    emit(session, event('todo/write', { todos: [
+      { content: 'a', status: 'completed' },
+      { content: 'b', status: 'completed' },
+    ] }))
+    emit(session, event('turn/end', { turn: 1, reason: { kind: 'completed' } }))
+    // 节流落盘窗口(250ms)
+    await new Promise(r => setTimeout(r, 300))
+
+    const statusTool = env.tools.find(t => t.name === 'devquest_status')!
+    const status = await statusTool.execute({} as never, { agent: { session: { header: { cwd: 'C:/proj' } } } } as never) as unknown as { counters: { todosCompleted: number; cleanSweeps: number } }
+    // 旧实现按快照全量计数会虚高（1+2+2）；新实现只计新增（a=1 + b=1）
+    assert.equal(status.counters.todosCompleted, 2, '同一完成项跨快照重复出现不重复计分')
+    assert.equal(status.counters.cleanSweeps, 1, '全 completed 快照仅在包含新增时计一次')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('host 集成：session/created 子代理计数 → subagentsSpawned', async (t) => {
   const module = await loadLib()
   if (module === null) {

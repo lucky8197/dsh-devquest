@@ -53,26 +53,54 @@ export interface DevQuestRoutesConfig {
   cacheTtlMs?: number
 }
 
-/** 读取 POST JSON body（小请求，最多 4MB——导入存档可能较大）。 */
+/** readBody 超限错误标记（响应 413 而非 500）。 */
+const BODY_TOO_LARGE_CODE = 'BODY_TOO_LARGE'
+
+/** 读取 POST JSON body（最多 max 字节——导入存档可能较大）。
+ * v1.3.3：超限立即销毁连接并以带 code 的错误 reject（不再挂起/双响应）。 */
 function readBody(req: IncomingMessage, max = 4 * 1024 * 1024): Promise<string> {
   return new Promise((resolve, reject) => {
     let data = ''
+    let tooLarge = false
     req.on('data', (chunk: Buffer) => {
+      if (tooLarge) return
       data += chunk
       if (data.length > max) {
-        reject(new Error('body-too-large'))
+        tooLarge = true
+        data = ''
         req.destroy()
+        const err = new Error('request body too large') as Error & { code?: string }
+        err.code = BODY_TOO_LARGE_CODE
+        reject(err)
       }
     })
-    req.on('end', () => resolve(data))
-    req.on('error', reject)
+    req.on('end', () => {
+      if (!tooLarge) resolve(data)
+    })
+    req.on('error', (error: Error) => {
+      if (!tooLarge) reject(error)
+    })
   })
 }
 
-/** 写 JSON 响应。 */
+/** 写 JSON 响应（socket 已销毁/写失败时静默——防向已断开连接写响应抛错）。 */
 function json(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' })
-  res.end(JSON.stringify(body))
+  if (res.destroyed) return
+  try {
+    res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' })
+    res.end(JSON.stringify(body))
+  } catch {
+    // 连接已被对端关闭：静默
+  }
+}
+
+/** 统一错误响应：body 超限 → 413；其余 → 500。 */
+function errorJson(res: ServerResponse, error: unknown): void {
+  const code = (error as { code?: string } | null)?.code
+  json(res, code === BODY_TOO_LARGE_CODE ? 413 : 500, {
+    ok: false,
+    error: code === BODY_TOO_LARGE_CODE ? 'body-too-large' : (error instanceof Error ? error.message : String(error)),
+  })
 }
 
 /** 构造 DevQuest 状态路由（含 60s 缓存与 in-flight 复用）。 */
@@ -108,10 +136,7 @@ export function makeDevQuestRoutes(config: DevQuestRoutesConfig): WebRoute[] {
           invalidateCache()
           json(res, 200, result)
         },
-        (error: unknown) => json(res, 500, {
-          ok: false,
-          error: error instanceof Error ? error.message : String(error),
-        }),
+        (error: unknown) => errorJson(res, error),
       )
     },
   })
@@ -147,10 +172,7 @@ export function makeDevQuestRoutes(config: DevQuestRoutesConfig): WebRoute[] {
           invalidateCache()
           json(res, 200, result)
         })
-      }).then(undefined, (error: unknown) => json(res, 500, {
-        ok: false,
-        error: error instanceof Error ? error.message : String(error),
-      }))
+      }).then(undefined, (error: unknown) => errorJson(res, error))
     },
   })
 

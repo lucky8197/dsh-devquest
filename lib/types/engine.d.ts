@@ -74,7 +74,9 @@ export declare function dayStartMs(now: number): number;
 export declare function rollDailyQuests(now: number, salt?: string): DailyQuestState;
 /** 日期过期时重滚（幂等：当天不重抽）。会就地更新 save.daily。 */
 export declare function ensureDaily(save: SaveData, now: number): DailyQuestState;
-/** 推进每日任务进度并自动结算奖励，返回本轮任务奖励 XP（在 turn 结算后调用）。 */
+/**
+ * 推进每日任务进度并自动结算奖励，返回本轮任务奖励 XP（在 turn 结算后调用）。
+ */
 export declare function applyDaily(save: SaveData, now: number): number;
 /**
  * 每日任务进度即时同步（纯展示，不发奖）：
@@ -128,7 +130,10 @@ export declare function activateTheme(save: SaveData, themeId: string): {
     ok: boolean;
     save: SaveData;
 };
-/** 使用 1 次任务重掷：重新抽取今日任务（返回副本；库存不足返回 false）。 */
+/** 使用 1 次任务重掷：重新抽取今日任务（返回副本；库存不足返回 false）。
+ * 防刷（v1.3.3）：重掷只换「任务外形」，不放宽领取门——
+ * 已发过奖的任务按 id 继承 claimedAt（抽回不重发）、宝箱领取状态保留、
+ * 新任务记录重掷瞬间的进度基线（base），进度从基线重新计算，不因历史计数达标而白送奖励。 */
 export declare function useReroll(save: SaveData, now?: number): {
     ok: boolean;
     save: SaveData;

@@ -438,10 +438,12 @@ export function apply(ctx: Context, config: Config = {}): void {
       save => buyShopItem(save, itemId, Date.now(), seasonOverride),
       result => ({ ok: result.ok, ...(result.reason !== undefined ? { reason: result.reason } : {}) }),
     ),
-    reset: async (): Promise<{ ok: boolean; reset: boolean }> => {
-      const key = scopeKey()
-      saveCache.delete(key)
-      writer.discard() // 不写 pending 旧档
+    reset: async (): Promise<{ ok: boolean; reset: boolean }> => runExclusive(async () => {
+      // v1.3.3：reset 与结算/改档同队列串行；先丢弃 pending、再等排空在飞写入，
+      // 防止旧档晚于空档落盘造成「复活」（discard 只能清 pending，无法取消已在飞的 writeOnce）。
+      writer.discard()
+      await writer.flush()
+      saveCache.delete(scopeKey())
       try {
         const reset = await deleteSave(ctx, storeConfig)
         return { ok: true, reset }
@@ -449,7 +451,7 @@ export function apply(ctx: Context, config: Config = {}): void {
         log.error('reset failed:', error)
         return { ok: false, reset: false }
       }
-    },
+    }),
   })
 
   // ---- 3. HTTP 路由（可选能力：headless 无 webServer 时自动跳过） ----
@@ -495,11 +497,17 @@ export function apply(ctx: Context, config: Config = {}): void {
         if (typeof candidate.player !== 'object' || typeof candidate.counters !== 'object') {
           return { ok: false, error: 'invalid-save', status: await statusOf(await getSave(scopeKey())) }
         }
+        const current = await getSave(scopeKey())
         let imported: SaveData
         try {
           imported = migrateSave(candidate, scopeKey(), seasonOverride)
         } catch {
-          return { ok: false, error: 'invalid-save', status: await statusOf(await getSave(scopeKey())) }
+          return { ok: false, error: 'invalid-save', status: await statusOf(current) }
+        }
+        // v1.3.3：水位只升不降——导入旧备份若回退 lastSeqBySession，
+        // 进程重启回放介于新旧水位之间的事件会重复结算（双倍计分）。
+        for (const [sid, seq] of Object.entries(current.lastSeqBySession ?? {})) {
+          imported.lastSeqBySession[sid] = Math.max(imported.lastSeqBySession[sid] ?? -1, seq)
         }
         imported.updatedAt = Date.now()
         saveCache.set(scopeKey(), imported)

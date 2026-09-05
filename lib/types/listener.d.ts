@@ -14,6 +14,12 @@ export interface SessionAggregate {
     seenSeq: number;
     /** callId → 工具名（tool/result 失败时与 tool/call 配对）。 */
     toolNames: Map<string, string>;
+    /**
+     * 已计数的已完成 todo（按 content 指纹，v1.3.3 防重复计数）：
+     * todo/write 是 whole-list 快照，同一已完成条目会在后续每次写入中重复出现，
+     * 只把「先前未计数、本次变为已完成」的条目计入新增。
+     */
+    seenCompletedTodos: Set<string>;
 }
 /**
  * 订阅 session/event，逐事件去重并归一化，回调收到 (session, aggregate, action)。

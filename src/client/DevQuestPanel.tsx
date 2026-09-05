@@ -881,6 +881,13 @@ export function DevQuestOverlay(props: DevQuestOverlayProps): ReactElement {
   // 里程碑庆祝：等级升到 5 的倍数时全屏金色庆祝。
   const [celebration, setCelebration] = useState<{ level: number; title: string; days: number; turns: number } | null>(null)
   const prevLevelRef = useRef<number | null>(null)
+  // v1.3.3：UI 设置版本号——host 设置拉取完成/变更时 +1，驱动 toast 过滤即时重评估。
+  const [uiSettingsVersion, setUiSettingsVersion] = useState(0)
+  useEffect(() => {
+    const onUiSettings = (): void => setUiSettingsVersion(v => v + 1)
+    window.addEventListener('devquest:ui-settings', onUiSettings)
+    return () => window.removeEventListener('devquest:ui-settings', onUiSettings)
+  }, [])
 
   // v0.3 起状态是全局玩家档，与 cwd/session 无关：直接拉取不带 session 参数。
   const refresh = useCallback(() => {
@@ -939,6 +946,26 @@ export function DevQuestOverlay(props: DevQuestOverlayProps): ReactElement {
     document.head.appendChild(style)
     return () => { document.getElementById('dsh-devquest-kf')?.remove() }
   }, [])
+
+  // v1.3.3：toast 过滤即时生效——当前被过滤隐藏的 toast 立即 dismiss，
+  // 防止堆积与「切回 all 旧 toast 井喷」（此前隐藏项永不 dismiss）。
+  useEffect(() => {
+    if (state.status === null || state.toasts.length === 0) return
+    const filter = loadSettings().toastFilter
+    if (filter === 'all') return
+    for (const toast of state.toasts) {
+      if (filter === 'off') {
+        actions.dismissToast(toast.id)
+        continue
+      }
+      // rare：仅稀有及以上；结算 toast 不受稀有度过滤。
+      if (toast.kind === 'achievement') {
+        const def = state.status.achievements.find(a => a.id === toast.achievementId)
+        if (def !== undefined && rarityWeight(def.rarity) < rarityWeight('rare')) actions.dismissToast(toast.id)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toasts 身份/设置版本驱动重评估
+  }, [state.toasts, uiSettingsVersion, state.status, actions])
 
   return <>
     {state.open && (
