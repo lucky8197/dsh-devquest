@@ -5,7 +5,7 @@
 > DevQuest is a DSH plugin: every turn, tool call, todo and token output in your agent is converted into XP by fixed rules. XP raises your level, levels unlock titles, and achievements track how far you've come. Install it and do nothing else — normal work scores automatically.
 
 <p align="center">
-  <strong>📅 Daily Quests + Chest</strong> · <strong>🗓️ Weekly Challenges</strong> · <strong>🐉 Weekly Boss</strong> · <strong>🎯 Daily Goal</strong> · <strong>🃏 Class System</strong> · <strong>🎁 Daily Lucky Draw</strong> · <strong>🛒 Season Shop</strong> · <strong>🎨 Theme Skins</strong> · <strong>🏆 58 Achievements + Rarity</strong> · <strong>🏷️ Multiple Titles</strong> · <strong>📊 Stats + Hall of Fame</strong>
+  <strong>🎴 Random Event Cards</strong> · <strong>🔥 Combo Stances</strong> · <strong>🪙 Relic Collection</strong> · <strong>📜 Epic Quest Chains</strong> · <strong>👻 Ghost Race</strong> · <strong>📅 Daily Quests + Chest</strong> · <strong>🗓️ Weekly Challenges + Boss</strong> · <strong>🎯 Daily Goal</strong> · <strong>🃏 Class System</strong> · <strong>🛒 Season Shop</strong> · <strong>🏆 58 Achievements + Rarity</strong> · <strong>🏷️ Multiple Titles</strong> · <strong>📊 Stats + Hall of Fame</strong>
 </p>
 
 <p align="center">
@@ -14,7 +14,7 @@
   <a href="https://www.npmjs.com/package/dsh-devquest"><img src="https://img.shields.io/npm/v/dsh-devquest" alt="npm version"></a>
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen" alt="0 runtime dependencies">
   <a href="https://github.com/lucky8197/dsh-devquest/actions/workflows/test.yml"><img src="https://github.com/lucky8197/dsh-devquest/actions/workflows/test.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-93%20%E2%9C%93-brightgreen" alt="93 tests passing">
+  <img src="https://img.shields.io/badge/tests-111%20%E2%9C%93-brightgreen" alt="111 tests passing">
   <img src="https://img.shields.io/badge/achievements-58-gold" alt="58 achievements">
 </p>
 
@@ -32,8 +32,17 @@ Nothing to configure — just work, and XP accrues:
 | 📝 Output tokens | +1 XP per 10k |
 | 💥 Fail a turn | +2 XP (consolation) |
 | 💪 Rise after a failure | "Rise Again" achievement +100 XP |
+| 🎴 Every 20 completed turns | Roll the "Fate Dice": a random event card (buff / curse / choice) |
 
 ## ✨ Key Features
+
+### 🎴 Adventure (v1.4.0)
+- 🎴 **Random event cards**: every 20 turns — ☕ Caffeine Rush (tool XP ×2), 🧘 Deep Focus (token XP ×1.5), 👻 Ghost Bug (next failure won't break combo), 🧱 Tech Debt Collector (next XP wiped), 🥚 Mystery Egg choice, 🌙 Midnight Choice, 🎲 Fate Gamble
+- 🔥 **Combo stances**: unlock Flow / Surge / Phoenix / Ascend at 10/25/50/100 combo (extra tool XP + token multiplier), shown as a hero badge
+- 🪙 **Developer relics**: 24 rarity-tiered collectibles dropped from todo sweeps / boss kills (egg buff doubles the chance), with a collection showcase
+- 📜 **Epic quest chains**: 3 multi-day storylines (Tame the Tech Debt / Legend of the Night Owl / Bug Slayer) — advance daily, reset on a missed day, finales up to +800 XP
+- 👻 **Ghost race**: your past 7 days of real data become "Past You" — dual progress bars (XP/turns), beat it for +300 XP
+- 💬 **Meme-flavored copy**: daily quests get meme variants (~60%), weekly bosses draw from a meme-name pool (Refactor Behemoth / Tech Debt Wyrm…)
 
 ### 🎮 Progression
 - ⚔️ **Turns/tools/todos/tokens → XP → level → title**: a new title every 5 levels (30+ tiers), bigger combo = bigger multipliers

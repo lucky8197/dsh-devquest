@@ -5,7 +5,7 @@
 > DevQuest 是一个 DSH 插件：你在 agent 里做的回合、工具调用、待办、输出 tokens，都会按规则换算成 XP。XP 推等级，等级出称号，成就记录你走到哪一步。装好之后不用做任何额外操作，正常干活就会自动计分。
 
 <p align="center">
-  <strong>📅 每日任务+宝箱</strong> · <strong>🗓️ 每周挑战</strong> · <strong>🐉 每周 BOSS</strong> · <strong>🎯 每日目标</strong> · <strong>🃏 职业专精</strong> · <strong>🎁 每日幸运抽奖</strong> · <strong>🛒 赛季商店</strong> · <strong>🎨 主题皮肤</strong> · <strong>🏆 58 枚成就+稀有度</strong> · <strong>🏷️ 多称号</strong> · <strong>📊 统计+荣誉墙</strong>
+  <strong>🎴 随机事件卡</strong> · <strong>🔥 连击姿态</strong> · <strong>🪙 圣物收藏</strong> · <strong>📜 史诗任务链</strong> · <strong>👻 幽灵竞速</strong> · <strong>📅 每日任务+宝箱</strong> · <strong>🗓️ 每周挑战+BOSS</strong> · <strong>🎯 每日目标</strong> · <strong>🃏 职业专精</strong> · <strong>🛒 赛季商店</strong> · <strong>🏆 58 枚成就+稀有度</strong> · <strong>🏷️ 多称号</strong> · <strong>📊 统计+荣誉墙</strong>
 </p>
 
 <p align="center">
@@ -14,7 +14,7 @@
   <a href="https://www.npmjs.com/package/dsh-devquest"><img src="https://img.shields.io/npm/v/dsh-devquest" alt="npm version"></a>
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen" alt="0 runtime dependencies">
   <a href="https://github.com/lucky8197/dsh-devquest/actions/workflows/test.yml"><img src="https://github.com/lucky8197/dsh-devquest/actions/workflows/test.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-93%20%E2%9C%93-brightgreen" alt="93 tests passing">
+  <img src="https://img.shields.io/badge/tests-111%20%E2%9C%93-brightgreen" alt="111 tests passing">
   <img src="https://img.shields.io/badge/achievements-58-gold" alt="58 achievements">
 </p>
 
@@ -32,8 +32,17 @@
 | 📝 输出 tokens | 每 10k +1 XP |
 | 💥 犯错的回合 | +2 XP（安慰奖） |
 | 💪 犯错后爬起来 | 「东山再起」成就 +100 XP |
+| 🎴 每完成 20 个回合 | 掷一次「命运骰子」：随机事件卡（增益 / 挫折 / 抉择） |
 
 ## ✨ 主要功能
+
+### 🎴 冒险扩展（v1.4.0）
+- 🎴 **随机事件卡**：每 20 回合触发——☕ 咖啡因爆发（工具 XP×2）、🧘 深度专注（tokens×1.5）、👻 幽灵 Bug（下次失败不扣连击）、🧱 技术债上门（下轮 XP 清零）、🥚 神秘彩蛋二选一、🌙 深夜抉择、🎲 命运豪赌
+- 🔥 **连击姿态**：连击 10/25/50/100 解锁心流 / 雷闪 / 凤炎 / 飞升（工具 XP 追加 + tokens 倍率），hero 区佩戴专属徽章
+- 🪙 **开发者圣物**：24 种稀有度掉落收集（全清待办 / 击败 BOSS / 彩蛋 buff 掉率×2），收藏图鉴陈列
+- 📜 **史诗任务链**：3 条跨天剧情线（征服技术债 / 夜猫传说 / Bug 猎手），每日达标推进、断档重置、终章最高 +800 XP
+- 👻 **幽灵竞速**：用你前 7 天的真实数据生成「上周的自己」，XP/回合双进度条对决，击败 +300 XP
+- 💬 **文案梗化**：每日任务梗版文案（「屠城模式：编辑/写入 20 次」）、每周 BOSS 花名池（重构巨兽 / 技术债魔龙…）
 
 ### 🎮 成长系统
 - ⚔️ **回合/工具/待办/tokens → XP → 等级 → 称号**：每 5 级一档称号（30+ 档），连击越高加成越大
